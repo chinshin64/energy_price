@@ -1,0 +1,84 @@
+{
+  "wechat": {
+    "appPath": "/Applications/WeChat.app",
+    "miniPrograms": [
+      {
+        "id": "didi-charging",
+        "name": "滴滴充电",
+        "searchKeyword": "滴滴充电",
+        "automationProfileId": "didi-charging"
+      },
+      {
+        "id": "teld",
+        "name": "特来电",
+        "searchKeyword": "特来电",
+        "automationProfileId": "teld"
+      },
+      {
+        "id": "star-charge",
+        "name": "星星充电",
+        "searchKeyword": "星星充电",
+        "automationProfileId": "star-charge"
+      },
+      {
+        "id": "ykc",
+        "name": "云快充",
+        "searchKeyword": "云快充",
+        "automationProfileId": "ykc"
+      },
+      {
+        "id": "tuanyou",
+        "name": "团油",
+        "searchKeyword": "团油",
+        "automationProfileId": "tuanyou"
+      },
+      {
+        "id": "kuaidian",
+        "name": "快电",
+        "searchKeyword": "快电",
+        "automationProfileId": "kuaidian"
+      }
+    ]
+  },
+  "automation": {
+    "scrollCount": 5,
+    "scrollInterval": 2000,
+    "screenshotEnabled": true,
+    "sessionMode": "manual-wechat-system-capture",
+    "maxPlatformsPerSession": 1,
+    "defaultCities": []
+  },
+  "scheduler": {
+    "enabled": false,
+    "defaultCron": "0 */6 * * *",
+    "maxConcurrent": 1
+  },
+  "rateLimit": {
+    "requestsPerMinute": 60,
+    "requestsPerHour": 500
+  },
+  "mobileSync": {
+    "enabled": true,
+    "authRequired": false,
+    "authToken": ""
+  },
+  "database": {
+    "path": "./data/stations.db"
+  },
+  "server": {
+    "port": 80,
+    "host": "0.0.0.0"
+  },
+  "aiAgent": {
+    "mode": "disabled",
+    "type": "openai_compatible",
+    "baseUrl": "",
+    "apiKey": "",
+    "modelId": "",
+    "timeoutMs": 60000,
+    "applyLowRiskPatches": false,
+    "saveEvents": true,
+    "temperature": 0,
+    "maxTokens": 1200
+  }
+}

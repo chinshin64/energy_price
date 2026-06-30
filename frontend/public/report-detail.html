@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>报告详情 - 证据中心</title>
+    <style>
+        :root {
+            --bg: #f7f4ef;
+            --surface: rgba(255, 255, 255, 0.9);
+            --surface-strong: #ffffff;
+            --line: rgba(31, 42, 68, 0.08);
+            --line-strong: rgba(31, 42, 68, 0.16);
+            --text: #1f2a44;
+            --muted: #7d8699;
+            --brand: #ff6a1a;
+            --brand-deep: #dd5208;
+            --brand-soft: #fff0e5;
+            --blue: #315efb;
+            --blue-soft: #eef3ff;
+            --success: #169b62;
+            --success-soft: #e6f9f0;
+            --warn: #d18b00;
+            --warn-soft: #fff8e6;
+            --danger: #d94a45;
+            --danger-soft: #fde8e7;
+            --purple: #7c3aed;
+            --purple-soft: #f3eefe;
+            --shadow-md: 0 14px 32px rgba(34, 45, 70, 0.08);
+            --shadow-lg: 0 24px 60px rgba(40, 56, 85, 0.1);
+            --radius-xl: 28px;
+            --radius-lg: 20px;
+            --radius-md: 16px;
+            --radius-sm: 12px;
+            --content-width: 1560px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            min-height: 100vh;
+            font-family: "PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left,rgba(255,175,119,.1),transparent 28%),
+                radial-gradient(circle at top right,rgba(49,94,251,.05),transparent 26%),
+                linear-gradient(180deg,#faf7f2 0%,#f5f1ea 52%,#f0ebe4 100%);
+            position: relative;
+        }
+        body::before {
+            content:"";position:fixed;inset:0;pointer-events:none;
+            background-image:
+                radial-gradient(circle,rgba(31,42,68,.035) 1px,transparent 1px),
+                linear-gradient(120deg,rgba(255,255,255,.35),transparent 55%);
+            background-size:24px 24px,100% 100%;
+            mask-image:linear-gradient(180deg,rgba(0,0,0,.75),transparent 92%);
+            opacity:.22;
+        }
+        button,input,select,textarea{font:inherit}
+        button{border:none;background:none}
+        .app-shell{position:relative;z-index:1;width:min(100%,var(--content-width));margin:0 auto;padding:18px 22px 32px}
+
+        /* Topbar */
+        .topbar{position:sticky;top:16px;z-index:20;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"brand nav";align-items:center;gap:18px 22px;padding:18px 22px;margin-bottom:22px;border:1px solid rgba(255,255,255,.72);border-radius:26px;background:rgba(255,255,255,.78);backdrop-filter:blur(18px);box-shadow:0 18px 42px rgba(32,46,77,.12)}
+        .brand{grid-area:brand;display:flex;align-items:center;gap:14px}
+        .brand-mark{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;font-size:30px;font-weight:800;color:#fff;background:linear-gradient(135deg,#ff9f5a 0%,#ff6a1a 42%,#315efb 100%);box-shadow:0 14px 28px rgba(255,106,26,.22)}
+        .brand-copy strong{display:block;font-size:30px;line-height:1;letter-spacing:.04em;white-space:nowrap}
+        .top-nav{grid-area:nav;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;overflow-x:auto;scrollbar-width:none}
+        .top-nav::-webkit-scrollbar{display:none}
+        .nav-item{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:112px;padding:12px 18px;border-radius:999px;color:#566074;cursor:pointer;transition:all .22s ease;font-size:15px;font-weight:600;text-decoration:none}
+        .nav-item:hover{background:rgba(255,106,26,.08);color:var(--brand-deep)}
+        .nav-item.active{color:var(--brand-deep);background:linear-gradient(180deg,#fff6ef 0%,#ffe6d5 100%);box-shadow:inset 0 0 0 1px rgba(255,106,26,.08)}
+
+        /* Breadcrumb */
+        .breadcrumb{display:flex;align-items:center;gap:8px;margin-bottom:18px;font-size:14px;color:var(--muted)}
+        .breadcrumb a{color:var(--brand-deep);text-decoration:none}
+        .breadcrumb a:hover{text-decoration:underline}
+        .breadcrumb .sep{color:var(--muted)}
+
+        /* Security Bar */
+        .security-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 22px;margin-bottom:22px;border-radius:var(--radius-lg);border:1px solid rgba(255,106,26,.15);background:linear-gradient(135deg,#fff8f0 0%,#fff2e6 100%);font-size:13px;color:var(--brand-deep)}
+        .security-bar .shield{font-size:18px;margin-right:8px}
+        .sanitize-toggle{display:flex;align-items:center;gap:10px;font-weight:600;color:var(--text)}
+        .toggle-switch{position:relative;width:44px;height:24px;background:#d1d5db;border-radius:999px;cursor:pointer;transition:background .22s}
+        .toggle-switch.on{background:var(--success)}
+        .toggle-switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .22s;box-shadow:0 2px 4px rgba(0,0,0,.15)}
+        .toggle-switch.on::after{transform:translateX(20px)}
+
+        /* Section Block */
+        .section-block{position:relative;margin-bottom:28px;padding:28px;border-radius:var(--radius-xl);border:1px solid rgba(255,255,255,.78);background:rgba(255,255,255,.9);box-shadow:var(--shadow-md)}
+        .section-block::before{content:"";position:absolute;top:28px;bottom:28px;left:0;width:5px;border-radius:999px}
+        .section-block[data-core="target"]::before{background:linear-gradient(180deg,#ff8d39 0%,#ff5a0a 100%);box-shadow:0 10px 20px rgba(255,106,26,.24)}
+        .section-block[data-core="resource"]::before{background:linear-gradient(180deg,#5b8cff 0%,#315efb 100%);box-shadow:0 10px 20px rgba(49,94,251,.24)}
+        .section-block[data-core="attack"]::before{background:linear-gradient(180deg,#9b6dff 0%,#7c3aed 100%);box-shadow:0 10px 20px rgba(124,58,237,.24)}
+        .section-block[data-core="appendix"]::before{background:linear-gradient(180deg,#a0aec0 0%,#718096 100%)}
+        .section-head{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+        .section-head .icon{font-size:28px}
+        .section-head h2{font-size:28px;font-weight:800;line-height:1.1}
+        .section-subtitle{font-size:13px;color:var(--muted);margin-left:auto}
+
+        /* Score Card */
+        .score-card{display:grid;grid-template-columns:auto 1fr;gap:24px;padding:24px;border-radius:var(--radius-lg);background:linear-gradient(135deg,#f9fafb 0%,#f3f4f6 100%);border:1px solid var(--line);margin-bottom:24px}
+        .score-ring{position:relative;width:120px;height:120px;display:grid;place-items:center}
+        .score-ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+        .score-ring .score-value{font-size:36px;font-weight:900;line-height:1}
+        .score-ring .score-label{font-size:12px;color:var(--muted)}
+        .score-details{display:flex;flex-direction:column;justify-content:center;gap:10px}
+        .score-summary{font-size:18px;font-weight:700;line-height:1.4}
+        .score-badges{display:flex;flex-wrap:wrap;gap:8px}
+        .score-progress-wrap{margin-top:4px}
+        .score-progress-bar{width:100%;height:10px;border-radius:999px;background:#e5e7eb;overflow:hidden}
+        .score-progress-fill{height:100%;border-radius:999px;transition:width .6s ease}
+        .score-progress-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
+
+        /* Target Info */
+        .target-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px}
+        .target-field{padding:14px 18px;border-radius:var(--radius-sm);background:#fafbfc;border:1px solid var(--line)}
+        .target-field .label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .target-field .value{font-size:14px;font-weight:600;word-break:break-all}
+        .target-field .value.muted{color:var(--muted)}
+
+        /* Tables */
+        .table-wrap{border-radius:var(--radius-lg);border:1px solid var(--line);overflow:hidden;margin-bottom:24px}
+        table{width:100%;border-collapse:collapse}
+        thead{background:linear-gradient(180deg,#fafbfc 0%,#f5f6f8 100%)}
+        th{padding:12px 16px;font-size:12px;font-weight:700;color:var(--muted);text-align:left;white-space:nowrap;border-bottom:1px solid var(--line)}
+        td{padding:12px 16px;font-size:13px;border-bottom:1px solid var(--line);vertical-align:middle}
+        tr:last-child td{border-bottom:none}
+        tr:hover td{background:rgba(255,106,26,.03)}
+        .expandable-row{cursor:pointer}
+        .expandable-row:hover td{background:rgba(255,106,26,.05)}
+
+        /* Badge */
+        .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+        .badge-passed,.badge-complete,.badge-done,.badge-success{background:#e6f9f0;color:#169b62}
+        .badge-partial{background:#fff8e6;color:#d18b00}
+        .badge-failed,.badge-missing{background:#fde8e7;color:#d94a45}
+        .badge-blocked{background:#f0f1f3;color:#6b7280}
+        .badge-pending,.badge-draft,.badge-in-progress{background:#eef3ff;color:#315efb}
+        .badge-none,.badge-skipped{background:#f5f5f5;color:#9ca3af}
+        .badge-high,.badge-critical{background:#fde8e7;color:#d94a45}
+        .badge-medium{background:#fff8e6;color:#d18b00}
+        .badge-low{background:#e6f9f0;color:#169b62}
+        .badge-valid{background:#e6f9f0;color:#169b62}
+        .badge-expired,.badge-mismatch{background:#fde8e7;color:#d94a45}
+
+        /* Metric Grid */
+        .metric-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:24px}
+        .metric-card{padding:18px;border-radius:var(--radius-md);border:1px solid var(--line);background:#fafbfc;text-align:center}
+        .metric-card .metric-value{font-size:28px;font-weight:900;line-height:1.2}
+        .metric-card .metric-value .unit{font-size:14px;font-weight:600;color:var(--muted)}
+        .metric-card .metric-label{font-size:12px;font-weight:600;color:var(--muted);margin-top:4px}
+
+        /* Dual Column Cards */
+        .dual-cards{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:24px}
+        .info-card{padding:20px;border-radius:var(--radius-md);border:1px solid var(--line);background:#fafbfc}
+        .info-card .card-title{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+        .info-card .kv-list{display:grid;gap:8px}
+        .kv-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}
+        .kv-row:last-child{border-bottom:none}
+        .kv-row .kv-key{color:var(--muted);font-weight:600}
+        .kv-row .kv-val{font-weight:600;text-align:right;word-break:break-all}
+
+        /* Attack Chain Flow */
+        .chain-flow{display:flex;align-items:center;gap:0;padding:24px 16px;overflow-x:auto;scrollbar-width:none;margin-bottom:24px}
+        .chain-flow::-webkit-scrollbar{display:none}
+        .chain-node{flex:0 0 auto;min-width:140px;padding:14px 18px;border-radius:var(--radius-md);border:2px solid var(--line);background:#fff;text-align:center;cursor:pointer;transition:all .22s ease;position:relative}
+        .chain-node:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+        .chain-node.phase-entry{border-color:var(--blue);background:var(--blue-soft)}
+        .chain-node.phase-auth{border-color:var(--brand);background:var(--brand-soft)}
+        .chain-node.phase-data-access{border-color:var(--purple);background:var(--purple-soft)}
+        .chain-node.phase-evidence-fix{border-color:var(--success);background:var(--success-soft)}
+        .chain-node.step-failed{border-color:var(--danger)!important;box-shadow:0 0 0 3px rgba(217,74,69,.15)}
+        .chain-node .step-id{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+        .chain-node.phase-entry .step-id{color:var(--blue)}
+        .chain-node.phase-auth .step-id{color:var(--brand)}
+        .chain-node.phase-data-access .step-id{color:var(--purple)}
+        .chain-node.phase-evidence-fix .step-id{color:var(--success)}
+        .chain-node .step-title{font-size:13px;font-weight:700;margin-bottom:6px}
+        .chain-node .step-status-badge{font-size:11px}
+        .chain-arrow{flex:0 0 auto;display:flex;align-items:center;padding:0 6px;color:var(--muted);font-size:20px}
+        .chain-arrow svg{width:28px;height:28px;stroke:var(--muted);stroke-width:2;fill:none}
+
+        /* Step Detail Cards */
+        .step-card{padding:20px 24px;border-radius:var(--radius-md);border:1px solid var(--line);background:#fff;margin-bottom:14px;border-left:4px solid var(--line);transition:box-shadow .22s ease}
+        .step-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06)}
+        .step-card.phase-entry{border-left-color:var(--blue)}
+        .step-card.phase-auth{border-left-color:var(--brand)}
+        .step-card.phase-data-access{border-left-color:var(--purple)}
+        .step-card.phase-evidence-fix{border-left-color:var(--success)}
+        .step-card.step-failed{border-left-color:var(--danger)}
+        .step-card-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+        .step-card-header .step-id-tag{font-size:12px;font-weight:800;padding:2px 8px;border-radius:6px;color:#fff}
+        .step-card.phase-entry .step-id-tag{background:var(--blue)}
+        .step-card.phase-auth .step-id-tag{background:var(--brand)}
+        .step-card.phase-data-access .step-id-tag{background:var(--purple)}
+        .step-card.phase-evidence-fix .step-id-tag{background:var(--success)}
+        .step-card-header .step-title-text{font-size:16px;font-weight:700}
+        .step-card-body{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;font-size:13px}
+        .step-field .step-field-label{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:2px}
+        .step-field .step-field-value{line-height:1.6}
+        .step-field.full-width{grid-column:1/-1}
+        .evidence-ref{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:6px;font-size:12px;font-weight:600;color:var(--blue);background:var(--blue-soft);cursor:pointer;text-decoration:none;transition:background .18s}
+        .evidence-ref:hover{background:#dce5ff}
+        .attack-step-ref{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;transition:background .18s}
+        .attack-step-ref.phase-entry{color:var(--blue);background:var(--blue-soft)}
+        .attack-step-ref.phase-auth{color:var(--brand);background:var(--brand-soft)}
+        .attack-step-ref.phase-data-access{color:var(--purple);background:var(--purple-soft)}
+        .attack-step-ref.phase-evidence-fix{color:var(--success);background:var(--success-soft)}
+        .attack-step-ref:hover{opacity:.8}
+
+        /* Comparison Table */
+        .comparison-highlight{background:rgba(255,106,26,.04)}
+        .comparison-muted{color:var(--muted);background:#fafbfc}
+
+        /* Collapsible */
+        .collapsible-header{display:flex;align-items:center;gap:10px;padding:14px 18px;border-radius:var(--radius-md);background:#f5f6f8;cursor:pointer;font-size:15px;font-weight:700;margin-bottom:10px;transition:background .18s;user-select:none}
+        .collapsible-header:hover{background:#ebedf0}
+        .collapsible-header .chevron{transition:transform .22s ease;font-size:12px;color:var(--muted)}
+        .collapsible-header.open .chevron{transform:rotate(90deg)}
+        .collapsible-body{display:none;padding:0 4px 14px}
+        .collapsible-body.open{display:block}
+        .sub-collapsible-header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-sm);background:#fafbfc;cursor:pointer;font-size:13px;font-weight:700;margin-bottom:8px;margin-left:16px;transition:background .18s}
+        .sub-collapsible-header:hover{background:#f0f1f3}
+        .sub-collapsible-header .chevron{transition:transform .22s ease;font-size:11px;color:var(--muted)}
+        .sub-collapsible-header.open .chevron{transform:rotate(90deg)}
+        .sub-collapsible-body{display:none;padding:0 4px 10px 16px}
+        .sub-collapsible-body.open{display:block}
+
+        /* Finding Card */
+        .finding-card{padding:18px;border-radius:var(--radius-md);border:1px solid var(--line);background:#fff;margin-bottom:12px}
+        .finding-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+        .finding-id{font-size:12px;font-weight:800;color:var(--muted)}
+        .finding-title{font-size:14px;font-weight:700;flex:1;min-width:120px}
+        .finding-body{font-size:13px;line-height:1.7;color:#555}
+        .finding-body .finding-field{margin-bottom:6px}
+        .finding-body .finding-field-label{font-weight:700;color:var(--text)}
+
+        /* Bottom Action Bar */
+        .bottom-bar{position:sticky;bottom:16px;z-index:20;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:16px 22px;margin-top:28px;border-radius:22px;border:1px solid rgba(255,255,255,.78);background:rgba(255,255,255,.85);backdrop-filter:blur(18px);box-shadow:var(--shadow-lg)}
+        .btn{display:inline-flex;align-items:center;justify-content:center;min-width:80px;height:40px;padding:0 16px;border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;transition:transform .18s ease,box-shadow .18s ease}
+        .btn:hover{transform:translateY(-1px)}
+        .btn:disabled{opacity:.65;cursor:not-allowed;transform:none}
+        .btn-primary{color:#fff;background:linear-gradient(135deg,#ff8938 0%,#ff5a0a 100%);box-shadow:0 10px 24px rgba(255,106,26,.22)}
+        .btn-secondary{color:var(--text);border:1px solid rgba(31,42,68,.08);background:rgba(248,250,252,.98)}
+        .btn-blue{color:#fff;background:linear-gradient(135deg,#5b8cff 0%,#315efb 100%);box-shadow:0 10px 24px rgba(49,94,251,.18)}
+
+        /* Toast */
+        .toast-container{position:fixed;top:24px;right:24px;z-index:200;display:flex;flex-direction:column;gap:8px}
+        .toast{padding:12px 20px;border-radius:14px;background:#fff;box-shadow:var(--shadow-md);font-size:13px;font-weight:600;animation:slideIn .3s ease;display:flex;align-items:center;gap:8px}
+        .toast.success{border-left:4px solid var(--success)}
+        .toast.error{border-left:4px solid var(--danger)}
+        .toast.info{border-left:4px solid var(--blue)}
+        @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+        /* Loading */
+        .loading-state{padding:80px 20px;text-align:center}
+        .loading-spinner{display:inline-block;width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .loading-state p{margin-top:16px;font-size:14px;color:var(--muted)}
+
+        /* Misc */
+        .empty-hint{padding:40px 20px;text-align:center;color:var(--muted);font-size:14px}
+        .status-dist{display:flex;flex-wrap:wrap;gap:8px}
+        .status-chip{padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;background:#f5f6f8}
+        .status-chip.s2xx{background:#e6f9f0;color:#169b62}
+        .status-chip.s4xx{background:#fff8e6;color:#d18b00}
+        .status-chip.s5xx{background:#fde8e7;color:#d94a45}
+
+        /* Responsive */
+        @media(max-width:900px){
+            .topbar{grid-template-columns:1fr;grid-template-areas:"brand" "nav"}
+            .top-nav{justify-content:flex-start}
+            .score-card{grid-template-columns:1fr}
+            .dual-cards{grid-template-columns:1fr}
+            .step-card-body{grid-template-columns:1fr}
+            .metric-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+            .target-grid{grid-template-columns:1fr}
+            .section-block{padding:18px 14px}
+            td,th{padding:10px 8px;font-size:12px}
+        }
+    </style>
+</head>
+<body>
+<div class="app-shell">
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-mark">蓝</div>
+            <div class="brand-copy"><strong>风控蓝军测试系统</strong></div>
+        </div>
+        <nav class="top-nav" id="sectionNav">
+            <a class="nav-item active" href="#section-target" data-section="section-target">🎯 目标完成</a>
+            <a class="nav-item" href="#section-resource" data-section="section-resource">🔧 使用资源</a>
+            <a class="nav-item" href="#section-attack" data-section="section-attack">🗡️ 攻击路径</a>
+            <a class="nav-item" href="#section-problem" data-section="section-problem">❗ 问题原因</a>
+            <a class="nav-item" href="#section-appendix" data-section="section-appendix">📎 附录</a>
+        </nav>
+    </header>
+
+    <div class="breadcrumb">
+        <a href="/">证据中心</a><span class="sep">›</span>
+        <a href="/reports.html">报告列表</a><span class="sep">›</span>
+        <span id="breadcrumbTitle">报告详情</span>
+    </div>
+
+    <div class="security-bar">
+        <div><span class="shield">🛡️</span><strong>安全声明</strong> — 本报告为蓝军测试内部文档，内容经过脱敏处理。接口地址、参数结构和认证字段已遮蔽。</div>
+        <div class="sanitize-toggle"><span>脱敏模式</span><div class="toggle-switch on" id="sanitizeToggle" onclick="toggleSanitize()"></div></div>
+    </div>
+
+    <div id="loadingState" class="loading-state"><div class="loading-spinner"></div><p>加载报告数据...</p></div>
+
+    <div id="mainContent" style="display:none">
+
+        <!-- 🎯 目标完成情况 -->
+        <section class="section-block" data-core="target" id="section-target">
+            <div class="section-head"><span class="icon">🎯</span><h2>目标完成情况</h2></div>
+            <div id="scoreCardContainer"></div>
+            <div id="targetInfoContainer"></div>
+            <div id="subTargetContainer"></div>
+            <div id="metricsContainer"></div>
+        </section>
+
+        <!-- 🔧 使用资源 -->
+        <section class="section-block" data-core="resource" id="section-resource">
+            <div class="section-head"><span class="icon">🔧</span><h2>使用资源</h2></div>
+            <div id="methodsContainer"></div>
+            <div id="infraSignaturesContainer"></div>
+            <div id="resourceStatsContainer"></div>
+        </section>
+
+        <!-- 🗡️ 攻击路径 -->
+        <section class="section-block" data-core="attack" id="section-attack">
+            <div class="section-head"><span class="icon">🗡️</span><h2>攻击路径</h2></div>
+            <div id="chainSummaryContainer"></div>
+            <div id="chainFlowContainer"></div>
+            <div id="stepCardsContainer"></div>
+            <div id="pathDiffContainer"></div>
+        </section>
+
+        <!-- ❗ 问题原因 -->
+        <section class="section-block" data-core="problem" id="section-problem">
+            <div class="section-head"><span class="icon">❗</span><h2>问题原因</h2></div>
+            <div id="operationProblemContainer"></div>
+        </section>
+
+        <!-- 📎 附录 -->
+        <section class="section-block" data-core="appendix" id="section-appendix">
+            <div class="section-head"><span class="icon">📎</span><h2>附录</h2><span class="section-subtitle">按需查看</span></div>
+            <div id="findingsContainer"></div>
+            <div id="recommendationsContainer"></div>
+            <div id="retestContainer"></div>
+            <div id="evidenceMatrixContainer"></div>
+            <div id="outboundEvidenceContainer"></div>
+            <div id="rawMaterialsContainer"></div>
+        </section>
+
+        <div class="bottom-bar">
+            <button class="btn btn-secondary" onclick="downloadReport('markdown')">📄 下载 Markdown</button>
+            <button class="btn btn-secondary" onclick="downloadReport('json')">📦 下载 JSON</button>
+            <button class="btn btn-primary" onclick="createRetest()">🔄 创建复测</button>
+        </div>
+    </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+/* ── Constants ── */
+var STATUS_MAP={passed:{label:'通过',cls:'badge-passed'},complete:{label:'完整',cls:'badge-complete'},done:{label:'完成',cls:'badge-done'},success:{label:'成功',cls:'badge-success'},partial:{label:'部分',cls:'badge-partial'},failed:{label:'失败',cls:'badge-failed'},missing:{label:'缺失',cls:'badge-missing'},blocked:{label:'阻塞',cls:'badge-blocked'},pending:{label:'待处理',cls:'badge-pending'},draft:{label:'草稿',cls:'badge-draft'},'in-progress':{label:'进行中',cls:'badge-in-progress'},none:{label:'无',cls:'badge-none'},skipped:{label:'跳过',cls:'badge-skipped'},unknown:{label:'未知',cls:'badge-none'}};
+var RISK_MAP={critical:{label:'严重',cls:'badge-critical'},high:{label:'高风险',cls:'badge-high'},medium:{label:'中风险',cls:'badge-medium'},low:{label:'低风险',cls:'badge-low'},none:{label:'无风险',cls:'badge-none'}};
+var PHASE_MAP={entry:{label:'入口',cls:'phase-entry',color:'#315efb'},auth:{label:'认证',cls:'phase-auth',color:'#ff6a1a'},'data-access':{label:'数据访问',cls:'phase-data-access',color:'#7c3aed'},'evidence-fix':{label:'证据固定',cls:'phase-evidence-fix',color:'#169b62'}};
+var PLATFORM_MAP={'didi-charging':'小桔充电','didi-fuel':'小桔加油','didi-energy':'小桔能源'};
+var METHOD_LABEL_MAP={'page-automation':'页面自动化识别','background-automation':'后台自动化采集','traffic-template':'流量自动化'};
+var INTERFACE_DISPLAY_MAP={stationList:'列表接口',getoneinfo:'详情接口',homepage:'首页接口',search:'搜索接口'};
+var SIGNATURE_STATUS_MAP={valid:{label:'有效',cls:'badge-valid'},expired:{label:'已过期',cls:'badge-expired'},mismatch:{label:'不匹配',cls:'badge-mismatch'},missing:{label:'缺失',cls:'badge-missing'}};
+var PROXY_TYPE_MAP={direct:'直连','default':'默认代理',custom:'自定义代理'};
+
+/* ── Helpers ── */
+function badge(status,map){var m=map||STATUS_MAP;var info=m[status]||{label:status||'-',cls:'badge-none'};return '<span class="badge '+info.cls+'">'+info.label+'</span>';}
+function escHtml(s){if(s==null)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function formatTime(ts){if(!ts)return '-';var d=new Date(ts);var p=function(n){return String(n).padStart(2,'0')};return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}
+function formatTimeShort(ts){if(!ts)return '-';var d=new Date(ts);var p=function(n){return String(n).padStart(2,'0')};return p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}
+function sanitizeInterfaceName(name){if(!name)return '-';return INTERFACE_DISPLAY_MAP[name]||'接口-'+name;}
+function scoreColor(s){if(s<=40)return 'var(--danger)';if(s<=60)return 'var(--warn)';if(s<=80)return 'var(--blue)';return 'var(--success)';}
+function scoreLabel(s){if(s<=40)return '较差';if(s<=60)return '一般';if(s<=80)return '良好';return '优秀';}
+function showToast(msg,type){var c=document.getElementById('toastContainer');var el=document.createElement('div');el.className='toast '+(type||'info');el.textContent=msg;c.appendChild(el);setTimeout(function(){el.remove();},4000);}
+
+/* ── State ── */
+var reportId=new URLSearchParams(location.search).get('id');
+var isSanitize=new URLSearchParams(location.search).get('sanitize')!=='false';
+var reportData=null;
+
+/* ── Fetch ── */
+async function loadReport(){
+    if(!reportId){document.getElementById('loadingState').innerHTML='<div class="empty-hint">缺少报告ID参数</div>';return;}
+    try{
+        var res=await fetch('/api/blue-team/reports/'+encodeURIComponent(reportId)+'?sanitize='+isSanitize);
+        var json=await res.json();
+        if(!json.success){document.getElementById('loadingState').innerHTML='<div class="empty-hint">报告详情加载失败</div>';return;}
+        reportData=json.data||json;
+        document.getElementById('loadingState').style.display='none';
+        document.getElementById('mainContent').style.display='';
+        renderReport(reportData);
+    }catch(err){
+        document.getElementById('loadingState').innerHTML='<div class="empty-hint">报告详情加载出错</div>';
+    }
+}
+
+/* ── Render Entry ── */
+function renderReport(r){
+    document.getElementById('breadcrumbTitle').textContent=r.title||r.reportId||'报告详情';
+    document.title=(r.title||'报告详情')+' - 证据中心';
+    if(!isSanitize)document.getElementById('sanitizeToggle').classList.remove('on');
+    renderScoreCard(r);renderTargetInfo(r);renderSubTargets(r);renderMetrics(r);
+    renderMethods(r);renderInfraSignatures(r);renderResourceStats(r);
+    renderChainSummary(r);renderChainFlow(r);renderStepCards(r);renderPathDiff(r);
+    renderOperationProblem(r);
+    renderFindings(r);renderRecommendations(r);renderRetest(r);renderEvidenceMatrix(r);
+    renderOutboundEvidence(r);renderRawMaterials(r);
+    initNavigationObserver();
+}
+
+/* ── 🎯 Score Card ── */
+function renderScoreCard(r){
+    var c=r.completion||{};var score=c.score||0;var overall=c.overall||'unknown';
+    var riskLevel=c.riskLevel||'none';var eviComp=c.evidenceCompleteness||'unknown';
+    var summary=c.summary||c.conclusion||'-';
+    var circumference=2*Math.PI*50;var offset=circumference-(score/100)*circumference;
+    var color=scoreColor(score);
+    var h='<div class="score-card"><div class="score-ring">';
+    h+='<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" stroke="#e5e7eb" stroke-width="8" fill="none"/>';
+    h+='<circle cx="60" cy="60" r="50" stroke="'+color+'" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="'+circumference+'" stroke-dashoffset="'+offset+'"/></svg>';
+    h+='<div><div class="score-value" style="color:'+color+'">'+score+'</div><div class="score-label">/ 100</div></div></div>';
+    h+='<div class="score-details"><div class="score-summary">'+escHtml(summary)+'</div>';
+    h+='<div class="score-badges">'+badge(overall)+badge(riskLevel,RISK_MAP)+badge(eviComp);
+    if(r.retest&&r.retest.status)h+=badge(r.retest.status);
+    if(score>0)h+='<span class="badge" style="background:'+(score<=40?'var(--danger-soft)':score<=60?'var(--warn-soft)':score<=80?'var(--blue-soft)':'var(--success-soft)')+';color:'+color+'">'+scoreLabel(score)+'</span>';
+    h+='</div>';
+    h+='<div class="score-progress-wrap"><div class="score-progress-bar"><div class="score-progress-fill" style="width:'+score+'%;background:'+color+'"></div></div>';
+    h+='<div class="score-progress-labels"><span>0</span><span>40</span><span>60</span><span>80</span><span>100</span></div></div>';
+    if(c.conclusion&&c.conclusion!==c.summary)h+='<div style="font-size:13px;color:var(--muted);line-height:1.6;margin-top:6px">'+escHtml(c.conclusion)+'</div>';
+    h+='</div></div>';
+    document.getElementById('scoreCardContainer').innerHTML=h;
+}
+
+/* ── 🎯 Target Info ── */
+function renderTargetInfo(r){
+    var t=r.target||{};var fields=[];
+    if(t.objective)fields.push({label:'测试目标',value:t.objective});
+    if(t.platform)fields.push({label:'目标平台',value:PLATFORM_MAP[t.platform]||t.platform});
+    if(t.businessLine)fields.push({label:'业务线',value:t.businessLine});
+    if(t.cities&&t.cities.length)fields.push({label:'测试城市',value:t.cities.join('、')});
+    if(t.scope)fields.push({label:'目标范围',value:t.scope});
+    if(t.radiusKm)fields.push({label:'搜索半径',value:t.radiusKm+' km'});
+    if(t.assets&&t.assets.length){
+        var av=isSanitize?t.assets.map(function(a){return sanitizeInterfaceName(a)}).join('、'):t.assets.join('、');
+        fields.push({label:'资产范围',value:av});
+    }
+    if(!fields.length){document.getElementById('targetInfoContainer').innerHTML='';return;}
+    var h='<div class="target-grid">';
+    fields.forEach(function(f){h+='<div class="target-field"><div class="label">'+escHtml(f.label)+'</div><div class="value">'+escHtml(f.value)+'</div></div>';});
+    h+='</div>';
+    document.getElementById('targetInfoContainer').innerHTML=h;
+}
+
+/* ── 🎯 Sub-Target Table ── */
+function renderSubTargets(r){
+    var targets=r.targets||[];
+    if(!targets.length){document.getElementById('subTargetContainer').innerHTML='';return;}
+    var h='<div class="table-wrap"><table><thead><tr><th>城市</th><th>状态</th><th>风险</th><th>请求数</th><th>成功</th><th>失败</th><th>错配</th></tr></thead><tbody>';
+    targets.forEach(function(t,i){
+        var m=t.metrics||{};
+        var hasExpand=t.analysis||(t.targetLocation&&(t.targetLocation.lat||t.targetLocation.lng))||(t.landmarks&&t.landmarks.length);
+        h+='<tr class="expandable-row" onclick="toggleSubTarget('+i+')">';
+        h+='<td style="font-weight:600">'+escHtml(t.city||'-')+'</td>';
+        h+='<td>'+badge(t.status)+'</td>';
+        h+='<td>'+badge(t.riskLevel||t.risk,RISK_MAP)+'</td>';
+        h+='<td>'+(m.requests||0)+'</td><td>'+(m.success||0)+'</td><td>'+(m.failed||0)+'</td><td>'+(m.cityMismatch||0)+'</td>';
+        h+='</tr>';
+        if(hasExpand){
+            h+='<tr id="subTargetExpand'+i+'" style="display:none"><td colspan="7"><div style="padding:14px 16px;background:#fafbfc;font-size:13px;color:var(--muted);line-height:1.7">';
+            if(t.analysis)h+='<div style="margin-bottom:8px"><strong>分析：</strong>'+escHtml(t.analysis)+'</div>';
+            if(t.targetLocation&&(t.targetLocation.lat||t.targetLocation.lng)){
+                var lat=t.targetLocation.lat,lng=t.targetLocation.lng;
+                if(isSanitize&&lat)lat=Number(lat).toFixed(2)+'xx';
+                if(isSanitize&&lng)lng=Number(lng).toFixed(2)+'xx';
+                h+='<div style="margin-bottom:8px"><strong>地标坐标：</strong>'+lat+', '+lng+'</div>';
+            }
+            if(t.landmarks&&t.landmarks.length)h+='<div><strong>地标：</strong>'+escHtml(t.landmarks.join('、'))+'</div>';
+            h+='</div></td></tr>';
+        }
+    });
+    h+='</tbody></table></div>';
+    document.getElementById('subTargetContainer').innerHTML=h;
+}
+function toggleSubTarget(i){var el=document.getElementById('subTargetExpand'+i);if(el)el.style.display=el.style.display==='none'?'':'none';}
+
+/* ── 🎯 Metrics Dashboard ── */
+function renderMetrics(r){
+    var m=r.metrics||{};
+    if(!m.stationCount&&!m.distinctCount&&!m.addressCompleteRate&&!m.priceCompleteRate&&!m.cityMatchRate&&!m.dataFreshness){document.getElementById('metricsContainer').innerHTML='';return;}
+    var h='<div class="metric-grid">';
+    if(m.stationCount!=null)h+='<div class="metric-card"><div class="metric-value">'+m.stationCount+'</div><div class="metric-label">场站入库数</div></div>';
+    if(m.distinctCount!=null)h+='<div class="metric-card"><div class="metric-value">'+m.distinctCount+'</div><div class="metric-label">去重场站数</div></div>';
+    if(m.addressCompleteRate!=null)h+='<div class="metric-card"><div class="metric-value">'+m.addressCompleteRate+'<span class="unit">%</span></div><div class="metric-label">地址完整率</div></div>';
+    if(m.priceCompleteRate!=null)h+='<div class="metric-card"><div class="metric-value">'+m.priceCompleteRate+'<span class="unit">%</span></div><div class="metric-label">价格完整率</div></div>';
+    if(m.cityMatchRate!=null)h+='<div class="metric-card"><div class="metric-value">'+m.cityMatchRate+'<span class="unit">%</span></div><div class="metric-label">城市匹配率</div></div>';
+    if(m.dataFreshness)h+='<div class="metric-card"><div class="metric-value" style="font-size:18px">'+formatTimeShort(m.dataFreshness)+'</div><div class="metric-label">数据时效性</div></div>';
+    h+='</div>';
+    document.getElementById('metricsContainer').innerHTML=h;
+}
+
+/* ── 🔧 Methods Table ── */
+function renderMethods(r){
+    var methods=r.methods||[];
+    if(!methods.length){document.getElementById('methodsContainer').innerHTML='';return;}
+    var h='<div class="table-wrap"><table><thead><tr><th>方式</th><th>状态</th><th>工作原理</th><th>证据引用</th></tr></thead><tbody>';
+    methods.forEach(function(m){
+        var name=METHOD_LABEL_MAP[m.type]||m.name||'-';
+        var refs=(m.evidenceRefs||[]).map(function(ref){return isSanitize?sanitizeInterfaceName(ref):ref}).join('、')||'-';
+        h+='<tr><td style="font-weight:600">'+escHtml(name)+'</td><td>'+badge(m.status)+'</td><td style="max-width:400px">'+escHtml(m.principle||'-')+'</td><td>'+escHtml(refs)+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    document.getElementById('methodsContainer').innerHTML=h;
+}
+
+/* ── 🔧 Infra + Signatures ── */
+function renderInfraSignatures(r){
+    var infra=r.infra||{};var sigs=r.signatures||{};
+    var hasInfra=infra.executor||infra.proxy||infra.recorder||infra.aiSupervisor;
+    var hasSigs=sigs.templateId||sigs.templateStatus||sigs.authParams||sigs.wsgsigStatus;
+    if(!hasInfra&&!hasSigs){document.getElementById('infraSignaturesContainer').innerHTML='';return;}
+    var h='<div class="dual-cards">';
+    // Left: Infra
+    h+='<div class="info-card"><div class="card-title">⛓️ 工具链 & 基础设施</div><div class="kv-list">';
+    if(infra.executor){
+        h+='<div class="kv-row"><span class="kv-key">执行者</span><span class="kv-val">'+escHtml(infra.executor.name||'-')+'</span></div>';
+        if(infra.executor.node){var nd=infra.executor.node.replace(/(\d+\.\d+)\.\d+\.\d+/,'$1.x.x');h+='<div class="kv-row"><span class="kv-key">执行节点</span><span class="kv-val">'+escHtml(nd)+'</span></div>';}
+    }
+    if(infra.proxy){h+='<div class="kv-row"><span class="kv-key">代理类型</span><span class="kv-val">'+escHtml(PROXY_TYPE_MAP[infra.proxy.type]||infra.proxy.type||'-')+'</span></div>';if(infra.proxy.address)h+='<div class="kv-row"><span class="kv-key">代理地址</span><span class="kv-val">已配置</span></div>';else h+='<div class="kv-row"><span class="kv-key">代理地址</span><span class="kv-val">未配置</span></div>';}
+    if(infra.recorder)h+='<div class="kv-row"><span class="kv-key">录包服务</span><span class="kv-val">'+(infra.recorder.enabled?'✅ 已启用':'❌ 未启用')+'</span></div>';
+    if(infra.aiSupervisor)h+='<div class="kv-row"><span class="kv-key">AI监督</span><span class="kv-val">'+(infra.aiSupervisor.enabled?'✅ 已启用':'❌ 未启用')+'</span></div>';
+    h+='</div></div>';
+    // Right: Signatures
+    h+='<div class="info-card"><div class="card-title">🔑 签名 & 模板资源</div><div class="kv-list">';
+    if(sigs.templateId)h+='<div class="kv-row"><span class="kv-key">签名模板</span><span class="kv-val">已配置</span></div>';
+    if(sigs.templateStatus)h+='<div class="kv-row"><span class="kv-key">模板状态</span><span class="kv-val">'+badge(sigs.templateStatus,SIGNATURE_STATUS_MAP)+'</span></div>';
+    if(sigs.authParams){var ap=sigs.authParams;var ad=(ap.count||0)+'个';if(ap.hasAuth)ad+='（含认证参数）';h+='<div class="kv-row"><span class="kv-key">认证参数</span><span class="kv-val">'+escHtml(ad)+'</span></div>';}
+    if(sigs.wsgsigStatus)h+='<div class="kv-row"><span class="kv-key">WSGSIG状态</span><span class="kv-val">'+badge(sigs.wsgsigStatus,SIGNATURE_STATUS_MAP)+'</span></div>';
+    h+='</div></div></div>';
+    document.getElementById('infraSignaturesContainer').innerHTML=h;
+}
+
+/* ── 🔧 Resource Stats ── */
+function renderResourceStats(r){
+    var rs=r.resourceStats||{};
+    if(!rs.duration&&!rs.totalRequests&&!rs.evidenceFileCount){document.getElementById('resourceStatsContainer').innerHTML='';return;}
+    var h='<div class="metric-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:18px">';
+    if(rs.duration)h+='<div class="metric-card"><div class="metric-value" style="font-size:22px">'+escHtml(rs.duration)+'</div><div class="metric-label">测试耗时</div></div>';
+    if(rs.totalRequests!=null)h+='<div class="metric-card"><div class="metric-value">'+rs.totalRequests+'</div><div class="metric-label">总请求数</div></div>';
+    if(rs.successRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="color:var(--success)">'+rs.successRequests+'</div><div class="metric-label">成功请求</div></div>';
+    if(rs.failedRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="color:var(--danger)">'+rs.failedRequests+'</div><div class="metric-label">失败请求</div></div>';
+    if(rs.evidenceFileCount!=null)h+='<div class="metric-card"><div class="metric-value">'+rs.evidenceFileCount+'</div><div class="metric-label">证据文件数</div></div>';
+    h+='</div>';
+    if(rs.statusCodeDistribution&&Object.keys(rs.statusCodeDistribution).length){
+        var sc2xx=0,scTotal=0;Object.keys(rs.statusCodeDistribution).forEach(function(c){var v=rs.statusCodeDistribution[c];scTotal+=v;if(Number(c)<300)sc2xx+=v;});
+        var scPct=scTotal?Math.round(sc2xx/scTotal*100):0;
+        h+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--muted)">请求成功率</div><div class="status-dist"><span class="status-chip s2xx" style="font-size:14px;font-weight:600">'+scPct+'%</span></div></div>';
+    }
+    if(rs.proxyDistribution&&Object.keys(rs.proxyDistribution).length){
+        h+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--muted)">代理出口分布</div><div class="status-dist">';
+        Object.keys(rs.proxyDistribution).forEach(function(k){h+='<span class="status-chip">'+escHtml(PROXY_TYPE_MAP[k]||k)+': '+rs.proxyDistribution[k]+'</span>';});
+        h+='</div></div>';
+    }
+    if(rs.evidenceFileHashes&&rs.evidenceFileHashes.length){
+        h+='<div style="font-size:13px;color:var(--muted);padding:8px 0">✅ 文件完整性已校验（'+rs.evidenceFileHashes.length+' 个文件）</div>';
+    }
+    document.getElementById('resourceStatsContainer').innerHTML=h;
+}
+
+/* ── 🗡️ Chain Summary ── */
+function renderChainSummary(r){
+    var ac=r.attackChain||{};
+    if(!ac.summary&&(!ac.steps||!ac.steps.length)){document.getElementById('chainSummaryContainer').innerHTML='<div class="empty-hint">旧版报告未记录攻击路径</div>';return;}
+    var h='';
+    if(ac.summary)h+='<div style="padding:14px 18px;border-radius:var(--radius-md);background:var(--purple-soft);margin-bottom:18px;font-size:14px;font-weight:600;color:var(--purple)">'+escHtml(ac.summary)+'</div>';
+    document.getElementById('chainSummaryContainer').innerHTML=h;
+}
+
+/* ── 🗡️ Chain Flow Diagram ── */
+function renderChainFlow(r){
+    var ac=r.attackChain||{};var steps=ac.steps||[];
+    if(!steps.length){document.getElementById('chainFlowContainer').innerHTML='';return;}
+    var h='<div class="chain-flow">';
+    steps.forEach(function(step,i){
+        var phase=PHASE_MAP[step.phase]||{cls:'',color:'#999'};
+        var statusCls=step.status==='failed'?' step-failed':'';
+        h+='<div class="chain-node '+phase.cls+statusCls+'" onclick="scrollToStep(\''+step.id+'\')" title="点击查看详情">';
+        h+='<div class="step-title">'+escHtml(step.title)+'</div><div class="step-status-badge">'+badge(step.status)+'</div></div>';
+        if(i<steps.length-1)h+='<div class="chain-arrow"><svg viewBox="0 0 28 28"><path d="M4 14 L20 14 M15 9 L20 14 L15 19"/></svg></div>';
+    });
+    h+='</div>';
+    document.getElementById('chainFlowContainer').innerHTML=h;
+}
+
+function scrollToStep(stepId){
+    var el=document.getElementById('step-'+stepId);
+    if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.boxShadow='0 0 0 3px rgba(124,58,237,.3)';setTimeout(function(){el.style.boxShadow='';},2000);}
+}
+
+/* ── 🗡️ Step Detail Cards ── */
+function renderStepCards(r){
+    var ac=r.attackChain||{};var steps=ac.steps||[];
+    if(!steps.length){document.getElementById('stepCardsContainer').innerHTML='';return;}
+    var h='';
+    steps.forEach(function(step){
+        var phase=PHASE_MAP[step.phase]||{cls:'',label:step.phase};
+        var statusCls=step.status==='failed'?' step-failed':'';
+        h+='<div class="step-card '+phase.cls+statusCls+'" id="step-'+step.id+'">';
+        h+='<div class="step-card-header"><span class="step-title-text">'+escHtml(step.title)+'</span>'+badge(step.status)+'<span class="badge" style="background:var(--purple-soft);color:var(--purple)">'+phase.label+'</span></div>';
+        h+='<div class="step-card-body">';
+        if(step.description)h+='<div class="step-field full-width"><div class="step-field-label">操作描述</div><div class="step-field-value">'+escHtml(step.description)+'</div></div>';
+        if(step.result)h+='<div class="step-field full-width"><div class="step-field-label">操作结果</div><div class="step-field-value">'+escHtml(step.result)+'</div></div>';
+        if(step.evidenceRefs&&step.evidenceRefs.length){
+            h+='<div class="step-field full-width"><div class="step-field-label">证据引用</div><div class="step-field-value">';
+            step.evidenceRefs.forEach(function(ref){h+='<a class="evidence-ref" href="#evidence-matrix" onclick="scrollToEvidenceMatrix(event)">📎 '+escHtml(isSanitize?sanitizeInterfaceName(ref):ref)+'</a> ';});
+            h+='</div></div>';
+        }
+        if(step.duration)h+='<div class="step-field"><div class="step-field-label">耗时</div><div class="step-field-value">'+escHtml(step.duration)+'</div></div>';
+        if(step.toolUsed)h+='<div class="step-field"><div class="step-field-label">使用工具</div><div class="step-field-value">自动化工具</div></div>';
+        h+='</div></div>';
+    });
+    document.getElementById('stepCardsContainer').innerHTML=h;
+}
+
+function scrollToEvidenceMatrix(e){if(e)e.preventDefault();var el=document.getElementById('evidence-matrix');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});}
+
+/* ── ❗ Problem Cause ── */
+function renderOperationProblem(r){
+    var view=r.operationView||{};
+    var p=view.problemCause||{};
+    var actions=view.recommendedActions||[];
+    if(!p.summary&&!actions.length){
+        document.getElementById('operationProblemContainer').innerHTML='<div class="empty-hint">当前报告未记录明确问题原因</div>';
+        return;
+    }
+    var h='<div class="dual-cards">';
+    h+='<div class="info-card"><div class="card-title">问题是什么导致的</div><div class="kv-list">';
+    h+='<div class="kv-row"><span class="kv-key">根因类型</span><span class="kv-val">'+escHtml(p.type||'-')+'</span></div>';
+    h+='<div class="kv-row"><span class="kv-key">根因说明</span><span class="kv-val">'+escHtml(p.summary||'-')+'</span></div>';
+    h+='<div class="kv-row"><span class="kv-key">失败位置</span><span class="kv-val">'+escHtml(p.failurePoint||'-')+'</span></div>';
+    h+='<div class="kv-row"><span class="kv-key">证据缺口</span><span class="kv-val">'+escHtml(p.evidenceGap||'-')+'</span></div>';
+    h+='<div class="kv-row"><span class="kv-key">影响面</span><span class="kv-val">'+escHtml(p.impact||'-')+'</span></div>';
+    h+='</div></div>';
+    h+='<div class="info-card"><div class="card-title">建议动作</div><div class="kv-list">';
+    if(actions.length){
+        actions.forEach(function(a){
+            h+='<div class="kv-row" style="align-items:flex-start"><span class="kv-key">'+escHtml(a.priority||'P1')+'</span><span class="kv-val">'+escHtml(a.action||'-')+'<br><span style="font-size:12px;color:var(--muted)">Owner: '+escHtml(a.owner||'业务运营 / 安全接口人')+'；验证: '+escHtml(a.validation||'-')+'</span></span></div>';
+        });
+    }else{
+        h+='<div class="kv-row"><span class="kv-key">P1</span><span class="kv-val">补充复核并完成复测</span></div>';
+    }
+    h+='</div></div></div>';
+    document.getElementById('operationProblemContainer').innerHTML=h;
+}
+
+/* ── 🗡️ Path Difference ── */
+function renderPathDiff(r){
+    var methods=r.methods||[];
+    var hasPage=methods.some(function(m){return m.type==='page-automation'});
+    var hasBg=methods.some(function(m){return m.type==='background-automation'});
+    var hasTraffic=methods.some(function(m){return m.type==='traffic-template'});
+    if(!hasPage&&!hasBg&&!hasTraffic){document.getElementById('pathDiffContainer').innerHTML='';return;}
+    var rows=[{dim:'入口',page:'小程序UI',bg:'API直调',traffic:'代理拦截'},{dim:'认证获取',page:'录包提取',bg:'模板签名',traffic:'流量模板+AI修复'},{dim:'数据访问',page:'UI操作→接口响应',bg:'模板构造→接口响应',traffic:'流量匹配→接口响应'},{dim:'证据固定',page:'截图+HAR',bg:'HAR+日志',traffic:'HAR+日志'},{dim:'特有风险',page:'设备指纹检测',bg:'签名过期',traffic:'参数漂移'}];
+    var h='<div class="table-wrap"><table><thead><tr><th>对比维度</th><th'+(hasPage?'':' class="comparison-muted"')+'>页面自动化</th><th'+(hasBg?'':' class="comparison-muted"')+'>后台自动化</th><th'+(hasTraffic?'':' class="comparison-muted"')+'>流量自动化</th></tr></thead><tbody>';
+    rows.forEach(function(row){
+        h+='<tr><td style="font-weight:600">'+escHtml(row.dim)+'</td>';
+        h+='<td'+(hasPage?' class="comparison-highlight"':' class="comparison-muted"')+'>'+escHtml(row.page)+'</td>';
+        h+='<td'+(hasBg?' class="comparison-highlight"':' class="comparison-muted"')+'>'+escHtml(row.bg)+'</td>';
+        h+='<td'+(hasTraffic?' class="comparison-highlight"':' class="comparison-muted"')+'>'+escHtml(row.traffic)+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    document.getElementById('pathDiffContainer').innerHTML=h;
+}
+
+/* ── 📎 A.1 Findings ── */
+function renderFindings(r){
+    var findings=r.findings||[];
+    if(!findings.length){document.getElementById('findingsContainer').innerHTML='';return;}
+    var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.1 风险发现汇总 <span class="badge" style="margin-left:auto">'+findings.length+'</span></div><div class="collapsible-body">';
+    findings.forEach(function(f){
+        h+='<div class="finding-card"><div class="finding-header">badge(f.severity,RISK_MAP)+'<span class="finding-title">'+escHtml(f.title)+'</span>';
+        if(f.attackStepRef){/* internal step ref not shown */}
+        h+='</div><div class="finding-body">';
+        if(f.affectedScope&&f.affectedScope.length)h+='<div class="finding-field"><span class="finding-field-label">影响范围：</span>'+escHtml(f.affectedScope.join('、'))+'</div>';
+        if(f.impact)h+='<div class="finding-field"><span class="finding-field-label">影响：</span>'+escHtml(f.impact)+'</div>';
+        if(f.recommendation)h+='<div class="finding-field"><span class="finding-field-label">修复建议：</span>'+escHtml(f.recommendation)+'</div>';
+        if(f.retestStatus)h+='<div class="finding-field"><span class="finding-field-label">复测状态：</span>'+badge(f.retestStatus)+'</div>';
+        h+='</div></div>';
+    });
+    h+='</div>';
+    document.getElementById('findingsContainer').innerHTML=h;
+}
+
+function getStepPhase(stepId){if(!reportData||!reportData.attackChain||!reportData.attackChain.steps)return '';var s=reportData.attackChain.steps.find(function(x){return x.id===stepId});return s?s.phase:'';}
+
+/* ── 📎 A.2 Recommendations ── */
+function renderRecommendations(r){
+    var recs=r.recommendations||[];
+    if(!recs.length){document.getElementById('recommendationsContainer').innerHTML='';return;}
+    var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.2 修复建议 <span class="badge" style="margin-left:auto">'+recs.length+'</span></div><div class="collapsible-body">';
+    h+='<div class="table-wrap"><table><thead><tr><th>编号</th><th>优先级</th><th>动作</th><th>关联发现</th><th>关联步骤</th><th>验证标准</th></tr></thead><tbody>';
+    recs.forEach(function(rec){
+        h+='<tr><td>-</td>';
+        h+='<tr><td>'+badge(rec.priority,{high:{label:'高',cls:'badge-high'},medium:{label:'中',cls:'badge-medium'},low:{label:'低',cls:'badge-low'}})+'</td>';
+        h+='<td style="max-width:260px">'+escHtml(rec.action||'-')+'</td>';
+        h+='<td>'+(rec.relatedFindings||[]).map(function(f){return '<code style="font-size:11px">'+escHtml(f)+'</code>'}).join(' ')+'</td>';
+        h+='<td>-</td>';
+        h+='<td style="max-width:200px">'+escHtml(rec.verification||'-')+'</td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+    document.getElementById('recommendationsContainer').innerHTML=h;
+}
+
+/* ── 📎 A.3 Retest ── */
+function renderRetest(r){
+    var rt=r.retest;if(!rt||!rt.status){document.getElementById('retestContainer').innerHTML='';return;}
+    var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.3 复测状态</div><div class="collapsible-body"><div class="info-card"><div class="kv-list">';
+    h+='<div class="kv-row"><span class="kv-key">复测状态</span><span class="kv-val">'+badge(rt.status)+'</span></div>';
+    if(rt.criteria){var c=Array.isArray(rt.criteria)?rt.criteria:[rt.criteria];h+='<div class="kv-row"><span class="kv-key">复测标准</span><span class="kv-val">'+escHtml(c.join('；'))+'</span></div>';}
+    if(rt.childReportId)h+='<div class="kv-row"><span class="kv-key">复测报告</span><span class="kv-val"><a href="/report-detail.html?id='+encodeURIComponent(rt.childReportId)+'" style="color:var(--brand-deep);font-weight:700">'+escHtml(rt.childReportId)+'</a></span></div>';
+    h+='</div></div></div>';
+    document.getElementById('retestContainer').innerHTML=h;
+}
+
+/* ── 📎 A.4 Evidence Matrix ── */
+function renderEvidenceMatrix(r){
+    var em=r.evidenceMatrix||[];
+    if(!em.length){document.getElementById('evidenceMatrixContainer').innerHTML='';return;}
+    var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.4 证据矩阵 <span class="badge" style="margin-left:auto">'+em.length+'</span></div><div class="collapsible-body" id="evidence-matrix">';
+    h+='<div class="table-wrap"><table><thead><tr><th>证据类型</th><th>状态</th><th>用途</th><th>关联步骤</th><th>引用</th></tr></thead><tbody>';
+    em.forEach(function(e){
+        h+='<tr><td style="font-weight:600">'+escHtml(e.type||'-')+'</td><td>'+badge(e.status)+'</td><td>'+escHtml(e.purpose||'-')+'</td><td>';
+        if(e.attackStepRef){var p=getStepPhase(e.attackStepRef);var pi=PHASE_MAP[p]||{cls:''};h+='<a class="attack-step-ref '+pi.cls+'" onclick="scrollToStep(\''+escHtml(e.attackStepRef)+'\')">'+escHtml(e.attackStepRef)+'</a>';}else{h+='-';}
+        h+='</td><td style="max-width:260px;font-size:12px;color:var(--muted)">'+escHtml((e.refs||[]).join('、')||'-')+'</td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+    document.getElementById('evidenceMatrixContainer').innerHTML=h;
+}
+
+/* ── 📎 A.5 Outbound Evidence ── */
+function renderOutboundEvidence(r){
+    var rs=r.resourceStats||{};var hasData=rs.totalRequests!=null;
+    var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.5 出站证据明细</div><div class="collapsible-body">';
+    if(hasData){
+        h+='<div class="sub-collapsible-header" onclick="toggleSubCollapsible(this)"><span class="chevron">▶</span> 展开详情</div><div class="sub-collapsible-body">';
+        h+='<div class="metric-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:14px">';
+        if(rs.totalRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="font-size:20px">'+rs.totalRequests+'</div><div class="metric-label">总请求数</div></div>';
+        if(rs.successRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="font-size:20px;color:var(--success)">'+rs.successRequests+'</div><div class="metric-label">成功</div></div>';
+        if(rs.failedRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="font-size:20px;color:var(--danger)">'+rs.failedRequests+'</div><div class="metric-label">失败</div></div>';
+        h+='</div>';
+        if(rs.statusCodeDistribution&&Object.keys(rs.statusCodeDistribution).length){
+            var sc2xx=0,scTotal=0;Object.keys(rs.statusCodeDistribution).forEach(function(c){var v=rs.statusCodeDistribution[c];scTotal+=v;if(Number(c)<300)sc2xx+=v;});
+            var scPct=scTotal?Math.round(sc2xx/scTotal*100):0;
+            h+='<div style="margin-bottom:8px"><strong style="font-size:12px;color:var(--muted)">请求成功率</strong><div class="status-dist" style="margin-top:6px"><span class="status-chip s2xx" style="font-size:14px;font-weight:600">'+scPct+'%</span></div></div>';
+        }
+        if(isSanitize)h+='<div style="font-size:12px;color:var(--muted);padding:10px 0">脱敏模式下不展示具体请求URL和参数</div>';
+        h+='</div>';
+    }else{h+='<div class="empty-hint">暂无出站证据数据</div>';}
+    h+='</div>';
+    document.getElementById('outboundEvidenceContainer').innerHTML=h;
+}
+
+/* ── 📎 A.6 Raw Materials ── */
+function renderRawMaterials(r){
+    var rs=r.resourceStats||{};var hasHashes=rs.evidenceFileHashes&&rs.evidenceFileHashes.length;
+    var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.6 原始材料</div><div class="collapsible-body">';
+    if(hasHashes){
+        h+='<div class="sub-collapsible-header" onclick="toggleSubCollapsible(this)"><span class="chevron">▶</span> 证据文件校验</div><div class="sub-collapsible-body">';
+                h+='<div style="font-size:13px;color:var(--muted);padding:8px 0">✅ 文件完整性已校验（'+rs.evidenceFileHashes.length+' 个文件）</div></div>';
+    }
+    if(!hasHashes)h+='<div class="empty-hint">暂无原始材料</div>';
+    h+='</div>';
+    document.getElementById('rawMaterialsContainer').innerHTML=h;
+}
+
+/* ── Collapsible Logic ── */
+function toggleCollapsible(el){el.classList.toggle('open');var b=el.nextElementSibling;if(b)b.classList.toggle('open');}
+function toggleSubCollapsible(el){el.classList.toggle('open');var b=el.nextElementSibling;if(b)b.classList.toggle('open');}
+
+/* ── Sanitize Toggle ── */
+function toggleSanitize(){var t=document.getElementById('sanitizeToggle');var ns=!t.classList.contains('on');var p=new URLSearchParams(location.search);p.set('sanitize',ns?'true':'false');location.search=p.toString();}
+
+/* ── Navigation Observer ── */
+function initNavigationObserver(){
+    var sections=document.querySelectorAll('.section-block[data-core]');
+    var navItems=document.querySelectorAll('#sectionNav .nav-item');
+    var observer=new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+            if(entry.isIntersecting){
+                var sid=entry.target.id;
+                navItems.forEach(function(item){item.classList.toggle('active',item.getAttribute('data-section')===sid);});
+            }
+        });
+    },{rootMargin:'-20% 0px -60% 0px',threshold:0});
+    sections.forEach(function(s){observer.observe(s);});
+}
+
+/* ── Download ── */
+function downloadReport(format){if(!reportId)return;window.open('/api/blue-team/reports/'+encodeURIComponent(reportId)+'/download?format='+format+'&sanitize='+isSanitize,'_blank');}
+
+/* ── Retest ── */
+async function createRetest(){
+    if(!reportId)return;
+    if(!confirm('确认基于当前报告创建复测？'))return;
+    try{
+        var resp=await fetch('/api/blue-team/reports/'+encodeURIComponent(reportId)+'/retest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+        var json=await resp.json();
+                if(json.success)showToast('复测报告创建成功','success');
+        else showToast('复测报告创建失败','error');
+    }catch(err){showToast('复测报告创建出错','error');}
+}
+
+/* ── Init ── */
+loadReport();
+</script>
+</body>
+</html>
+        if(infra.executor.node){var nd=infra.executor.node.replace(/(\d+\.\d+)\.\d+\.\d+/,'$1.x.x');h+='<div class="kv-row"><span class="kv-key">执行节点</span><span class="kv-val">'+escHtml(nd)+'</span></div>';}
+    if(infra.proxy){h+='<div class="kv-row"><span class="kv-key">代理类型</span><span class="kv-val">'+escHtml(PROXY_TYPE_MAP[infra.proxy.type]||infra.proxy.type||'-')+'</span></div>';if(infra.proxy.address)h+='<div class="kv-row"><span class="kv-key">代理地址</span><span class="kv-val">已配置</span></div>';}
+    if(sigs.templateId)h+='<div class="kv-row"><span class="kv-key">签名模板</span><span class="kv-val">已配置</span></div>';
+    if(sigs.authParams){var ap=sigs.authParams;var ad=(ap.count||0)+'个';if(ap.hasAuth)ad+='（含认证参数）';h+='<div class="kv-row"><span class="kv-key">认证参数</span><span class="kv-val">'+escHtml(ad)+'</span></div>';}
+        if(!json.success){document.getElementById('loadingState').innerHTML='<div class="empty-hint">报告详情加载失败</div>';return;}
+        document.getElementById('loadingState').innerHTML='<div class="empty-hint">报告详情加载出错</div>';
+    if(sigs.authParams){var ap=sigs.authParams;var ad=(ap.count||0)+'个';if(ap.hasAuth)ad+='（含认证参数）';h+='<div class="kv-row"><span class="kv-key">认证参数</span><span class="kv-val">'+escHtml(ad)+'</span></div>';}
