@@ -85,7 +85,7 @@ class Method2Service {
         };
 
         return {
-            success: true,
+            success: available,
             available,
             reason,
             checks,

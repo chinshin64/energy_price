@@ -15,7 +15,11 @@ async function call(pathname, options = {}) {
   console.log(`[smoke-method2] API_BASE=${API_BASE}`);
   const status = await call('/method2/status');
   console.log('[status]', JSON.stringify(status.body, null, 2));
-  if (status.status >= 400) process.exitCode = 1;
+  if (status.status >= 400 || status.body?.success !== true || status.body?.available === false) {
+    console.error(`[FAIL] method2 status unavailable: ${status.body?.reason || status.status}`);
+    process.exitCode = 1;
+    return;
+  }
 
   if (process.env.START_CAPTURE === '1') {
     const start = await call('/method2/start-capture', {
@@ -23,8 +27,13 @@ async function call(pathname, options = {}) {
       body: JSON.stringify({ label: 'smoke-method2' })
     });
     console.log('[start-capture]', JSON.stringify(start.body, null, 2));
-    if (start.status >= 400) process.exitCode = 1;
+    if (start.status >= 400 || start.body?.success !== true) {
+      console.error(`[FAIL] method2 start-capture failed: ${start.body?.reason || start.status}`);
+      process.exitCode = 1;
+      return;
+    }
   }
+  console.log('[PASS] method2 status ready');
 })().catch(err => {
   console.error('[smoke-method2] failed:', err.message);
   process.exit(1);

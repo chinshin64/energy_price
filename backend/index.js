@@ -45,6 +45,11 @@ const SignatureHealthMonitor = require('./services/signature-health-monitor');
 const SignatureRefreshService = require('./services/signature-refresh-service');
 const ExtractSignerUnified = require('./services/extract-signer-unified');
 const Method1Service = require('./services/method1-service');
+const Method2Service = require('./services/method2-service');
+const Method3Service = require('./services/method3-service');
+const DidiSignatureProvider = require('./services/didi-signature-provider');
+const TestChainOrchestrator = require('./services/test-chain-orchestrator');
+const GlobalAgentService = require('./services/global-agent-service');
 
 // 创建 Express 应用
 const app = express();
@@ -217,6 +222,34 @@ const signatureRefreshService = new SignatureRefreshService({
     mobileCommandService: mobileCommandService,
     extractSigner: extractSignerUnified,
     corpusPath: path.join(__dirname, '../data/didi-signature-corpus.json')
+});
+const chainSignatureProvider = new DidiSignatureProvider({
+    ...(config.didiSignatureProvider || {}),
+    corpusPath: path.join(__dirname, '../data/didi-signature-corpus.json')
+});
+const method2ServiceForOrchestrator = new Method2Service({
+    recorder: captureRecorderService,
+    aiAgentConfig: config
+});
+app.locals.method2Service = method2ServiceForOrchestrator;
+const method3ServiceForOrchestrator = new Method3Service({
+    signatureProvider: chainSignatureProvider,
+    aiAgentConfig: config,
+    templateDir: path.join(__dirname, '../data')
+});
+app.locals.method3Service = method3ServiceForOrchestrator;
+const testChainOrchestrator = new TestChainOrchestrator({
+    projectRoot: path.join(__dirname, '..'),
+    method1Service,
+    method2Service: method2ServiceForOrchestrator,
+    method3Service: method3ServiceForOrchestrator,
+    reportService: blueTeamReportService
+});
+const globalAgentService = new GlobalAgentService({
+    orchestrator: testChainOrchestrator,
+    reportService: blueTeamReportService,
+    mobileCommandService,
+    config
 });
 const syncUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 const syncService = new SyncService({
@@ -1544,10 +1577,48 @@ function sendBlueTeamReportError(res, error) {
     });
 }
 
+function queryFlag(value, defaultValue = true) {
+    if (value === undefined || value === null || value === '') return defaultValue;
+    return !/^(0|false|no|off)$/i.test(String(value));
+}
+
 app.get('/api/blue-team/reports', (req, res) => {
     try {
-        const reports = blueTeamReportService.listReports({ limit: req.query.limit });
-        res.json({ success: true, data: reports });
+        const result = blueTeamReportService.listReports({
+            limit: req.query.limit,
+            offset: req.query.offset,
+            method: req.query.method,
+            platform: req.query.platform,
+            city: req.query.city,
+            overallStatus: req.query.overallStatus || req.query.status,
+            riskLevel: req.query.riskLevel || req.query.risk
+        });
+        res.json({
+            success: true,
+            data: result.data || [],
+            meta: {
+                total: result.total || 0,
+                limit: result.limit || 100,
+                offset: result.offset || 0
+            }
+        });
+    } catch (error) {
+        sendBlueTeamReportError(res, error);
+    }
+});
+
+app.post('/api/blue-team/reports/start', (req, res) => {
+    try {
+        const report = blueTeamReportService.startReport(req.body || {});
+        res.status(201).json({ success: true, data: report });
+    } catch (error) {
+        sendBlueTeamReportError(res, error);
+    }
+});
+
+app.post('/api/blue-team/reports/sanitize', (req, res) => {
+    try {
+        res.json({ success: true, data: blueTeamReportService.sanitizeReport(req.body?.data || req.body || {}) });
     } catch (error) {
         sendBlueTeamReportError(res, error);
     }
@@ -1572,9 +1643,49 @@ app.post('/api/blue-team/reports/seed', (req, res) => {
     }
 });
 
+app.post('/api/blue-team/reports/:reportId/events', (req, res) => {
+    try {
+        const payload = req.body?.events !== undefined ? req.body.events : (req.body?.event || req.body || {});
+        const result = blueTeamReportService.appendEvent(req.params.reportId, payload);
+        res.json({ success: true, data: result });
+    } catch (error) {
+        sendBlueTeamReportError(res, error);
+    }
+});
+
+app.post('/api/blue-team/reports/:reportId/evidence', (req, res) => {
+    try {
+        const result = blueTeamReportService.appendEvidence(req.params.reportId, req.body || {});
+        res.status(201).json({ success: true, data: result });
+    } catch (error) {
+        sendBlueTeamReportError(res, error);
+    }
+});
+
+app.post('/api/blue-team/reports/:reportId/finalize', (req, res) => {
+    try {
+        const report = blueTeamReportService.finalizeReport(req.params.reportId, req.body || {});
+        res.json({ success: true, data: report });
+    } catch (error) {
+        sendBlueTeamReportError(res, error);
+    }
+});
+
+app.post('/api/blue-team/reports/:reportId/retest', (req, res) => {
+    try {
+        const result = blueTeamReportService.createRetest(req.params.reportId, req.body || {});
+        res.status(201).json({ success: true, data: result });
+    } catch (error) {
+        sendBlueTeamReportError(res, error);
+    }
+});
+
 app.get('/api/blue-team/reports/:reportId/download', (req, res) => {
     try {
-        const download = blueTeamReportService.getDownload(req.params.reportId, req.query.format || 'json');
+        const download = blueTeamReportService.getDownload(req.params.reportId, req.query.format || 'json', {
+            sanitize: queryFlag(req.query.sanitize, true),
+            actor: req.get('x-user') || req.ip || 'anonymous'
+        });
         res.setHeader('Content-Type', download.contentType);
         res.setHeader('Content-Disposition', `attachment; filename="${download.filename}"`);
         res.send(download.content);
@@ -1583,11 +1694,124 @@ app.get('/api/blue-team/reports/:reportId/download', (req, res) => {
     }
 });
 
-app.get('/api/blue-team/reports/:reportId', (req, res) => {
+app.get('/api/blue-team/reports/:reportId/evidence/:type/:filename?', (req, res) => {
     try {
-        res.json({ success: true, data: blueTeamReportService.readReport(req.params.reportId) });
+        const evidence = blueTeamReportService.readEvidenceFile(
+            req.params.reportId,
+            req.params.type,
+            req.params.filename,
+            { sanitize: queryFlag(req.query.sanitize, true) }
+        );
+        res.setHeader('Content-Type', evidence.contentType);
+        res.setHeader('Content-Disposition', `inline; filename="${evidence.filename}"`);
+        if (Object.prototype.hasOwnProperty.call(evidence, 'content')) {
+            res.send(evidence.content);
+        } else {
+            res.sendFile(evidence.filePath);
+        }
     } catch (error) {
         sendBlueTeamReportError(res, error);
+    }
+});
+
+app.get('/api/blue-team/reports/:reportId', (req, res) => {
+    try {
+        const report = blueTeamReportService.readReport(req.params.reportId);
+        res.json({
+            success: true,
+            data: queryFlag(req.query.sanitize, true)
+                ? blueTeamReportService.sanitizeReport(report)
+                : report
+        });
+    } catch (error) {
+        sendBlueTeamReportError(res, error);
+    }
+});
+
+// ============ 三链路统一编排 API ============
+
+app.get('/api/test-chains/status', async (req, res) => {
+    try {
+        const result = await testChainOrchestrator.getStatus(req.query || {});
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'test_chain_status_failed', error: error.message });
+    }
+});
+
+app.post('/api/test-chains/run', async (req, res) => {
+    try {
+        const result = await testChainOrchestrator.run(req.body || {});
+        res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'test_chain_run_failed', error: error.message });
+    }
+});
+
+app.get('/api/test-chains/runs/:id', (req, res) => {
+    try {
+        const run = testChainOrchestrator.getRun(req.params.id);
+        if (!run) {
+            return res.status(404).json({ success: false, reason: 'run_not_found' });
+        }
+        res.json({ success: true, data: run });
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'test_chain_run_read_failed', error: error.message });
+    }
+});
+
+app.post('/api/test-chains/runs/:id/stop', (req, res) => {
+    try {
+        const result = testChainOrchestrator.stopRun(req.params.id);
+        res.status(result.success ? 200 : 404).json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'test_chain_stop_failed', error: error.message });
+    }
+});
+
+app.post('/api/test-chains/diagnose', async (req, res) => {
+    try {
+        const result = await testChainOrchestrator.diagnose(req.body || {});
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'test_chain_diagnose_failed', error: error.message });
+    }
+});
+
+// ============ 全局 AI Agent API ============
+
+app.get('/api/global-agent/status', (req, res) => {
+    try {
+        res.json(globalAgentService.getStatus());
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'global_agent_status_failed', error: error.message });
+    }
+});
+
+app.post('/api/global-agent/chat', async (req, res) => {
+    try {
+        const result = await globalAgentService.chat(req.body || {});
+        res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'global_agent_chat_failed', error: error.message });
+    }
+});
+
+app.post('/api/global-agent/actions/plan', async (req, res) => {
+    try {
+        const result = await globalAgentService.plan(req.body || {});
+        res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'global_agent_plan_failed', error: error.message });
+    }
+});
+
+app.post('/api/global-agent/actions/execute', async (req, res) => {
+    try {
+        const result = await globalAgentService.execute(req.body || {});
+        res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, reason: 'global_agent_execute_failed', error: error.message });
     }
 });
 
@@ -2784,7 +3008,7 @@ app.get('/api/method1/status', async (req, res) => {
         res.json(result);
     } catch (error) {
         res.json({
-            success: true,
+            success: false,
             available: false,
             reason: error.reason || 'unknown_error',
             checks: {},
@@ -2804,7 +3028,7 @@ app.post('/api/method1/run-basic-check', async (req, res) => {
         res.json(result);
     } catch (error) {
         res.json({
-            success: true,
+            success: false,
             available: false,
             reason: error.reason || 'unknown_error',
             checks: {},

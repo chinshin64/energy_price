@@ -203,7 +203,56 @@ class Method1Service {
             result.after = { status: 'unavailable', reason: this.classifyCaptureOrOcrError(error) };
         }
 
+        const runPass = this.isBasicCheckPass(result, cityName);
+        result.success = runPass.success;
+        result.available = true;
+        result.reason = runPass.reason;
+        result.status = runPass.success ? 'passed' : 'failed';
+        result.diagnostics = runPass.success ? [] : [{
+            code: runPass.reason,
+            message: runPass.message
+        }];
+
         return result;
+    }
+
+    isBasicCheckPass(result = {}, cityName = '') {
+        if (cityName && result.citySwitch?.success !== true) {
+            return {
+                success: false,
+                reason: REASONS.CITY_SWITCH_VERIFY_FAILED,
+                message: result.citySwitch?.error || 'target city was not verified'
+            };
+        }
+        if (result.loginPrompt?.state === 'manual_required') {
+            return {
+                success: false,
+                reason: REASONS.LOGIN_PROMPT_MANUAL_REQUIRED,
+                message: result.loginPrompt.message || 'login prompt blocks automation'
+            };
+        }
+        if (result.before?.status !== 'ready') {
+            return {
+                success: false,
+                reason: result.before?.reason || REASONS.PAGE_NOT_RECOGNIZED,
+                message: 'before-scroll screenshot/OCR was not recognized'
+            };
+        }
+        if (result.scroll?.status !== 'ready' || Number(result.scroll?.scrollCount || 0) < 1) {
+            return {
+                success: false,
+                reason: result.scroll?.reason || REASONS.SCROLL_FAILED,
+                message: result.scroll?.error || 'scroll action did not complete'
+            };
+        }
+        if (result.after?.status !== 'ready') {
+            return {
+                success: false,
+                reason: result.after?.reason || REASONS.PAGE_NOT_RECOGNIZED,
+                message: 'after-scroll screenshot/OCR was not recognized'
+            };
+        }
+        return { success: true, reason: REASONS.READY, message: 'basic check passed' };
     }
 
     async openMiniApp(options = {}) {
@@ -852,7 +901,7 @@ app.keystroke('v', { using: 'command down' });
 
     statusResult(available, reason, checks, extra = {}) {
         return {
-            success: true,
+            success: Boolean(available),
             available,
             reason,
             checks,
@@ -862,7 +911,7 @@ app.keystroke('v', { using: 'command down' });
 
     failedRunResult(checks, reason, error, extra = {}) {
         return {
-            success: true,
+            success: false,
             available: false,
             reason,
             checks,

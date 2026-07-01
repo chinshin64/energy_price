@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const db = require('../database/init');
+const sensitiveRedactor = require('./sensitive-redactor');
 
 const DEFAULT_SEED_REPORT_ID = 'BTR-RISK-20260531-0001';
 const REPORT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/;
@@ -205,6 +206,8 @@ class BlueTeamReportService {
         const mappedName = EVIDENCE_DIR_MAP[type];
         const targetPath = path.join(evidencePath, mappedName);
 
+        let relativePath = `evidence/${mappedName}`;
+
         if (type === 'screenshot') {
             const screenshotsDir = path.join(evidencePath, 'screenshots');
             fs.mkdirSync(screenshotsDir, { recursive: true });
@@ -217,22 +220,23 @@ class BlueTeamReportService {
             } else {
                 fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
             }
-            this.updateEvidenceMatrix(report, type, `evidence/screenshots/${safeName}`, city);
+            relativePath = `evidence/screenshots/${safeName}`;
+            this.updateEvidenceMatrix(report, type, relativePath, city);
         } else if (mappedName.endsWith('.jsonl')) {
             const line = typeof data === 'string' ? data : JSON.stringify(data);
             fs.appendFileSync(targetPath, `${line}\n`, 'utf8');
-            this.updateEvidenceMatrix(report, type, `evidence/${mappedName}`, city);
+            this.updateEvidenceMatrix(report, type, relativePath, city);
         } else {
             const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
             fs.writeFileSync(targetPath, content, 'utf8');
-            this.updateEvidenceMatrix(report, type, `evidence/${mappedName}`, city);
+            this.updateEvidenceMatrix(report, type, relativePath, city);
         }
 
         report.updatedAt = new Date().toISOString();
         this.writeReportJson(id, report);
         this.upsertReportIndex(report);
 
-        return { reportId: id, type, path: `evidence/${mappedName}` };
+        return { reportId: id, type, path: relativePath };
     }
 
     finalizeReport(reportId, input = {}) {
@@ -473,7 +477,7 @@ class BlueTeamReportService {
         };
     }
 
-    readEvidenceFile(reportId, type, filename) {
+    readEvidenceFile(reportId, type, filename, options = {}) {
         const id = this.normalizeReportId(reportId);
         const reportDir = this.getReportDir(id);
 
@@ -520,11 +524,87 @@ class BlueTeamReportService {
             '.txt': 'text/plain',
         };
 
+        const contentType = contentTypes[ext] || 'application/octet-stream';
+        const shouldSanitize = options.sanitize !== false && ['.json', '.jsonl', '.txt'].includes(ext);
+        if (shouldSanitize) {
+            const raw = fs.readFileSync(resolvedPath, 'utf8');
+            return {
+                content: this.sanitizeEvidenceContent(raw, ext),
+                contentType,
+                filename: path.basename(resolvedPath),
+                sanitized: true,
+            };
+        }
+
         return {
             filePath: resolvedPath,
-            contentType: contentTypes[ext] || 'application/octet-stream',
+            contentType,
             filename: path.basename(resolvedPath),
+            sanitized: false,
         };
+    }
+
+    sanitizeEvidenceContent(raw, ext) {
+        if (ext === '.json') {
+            try {
+                return `${JSON.stringify(this.sanitizeEvidenceValue(JSON.parse(raw)), null, 2)}\n`;
+            } catch {
+                return this.sanitizeEvidenceText(raw);
+            }
+        }
+
+        if (ext === '.jsonl') {
+            return raw.split(/\r?\n/).map(line => {
+                if (!line.trim()) return line;
+                try {
+                    return JSON.stringify(this.sanitizeEvidenceValue(JSON.parse(line)));
+                } catch {
+                    return this.sanitizeEvidenceText(line);
+                }
+            }).join('\n');
+        }
+
+        return this.sanitizeEvidenceText(raw);
+    }
+
+    sanitizeEvidenceValue(value) {
+        const redacted = sensitiveRedactor.redactObject(value);
+        return this.deepSanitizeEvidenceValue(redacted);
+    }
+
+    deepSanitizeEvidenceValue(value) {
+        if (Array.isArray(value)) {
+            return value.map(item => this.deepSanitizeEvidenceValue(item));
+        }
+        if (value && typeof value === 'object') {
+            const output = {};
+            for (const [key, raw] of Object.entries(value)) {
+                output[key] = sensitiveRedactor.isSensitiveKey(key)
+                    ? sensitiveRedactor.REDACTED
+                    : this.deepSanitizeEvidenceValue(raw);
+            }
+            return output;
+        }
+        if (typeof value === 'string') {
+            return this.sanitizeEvidenceText(value);
+        }
+        return value;
+    }
+
+    sanitizeEvidenceText(raw) {
+        if (!raw || typeof raw !== 'string') return raw;
+        let text = raw.replace(/https?:\/\/[^\s"'<>]+/gi, url => {
+            const redactedUrl = sensitiveRedactor.redactUrl(url);
+            return this.sanitizeUrl(redactedUrl);
+        });
+        text = text.replace(
+            /\b(cookie|authorization|token|access_token|refresh_token|ticket|wsgsig|signature|sign|session_key|openid|unionid)\b(\s*[:=]\s*["']?)[^"',\s&}\]]+/gi,
+            (_match, key, sep) => `${key}${sep}${sensitiveRedactor.REDACTED}`
+        );
+        return text.replace(
+            /([?&])(cookie|authorization|token|access_token|refresh_token|ticket|wsgsig|signature|sign|session_key|openid|unionid)=([^&\s"']+)/gi,
+            (_match, prefix, key) => `${prefix}${key}=${sensitiveRedactor.REDACTED}`
+        );
     }
 
     sanitizeReport(data) {
@@ -1649,7 +1729,24 @@ class BlueTeamReportService {
         const id = this.normalizeReportId(reportId);
         const normalizedFormat = this.normalizeDownloadFormat(format);
         const sanitize = options.sanitize !== false;
-        if (normalizedFormat === 'markdown' && !sanitize) {
+        if (sanitize) {
+            const report = this.sanitizeReport(this.readReport(id));
+            this.recordDownloadAudit(id, normalizedFormat, { sanitize: true, actor: options.actor || 'anonymous' });
+            return {
+                format: normalizedFormat,
+                filename: normalizedFormat === 'markdown' ? `${id}-sanitized.md` : `${id}-sanitized.json`,
+                contentType: normalizedFormat === 'markdown'
+                    ? 'text/markdown; charset=utf-8'
+                    : 'application/json; charset=utf-8',
+                content: normalizedFormat === 'markdown'
+                    ? this.generateMarkdown(report, { sanitize: true })
+                    : `${JSON.stringify(report, null, 2)}\n`
+            };
+        }
+
+        this.recordDownloadAudit(id, normalizedFormat, { sanitize: false, actor: options.actor || 'anonymous' });
+
+        if (normalizedFormat === 'markdown') {
             return {
                 format: normalizedFormat,
                 filename: `${id}.md`,
@@ -1675,6 +1772,22 @@ class BlueTeamReportService {
                 : 'application/json; charset=utf-8',
             content: fs.readFileSync(filePath, 'utf8')
         };
+    }
+
+    recordDownloadAudit(reportId, format, meta = {}) {
+        try {
+            const auditPath = path.join(this.getReportDir(reportId), 'download-audit.jsonl');
+            const line = {
+                at: new Date().toISOString(),
+                reportId,
+                format,
+                sanitize: meta.sanitize !== false,
+                actor: meta.actor || 'anonymous'
+            };
+            fs.appendFileSync(auditPath, `${JSON.stringify(line)}\n`, 'utf8');
+        } catch {
+            // audit logging must not block report download
+        }
     }
 
     normalizeReport(rawReport = {}) {

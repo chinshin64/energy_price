@@ -46,7 +46,7 @@ class Method3Service {
      * GET /api/method3/status
      * 返回模板统计、语料统计、最近失败原因
      */
-    getStatus() {
+    getStatus(input = {}) {
         const templateStats = this.preflightService._countTemplates();
         let corpusStats = null;
         let lastFailureReason = null;
@@ -71,13 +71,28 @@ class Method3Service {
         const templateAvailable = Number(templateStats.list || 0) + Number(templateStats.detail || 0) > 0;
         const corpusAvailable = Boolean(corpusStats && Number(corpusStats.totalEntries || 0) > 0);
         const proxyConfigured = Boolean(UPSTREAM_PROXY);
-        const available = templateAvailable && corpusAvailable;
+        const hasTarget = Boolean(input.city && Number.isFinite(Number(input.lat)) && Number.isFinite(Number(input.lng)));
+        let targetPreflight = null;
+        let targetMatched = true;
+        let targetReason = 'target_not_checked';
+
+        if (hasTarget && templateAvailable && corpusAvailable) {
+            targetPreflight = this.preflight(input);
+            targetMatched = targetPreflight.status === 'matched';
+            targetReason = targetMatched ? 'preflight_matched' : this._primaryFailureCode(targetPreflight);
+        }
+
+        const available = templateAvailable && corpusAvailable && proxyConfigured && (!hasTarget || targetMatched);
         const reason = !templateAvailable
             ? 'template_missing'
-            : (!corpusAvailable ? 'signature_corpus_missing' : 'ready');
+            : (!corpusAvailable
+                ? 'signature_corpus_missing'
+                : (!proxyConfigured
+                    ? 'proxy_not_configured'
+                    : (hasTarget && !targetMatched ? targetReason : 'ready')));
 
         return {
-            success: true,
+            success: available,
             available,
             reason,
             checks: {
@@ -93,9 +108,17 @@ class Method3Service {
                     status: proxyConfigured ? 'configured' : 'unavailable',
                     reason: proxyConfigured ? 'proxy_configured' : 'proxy_not_configured',
                 },
+                ...(hasTarget ? {
+                    targetPreflight: {
+                        status: targetPreflight ? (targetMatched ? 'ready' : 'unavailable') : 'unavailable',
+                        reason: targetReason,
+                        preflightStatus: targetPreflight?.status || 'not_run',
+                    }
+                } : {}),
             },
             templateStats,
             corpusStats,
+            targetPreflight,
             lastFailureReason,
             limits: {
                 maxPages: MAX_PAGES,

@@ -6,7 +6,7 @@ const path = require('path');
 const net = require('net');
 const { spawnSync } = require('child_process');
 
-const API_BASE = (process.env.API_BASE || 'http://127.0.0.1:50080/api').replace(/\/$/, '');
+const API_BASE = (process.env.API_BASE || 'http://127.0.0.1:3000/api').replace(/\/$/, '');
 const PROJECT_ROOT = path.join(__dirname, '..');
 const CORPUS_PATH = process.env.DIDI_SIGNATURE_CORPUS_PATH
     || path.join(PROJECT_ROOT, 'data/didi-signature-corpus.json');
@@ -391,11 +391,17 @@ async function runIteration(index) {
         method2: { pass: true, skipped: !RUN_METHOD2 },
         method3: { pass: true, skipped: !RUN_METHOD3 },
         chain: { pass: false, reason: 'not_evaluated' },
+        orchestrator: null,
+        globalAgent: null,
         agentAnalyses: [],
     };
 
     const aiStatus = await api('/ai-agent/status', { timeoutMs: 15000 });
     result.aiAgent = summarizeApiResult(aiStatus);
+    const orchestratorStatus = await api('/test-chains/status', { timeoutMs: 20000 });
+    result.orchestrator = summarizeApiResult(orchestratorStatus);
+    const globalAgentStatus = await api('/global-agent/status', { timeoutMs: 15000 });
+    result.globalAgent = summarizeApiResult(globalAgentStatus);
 
     if (RUN_METHOD1) {
         result.method1 = await runMethod1();
@@ -437,9 +443,9 @@ async function runIteration(index) {
     const passes = [result.method1, result.method2, result.method3]
         .filter(item => !item.skipped)
         .map(item => item.pass === true);
-    result.chain = passes.every(Boolean)
+    result.chain = orchestratorStatus.ok && globalAgentStatus.ok && passes.every(Boolean)
         ? { pass: true, reason: 'all_methods_ready', evidence: ['method1_desktop_ocr_scroll', 'method2_har_target_request', 'method3_direct_signed_request'] }
-        : { pass: false, reason: 'one_or_more_methods_failed' };
+        : { pass: false, reason: orchestratorStatus.ok && globalAgentStatus.ok ? 'one_or_more_methods_failed' : 'orchestrator_or_global_agent_unreachable' };
     result.finishedAt = new Date().toISOString();
     return redacted(result);
 }

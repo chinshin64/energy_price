@@ -151,6 +151,64 @@ db.exec(`
     CREATE INDEX IF NOT EXISTS idx_price_schedules_station ON price_schedules(station_id);
     CREATE INDEX IF NOT EXISTS idx_price_schedules_platform ON price_schedules(platform);
     CREATE INDEX IF NOT EXISTS idx_price_schedules_type ON price_schedules(schedule_type);
+
+    CREATE TABLE IF NOT EXISTS blue_team_reports (
+        report_id TEXT PRIMARY KEY,
+        title TEXT,
+        method TEXT,
+        platform TEXT,
+        overall_status TEXT DEFAULT 'draft',
+        conclusion TEXT,
+        risk_level TEXT DEFAULT 'unknown',
+        evidence_completeness TEXT DEFAULT 'unknown',
+        cities TEXT,
+        executor_name TEXT,
+        started_at DATETIME,
+        finished_at DATETIME,
+        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
+        parent_report_id TEXT,
+        retest_status TEXT DEFAULT 'none',
+        completion_score INTEGER DEFAULT 0,
+        completion_summary TEXT,
+        schema_version TEXT DEFAULT 'blue-team-report/v3'
+    );
+
+`);
+
+const blueTeamReportColumns = db.prepare(`PRAGMA table_info(blue_team_reports)`).all().map(col => col.name);
+const blueTeamReportColumnDefs = {
+    title: 'TEXT',
+    method: 'TEXT',
+    platform: 'TEXT',
+    overall_status: "TEXT DEFAULT 'draft'",
+    conclusion: 'TEXT',
+    risk_level: "TEXT DEFAULT 'unknown'",
+    evidence_completeness: "TEXT DEFAULT 'unknown'",
+    cities: 'TEXT',
+    executor_name: 'TEXT',
+    started_at: 'DATETIME',
+    finished_at: 'DATETIME',
+    created_at: 'DATETIME',
+    updated_at: 'DATETIME',
+    parent_report_id: 'TEXT',
+    retest_status: "TEXT DEFAULT 'none'",
+    completion_score: 'INTEGER DEFAULT 0',
+    completion_summary: 'TEXT',
+    schema_version: "TEXT DEFAULT 'blue-team-report/v3'",
+};
+for (const [column, definition] of Object.entries(blueTeamReportColumnDefs)) {
+    if (!blueTeamReportColumns.includes(column)) {
+        db.exec(`ALTER TABLE blue_team_reports ADD COLUMN ${column} ${definition}`);
+    }
+}
+db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_blue_team_reports_created_at ON blue_team_reports(created_at);
+    CREATE INDEX IF NOT EXISTS idx_blue_team_reports_platform ON blue_team_reports(platform);
+    CREATE INDEX IF NOT EXISTS idx_blue_team_reports_method ON blue_team_reports(method);
+    CREATE INDEX IF NOT EXISTS idx_blue_team_reports_status ON blue_team_reports(overall_status);
+    CREATE INDEX IF NOT EXISTS idx_blue_team_reports_risk ON blue_team_reports(risk_level);
+    CREATE INDEX IF NOT EXISTS idx_blue_team_reports_parent ON blue_team_reports(parent_report_id);
 `);
 
 const stationColumns = db.prepare(`PRAGMA table_info(stations)`).all().map(col => col.name);

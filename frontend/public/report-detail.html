@@ -689,7 +689,7 @@ function renderFindings(r){
     if(!findings.length){document.getElementById('findingsContainer').innerHTML='';return;}
     var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.1 风险发现汇总 <span class="badge" style="margin-left:auto">'+findings.length+'</span></div><div class="collapsible-body">';
     findings.forEach(function(f){
-        h+='<div class="finding-card"><div class="finding-header">badge(f.severity,RISK_MAP)+'<span class="finding-title">'+escHtml(f.title)+'</span>';
+        h+='<div class="finding-card"><div class="finding-header">'+badge(f.severity,RISK_MAP)+'<span class="finding-title">'+escHtml(f.title)+'</span>';
         if(f.attackStepRef){/* internal step ref not shown */}
         h+='</div><div class="finding-body">';
         if(f.affectedScope&&f.affectedScope.length)h+='<div class="finding-field"><span class="finding-field-label">影响范围：</span>'+escHtml(f.affectedScope.join('、'))+'</div>';
@@ -710,9 +710,9 @@ function renderRecommendations(r){
     if(!recs.length){document.getElementById('recommendationsContainer').innerHTML='';return;}
     var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.2 修复建议 <span class="badge" style="margin-left:auto">'+recs.length+'</span></div><div class="collapsible-body">';
     h+='<div class="table-wrap"><table><thead><tr><th>编号</th><th>优先级</th><th>动作</th><th>关联发现</th><th>关联步骤</th><th>验证标准</th></tr></thead><tbody>';
-    recs.forEach(function(rec){
-        h+='<tr><td>-</td>';
-        h+='<tr><td>'+badge(rec.priority,{high:{label:'高',cls:'badge-high'},medium:{label:'中',cls:'badge-medium'},low:{label:'低',cls:'badge-low'}})+'</td>';
+    recs.forEach(function(rec,index){
+        h+='<tr><td>R-'+(index+1)+'</td>';
+        h+='<td>'+badge(rec.priority,{high:{label:'高',cls:'badge-high'},medium:{label:'中',cls:'badge-medium'},low:{label:'低',cls:'badge-low'}})+'</td>';
         h+='<td style="max-width:260px">'+escHtml(rec.action||'-')+'</td>';
         h+='<td>'+(rec.relatedFindings||[]).map(function(f){return '<code style="font-size:11px">'+escHtml(f)+'</code>'}).join(' ')+'</td>';
         h+='<td>-</td>';
@@ -742,10 +742,37 @@ function renderEvidenceMatrix(r){
     em.forEach(function(e){
         h+='<tr><td style="font-weight:600">'+escHtml(e.type||'-')+'</td><td>'+badge(e.status)+'</td><td>'+escHtml(e.purpose||'-')+'</td><td>';
         if(e.attackStepRef){var p=getStepPhase(e.attackStepRef);var pi=PHASE_MAP[p]||{cls:''};h+='<a class="attack-step-ref '+pi.cls+'" onclick="scrollToStep(\''+escHtml(e.attackStepRef)+'\')">'+escHtml(e.attackStepRef)+'</a>';}else{h+='-';}
-        h+='</td><td style="max-width:260px;font-size:12px;color:var(--muted)">'+escHtml((e.refs||[]).join('、')||'-')+'</td></tr>';
+        h+='</td><td style="max-width:260px;font-size:12px;color:var(--muted)">'+renderEvidenceRefs(e.refs||[])+'</td></tr>';
     });
     h+='</tbody></table></div></div>';
     document.getElementById('evidenceMatrixContainer').innerHTML=h;
+}
+
+function renderEvidenceRefs(refs){
+    if(!refs||!refs.length)return '-';
+    return refs.map(function(ref){
+        var link=buildEvidenceUrl(ref);
+        if(!link)return escHtml(ref);
+        return '<a href="'+escHtml(link)+'" target="_blank" rel="noopener" style="color:var(--brand-deep);font-weight:700">'+escHtml(ref)+'</a>';
+    }).join('、');
+}
+
+function buildEvidenceUrl(ref){
+    if(!reportId||!ref)return '';
+    var text=String(ref);
+    var file=text.split('/').pop();
+    var type='';
+    if(/^evidence\/screenshots\//.test(text))type='screenshot';
+    else if(file==='ocr-lines.jsonl')type='ocr-lines';
+    else if(file==='har-summary.json')type='har-summary';
+    else if(file==='api-requests.jsonl')type='api-request';
+    else if(file==='outbound-evidence.jsonl')type='outbound-evidence';
+    else if(file==='db-check-result.json')type='db-check';
+    else if(file==='supervisor-events.jsonl')type='supervisor-event';
+    if(!type)return '';
+    var url='/api/blue-team/reports/'+encodeURIComponent(reportId)+'/evidence/'+encodeURIComponent(type);
+    if(type==='screenshot')url+='/'+encodeURIComponent(file);
+    return url+'?sanitize='+(isSanitize?'true':'false');
 }
 
 /* ── 📎 A.5 Outbound Evidence ── */

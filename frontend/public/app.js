@@ -587,6 +587,7 @@ async function loadConfig() {
         }
         populateSelfHealScenarioOptions(config?.selfHeal?.scenarios || []);
         await loadAiAgentDashboard();
+        await loadGlobalAgentDashboard();
     } catch (error) {
         console.error('Failed to load config:', error);
     }
@@ -766,6 +767,88 @@ function renderChainStatus(chainStatus = {}) {
             </article>
         `;
     }).join('');
+}
+
+async function loadGlobalAgentDashboard() {
+    const banner = document.getElementById('globalAgentStatusBanner');
+    if (banner) setStatusBannerState(banner, '正在刷新三链路和全局 Agent 状态...', 'info');
+    try {
+        const [agentResp, chainsResp] = await Promise.all([
+            fetch(`${API_BASE}/global-agent/status`),
+            fetch(`${API_BASE}/test-chains/status`)
+        ]);
+        const agent = await agentResp.json();
+        const chains = await chainsResp.json();
+        if (chains?.chains) {
+            renderChainStatus(chains.chains);
+        }
+        renderGlobalAgentStatus(agent, chains);
+        return { agent, chains };
+    } catch (error) {
+        if (banner) setStatusBannerState(banner, `全局 Agent 状态加载失败：${error.message}`, 'error');
+        return { success: false, error: error.message };
+    }
+}
+
+function renderGlobalAgentStatus(agent = {}, chains = {}) {
+    const banner = document.getElementById('globalAgentStatusBanner');
+    if (!banner) return;
+    const modeLabel = ({ enabled: '已启用', dry_run: '预演模式', disabled: '未启用' }[agent.mode]) || agent.mode || '未知';
+    const availableCount = chains.summary?.availableCount ?? Object.values(chains.chains || {}).filter(item => item.available).length;
+    const best = chains.bestChain ? `，推荐链路：${chains.chains?.[chains.bestChain]?.label || chains.bestChain}` : '';
+    const tone = agent.mode === 'enabled' ? 'success' : (agent.mode === 'dry_run' ? 'warn' : 'warn');
+    setStatusBannerState(banner, `全局 Agent：${modeLabel}；可用链路 ${availableCount || 0} 条${best}`, tone);
+}
+
+function getGlobalAgentTarget() {
+    ensureSelectedPlatforms();
+    return {
+        platform: selectedPlatforms[0] || DEFAULT_PLATFORM_ID,
+        city: document.getElementById('globalAgentCity')?.value?.trim() || '上海',
+        lat: Number(document.getElementById('globalAgentLat')?.value || 31.2304),
+        lng: Number(document.getElementById('globalAgentLng')?.value || 121.4737),
+        radiusKm: 20,
+        maxPages: 1,
+        maxRequestCount: 5,
+        maxQps: 1
+    };
+}
+
+async function planGlobalAgentAction() {
+    const out = document.getElementById('globalAgentPlanOutput');
+    const prompt = document.getElementById('globalAgentPrompt')?.value?.trim()
+        || '检查三条链路，选择当前最合适的链路做一次小规模验证';
+    if (out) out.value = '正在生成计划...';
+    const res = await fetch(`${API_BASE}/global-agent/actions/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            message: prompt,
+            target: getGlobalAgentTarget(),
+            dryRun: true
+        })
+    });
+    const result = await res.json();
+    if (out) out.value = safeJson(result);
+    return result;
+}
+
+async function dryRunGlobalAgentAction() {
+    const runOut = document.getElementById('globalAgentRunOutput');
+    if (runOut) runOut.value = '正在预演执行...';
+    const plan = await planGlobalAgentAction();
+    const res = await fetch(`${API_BASE}/global-agent/actions/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            plan: plan.plan,
+            dryRun: true
+        })
+    });
+    const result = await res.json();
+    if (runOut) runOut.value = safeJson(result);
+    await loadGlobalAgentDashboard();
+    return result;
 }
 
 function renderPageCollectionModes(modes = []) {
@@ -1253,18 +1336,21 @@ function getSecurityReportDownloadUrl(report = {}, format = 'markdown') {
     const downloads = report.downloads || {};
     const directUrl = downloads[format] || (format === 'markdown' ? downloads.md : '');
     if (directUrl) {
+        const withSanitize = directUrl.includes('sanitize=')
+            ? directUrl
+            : `${directUrl}${directUrl.includes('?') ? '&' : '?'}sanitize=true`;
         if (/^https?:\/\//i.test(directUrl)) {
-            return directUrl;
+            return withSanitize;
         }
         if (directUrl.startsWith('/')) {
             const apiBaseUrl = new URL(API_BASE, window.location.origin);
             return apiBaseUrl.origin === window.location.origin
-                ? directUrl
-                : `${apiBaseUrl.origin}${directUrl}`;
+                ? withSanitize
+                : `${apiBaseUrl.origin}${withSanitize}`;
         }
-        return directUrl;
+        return withSanitize;
     }
-    return `${API_BASE}/blue-team/reports/${encodeURIComponent(id)}/download?format=${encodeURIComponent(format)}`;
+    return `${API_BASE}/blue-team/reports/${encodeURIComponent(id)}/download?format=${encodeURIComponent(format)}&sanitize=true`;
 }
 
 function normalizeSecurityReport(rawReport = {}, source = securityReportSource) {
@@ -1337,6 +1423,9 @@ function extractSecurityReportList(data) {
     }
     if (Array.isArray(data?.reports)) {
         return data.reports;
+    }
+    if (Array.isArray(data?.data)) {
+        return data.data;
     }
     if (Array.isArray(data?.items)) {
         return data.items;
@@ -4818,6 +4907,15 @@ function setupEventListeners() {
     });
     document.getElementById('method3RunBasic')?.addEventListener('click', async () => {
         try { await runMethod3BasicCheck(); } catch (error) { addLog(`❌ 接口小规模验证异常: ${error.message}`, 'error'); }
+    });
+    document.getElementById('globalAgentRefreshBtn')?.addEventListener('click', async () => {
+        await loadGlobalAgentDashboard();
+    });
+    document.getElementById('globalAgentPlanBtn')?.addEventListener('click', async () => {
+        try { await planGlobalAgentAction(); } catch (error) { alert(error.message); }
+    });
+    document.getElementById('globalAgentDryRunBtn')?.addEventListener('click', async () => {
+        try { await dryRunGlobalAgentAction(); } catch (error) { alert(error.message); }
     });
     document.getElementById('crawlByCoordinatesBtn')?.addEventListener('click', crawlByCoordinatesForSelectedPlatforms);
     document.getElementById('resolveCollectLocationBtn')?.addEventListener('click', resolveCollectLocation);

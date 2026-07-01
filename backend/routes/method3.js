@@ -8,6 +8,9 @@ const router = express.Router();
 
 let _service = null;
 function getService(req) {
+    if (req.app.locals.method3Service) {
+        return req.app.locals.method3Service;
+    }
     if (!_service) {
         const providerOptions = (req.app.locals.config?.didiSignatureProvider) || {};
         const signatureProvider = new DidiSignatureProvider(providerOptions);
@@ -22,7 +25,7 @@ function getService(req) {
  */
 router.get('/status', (req, res) => {
     try {
-        const result = getService(req).getStatus();
+        const result = getService(req).getStatus(req.query || {});
         res.json(result);
     } catch (err) {
         console.error("[method3-route]", err);

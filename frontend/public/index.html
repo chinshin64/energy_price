@@ -2490,6 +2490,48 @@
                     </article>
 
                     <article class="portal-card">
+                        <div class="report-list-toolbar">
+                            <div>
+                                <div class="accent-title">全局 AI 控制台</div>
+                            </div>
+                            <button id="globalAgentRefreshBtn" class="btn btn-secondary" type="button">刷新状态</button>
+                        </div>
+                        <div id="globalAgentStatusBanner" class="status-banner warn">等待全局 Agent 状态。</div>
+                        <div class="field-grid three-col">
+                            <div class="field-group">
+                                <label for="globalAgentCity">目标城市</label>
+                                <input id="globalAgentCity" type="text" value="上海" placeholder="上海">
+                            </div>
+                            <div class="field-group">
+                                <label for="globalAgentLat">纬度</label>
+                                <input id="globalAgentLat" type="number" step="0.000001" value="31.2304">
+                            </div>
+                            <div class="field-group">
+                                <label for="globalAgentLng">经度</label>
+                                <input id="globalAgentLng" type="number" step="0.000001" value="121.4737">
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label for="globalAgentPrompt">全局指令</label>
+                            <textarea id="globalAgentPrompt" placeholder="例如：检查三条链路，选择当前最合适的链路做一次小规模验证"></textarea>
+                        </div>
+                        <div class="action-row">
+                            <button id="globalAgentPlanBtn" class="btn btn-secondary" type="button">生成计划</button>
+                            <button id="globalAgentDryRunBtn" class="btn btn-primary" type="button">预演执行</button>
+                        </div>
+                        <div class="content-grid two-up">
+                            <div class="field-group">
+                                <label for="globalAgentPlanOutput">计划</label>
+                                <textarea id="globalAgentPlanOutput" readonly placeholder="全局 Agent 的计划会展示在这里"></textarea>
+                            </div>
+                            <div class="field-group">
+                                <label for="globalAgentRunOutput">执行结果</label>
+                                <textarea id="globalAgentRunOutput" readonly placeholder="预演或执行结果会展示在这里"></textarea>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="portal-card">
                         <div class="table-toolbar">
                             <div class="field-group">
                                 <label for="platformFilter">平台筛选</label>

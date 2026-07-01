@@ -684,8 +684,9 @@
                     showToast('报告加载失败', 'error');
                     return;
                 }
-                var reports = json.data || [];
-                totalRecords = json.meta ? json.meta.total : 0;
+                var normalized = normalizeReportListResponse(json);
+                var reports = normalized.reports;
+                totalRecords = normalized.total;
                 renderTable(reports);
                 renderPagination();
             } catch (err) {
@@ -693,6 +694,30 @@
                 renderTable([]);
                 renderPagination();
             }
+        }
+
+        function normalizeReportListResponse(json) {
+            var payload = json && json.data;
+            var reports = [];
+            var meta = json && json.meta ? json.meta : {};
+            if (Array.isArray(payload)) {
+                reports = payload;
+            } else if (payload && Array.isArray(payload.data)) {
+                reports = payload.data;
+                meta.total = payload.total;
+                meta.limit = payload.limit;
+                meta.offset = payload.offset;
+            } else if (payload && Array.isArray(payload.reports)) {
+                reports = payload.reports;
+                meta.total = payload.total;
+            } else if (payload && Array.isArray(payload.items)) {
+                reports = payload.items;
+                meta.total = payload.total;
+            }
+            return {
+                reports: reports,
+                total: Number(meta.total) || reports.length
+            };
         }
 
         function renderTable(reports) {
@@ -705,13 +730,11 @@
             }
             empty.style.display = 'none';
             tbody.innerHTML = reports.map(function(r) {
-                var id = r.id || r.reportId || '-';
+                var apiId = r.reportId || r.id || '';
+                var displayId = apiId || '-';
                 var cities = r.cities || (r.target && r.target.cities) || [];
-                var id = (r.id || r.reportId || '');
-                if (/^BTR-/.test(id)) { /* keep BTR- prefixed IDs */ } else if (/^\d+$/.test(id)) { id = ''; } else { id = ''; }
-                if (!id) id = '#' + (r._seq || '');
                 return '<tr>' +
-                    '<td>' + (id ? '<code style="font-size:12px;color:var(--brand-deep)">' + escHtml(id) + '</code>' : '-') + '</td>' +
+                    '<td>' + (displayId ? '<code style="font-size:12px;color:var(--brand-deep)">' + escHtml(displayId) + '</code>' : '-') + '</td>' +
                     '<td class="td-title" title="' + escHtml(r.title || '') + '">' + escHtml(r.title || '-') + '</td>' +
                     '<td>' + escHtml(PLATFORM_MAP[r.platform] || r.platform || '-') + '</td>' +
                     '<td>' + cities.length + '</td>' +
@@ -719,9 +742,9 @@
                     '<td>' + badge(r.riskLevel, RISK_MAP) + '</td>' +
                     '<td style="white-space:nowrap">' + formatTime(r.createdAt || r.startedAt) + '</td>' +
                     '<td class="td-actions">' +
-                        '<button class="btn btn-secondary btn-sm" onclick="viewDetail(\'' + escAttr(id) + '\')">查看</button>' +
-                        '<button class="btn btn-secondary btn-sm" onclick="downloadReport(\'' + escAttr(id) + '\')">下载</button>' +
-                        '<button class="btn btn-secondary btn-sm" onclick="confirmRetest(\'' + escAttr(id) + '\',\'' + escAttr(r.title || '') + '\')">复测</button>' +
+                        '<button class="btn btn-secondary btn-sm" onclick="viewDetail(\'' + escAttr(apiId) + '\')">查看</button>' +
+                        '<button class="btn btn-secondary btn-sm" onclick="downloadReport(\'' + escAttr(apiId) + '\')">下载</button>' +
+                        '<button class="btn btn-secondary btn-sm" onclick="confirmRetest(\'' + escAttr(apiId) + '\',\'' + escAttr(r.title || '') + '\')">复测</button>' +
                     '</td>' +
                 '</tr>';
             }).join('');
@@ -781,7 +804,7 @@
         }
 
         function downloadReport(id) {
-            window.open(API_BASE + '/' + id + '/download?format=markdown&sanitize=true', '_blank');
+            window.open(API_BASE + '/' + encodeURIComponent(id) + '/download?format=markdown&sanitize=true', '_blank');
         }
 
         var pendingRetestId = null;
@@ -803,7 +826,7 @@
             var id = pendingRetestId;
             closeConfirm();
             try {
-                var resp = await fetch(API_BASE + '/' + id + '/retest', {
+                var resp = await fetch(API_BASE + '/' + encodeURIComponent(id) + '/retest', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({})

@@ -8,6 +8,9 @@ const router = express.Router();
 // 延迟实例化，避免模块加载顺序问题
 let _service = null;
 function getService(req) {
+    if (req.app.locals.method2Service) {
+        return req.app.locals.method2Service;
+    }
     if (!_service) {
         const CaptureRecorder = require('../services/capture-recorder');
         const recorderOptions = (req.app.locals.config?.captureRecorder) || {};
