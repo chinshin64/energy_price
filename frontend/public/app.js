@@ -300,6 +300,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTopbarAutoCollapse();
     await loadConfig();
     await loadNetworkSettings();
+    await loadAiAgentSettings();
     await loadCaptureCenter();
     if (isAiFeaturesEnabled()) {
         await loadSelfHealSettings();
@@ -642,6 +643,29 @@ async function loadNetworkSettings() {
     }
 }
 
+async function loadAiAgentSettings() {
+    try {
+        const res = await fetch(`${API_BASE}/settings/ai-agent`);
+        const result = await res.json();
+        if (!result.success) {
+            setStatusBannerState(
+                document.getElementById('aiAgentSettingsStatus'),
+                result.error || 'AI Agent 配置加载失败',
+                'error'
+            );
+            return;
+        }
+        renderAiAgentSettings(result.data || {});
+    } catch (error) {
+        console.error('Failed to load AI Agent settings:', error);
+        setStatusBannerState(
+            document.getElementById('aiAgentSettingsStatus'),
+            `AI Agent 配置加载失败：${error.message}`,
+            'error'
+        );
+    }
+}
+
 async function saveNetworkSettings() {
     const payload = collectNetworkSettingsFromForm();
 
@@ -664,6 +688,25 @@ async function saveNetworkSettings() {
             : '🌐 代理已关闭，恢复直连请求',
         'info'
     );
+}
+
+async function saveAiAgentSettings() {
+    const payload = collectAiAgentSettingsFromForm();
+    const res = await fetch(`${API_BASE}/settings/ai-agent`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (!result.success) {
+        throw new Error(result.error || '保存 AI Agent 配置失败');
+    }
+
+    renderAiAgentSettings(result.data || {});
+    await loadAiAgentDashboard();
+    await loadGlobalAgentDashboard();
+    addLog('AI Agent 配置已保存', 'success');
 }
 
 async function loadSelfHealSettings() {
@@ -1089,6 +1132,78 @@ function collectNetworkSettingsFromForm() {
             authToken: document.getElementById('providerProxyAuthToken')?.value?.trim() || '',
             ttlMinutes: Math.max(1, Math.floor(Number(document.getElementById('providerProxyTtl')?.value) || 10))
         }
+    };
+}
+
+function renderAiAgentSettings(data = {}) {
+    const effective = data.effective || {};
+    const modeEl = document.getElementById('aiAgentSettingsMode');
+    const typeEl = document.getElementById('aiAgentSettingsType');
+    const baseUrlEl = document.getElementById('aiAgentSettingsBaseUrl');
+    const modelEl = document.getElementById('aiAgentSettingsModelId');
+    const timeoutEl = document.getElementById('aiAgentSettingsTimeoutMs');
+    const keyEl = document.getElementById('aiAgentSettingsApiKey');
+    const keepKeyEl = document.getElementById('aiAgentSettingsKeepKey');
+    const clearKeyEl = document.getElementById('aiAgentSettingsClearKey');
+    const temperatureEl = document.getElementById('aiAgentSettingsTemperature');
+    const maxTokensEl = document.getElementById('aiAgentSettingsMaxTokens');
+    const saveEventsEl = document.getElementById('aiAgentSettingsSaveEvents');
+    const lowRiskEl = document.getElementById('aiAgentSettingsApplyLowRiskPatches');
+    const statusEl = document.getElementById('aiAgentSettingsStatus');
+
+    if (modeEl) modeEl.value = data.mode || effective.mode || 'disabled';
+    if (typeEl) typeEl.value = data.type || effective.type || 'openai_compatible';
+    if (baseUrlEl) baseUrlEl.value = data.baseUrl || '';
+    if (modelEl) modelEl.value = data.modelId || '';
+    if (timeoutEl) timeoutEl.value = String(data.timeoutMs || effective.timeoutMs || 60000);
+    if (temperatureEl) temperatureEl.value = String(data.temperature ?? 0);
+    if (maxTokensEl) maxTokensEl.value = String(data.maxTokens || 1200);
+    if (saveEventsEl) saveEventsEl.checked = data.saveEvents !== false;
+    if (lowRiskEl) lowRiskEl.checked = Boolean(data.applyLowRiskPatches);
+    if (keepKeyEl) keepKeyEl.checked = true;
+    if (clearKeyEl) clearKeyEl.checked = false;
+    if (keyEl) {
+        keyEl.value = '';
+        keyEl.placeholder = data.apiKeyConfigured
+            ? `已保存 Key：${data.apiKeyPreview || '********'}，留空保留`
+            : '请输入 API Key';
+    }
+
+    if (statusEl) {
+        const configured = Boolean(effective.configured || data.configured);
+        const mode = effective.mode || data.mode || 'disabled';
+        const envOverride = data.envOverride || {};
+        const overrideNames = Object.entries(envOverride)
+            .filter(([, enabled]) => enabled)
+            .map(([name]) => name);
+        const parts = [
+            configured ? 'AI Agent 已配置' : 'AI Agent 未完整配置',
+            `模式 ${mode}`,
+            data.apiKeyConfigured || effective.configured ? 'Key 已保存' : 'Key 未配置',
+            data.modelId ? `模型 ${data.modelId}` : '模型未配置'
+        ];
+        if (overrideNames.length) {
+            parts.push(`环境变量覆盖：${overrideNames.join(', ')}`);
+        }
+        setStatusBannerState(statusEl, parts.join(' · '), configured ? 'success' : 'warn');
+    }
+}
+
+function collectAiAgentSettingsFromForm() {
+    const apiKey = document.getElementById('aiAgentSettingsApiKey')?.value || '';
+    return {
+        mode: document.getElementById('aiAgentSettingsMode')?.value || 'disabled',
+        type: document.getElementById('aiAgentSettingsType')?.value || 'openai_compatible',
+        baseUrl: document.getElementById('aiAgentSettingsBaseUrl')?.value?.trim() || '',
+        apiKey,
+        keepApiKey: Boolean(document.getElementById('aiAgentSettingsKeepKey')?.checked),
+        clearApiKey: Boolean(document.getElementById('aiAgentSettingsClearKey')?.checked),
+        modelId: document.getElementById('aiAgentSettingsModelId')?.value?.trim() || '',
+        timeoutMs: Math.max(1000, Math.floor(Number(document.getElementById('aiAgentSettingsTimeoutMs')?.value) || 60000)),
+        temperature: Number(document.getElementById('aiAgentSettingsTemperature')?.value || 0),
+        maxTokens: Math.max(1, Math.floor(Number(document.getElementById('aiAgentSettingsMaxTokens')?.value) || 1200)),
+        saveEvents: Boolean(document.getElementById('aiAgentSettingsSaveEvents')?.checked),
+        applyLowRiskPatches: Boolean(document.getElementById('aiAgentSettingsApplyLowRiskPatches')?.checked)
     };
 }
 
@@ -4928,6 +5043,21 @@ function setupEventListeners() {
             await saveNetworkSettings();
         } catch (error) {
             alert(error.message);
+        }
+    });
+    document.getElementById('saveAiAgentSettingsBtn')?.addEventListener('click', async () => {
+        try {
+            await saveAiAgentSettings();
+        } catch (error) {
+            alert(error.message);
+        }
+    });
+    document.getElementById('aiAgentSettingsClearKey')?.addEventListener('change', event => {
+        const keyEl = document.getElementById('aiAgentSettingsApiKey');
+        const keepEl = document.getElementById('aiAgentSettingsKeepKey');
+        if (event.target.checked) {
+            if (keyEl) keyEl.value = '';
+            if (keepEl) keepEl.checked = false;
         }
     });
     document.getElementById('saveSelfHealSettingsBtn')?.addEventListener('click', async () => {

@@ -3754,6 +3754,89 @@
                             <div id="networkProxyStatus" class="status-banner">当前未启用代理</div>
                         </article>
 
+                        <article class="portal-card">
+                            <div class="accent-title">AI Agent 配置</div>
+
+                            <div class="field-grid">
+                                <div class="field-grid two-col">
+                                    <div class="field-group">
+                                        <label for="aiAgentSettingsMode">运行模式</label>
+                                        <select id="aiAgentSettingsMode">
+                                            <option value="disabled">disabled</option>
+                                            <option value="dry_run">dry_run</option>
+                                            <option value="enabled">enabled</option>
+                                        </select>
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="aiAgentSettingsType">接口类型</label>
+                                        <select id="aiAgentSettingsType">
+                                            <option value="openai_compatible">OpenAI compatible</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="aiAgentSettingsBaseUrl">Base URL</label>
+                                    <input id="aiAgentSettingsBaseUrl" type="text" autocomplete="off" placeholder="https://api.openai.com/v1">
+                                </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="field-group">
+                                        <label for="aiAgentSettingsModelId">Model ID</label>
+                                        <input id="aiAgentSettingsModelId" type="text" autocomplete="off" placeholder="gpt-4.1-mini">
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="aiAgentSettingsTimeoutMs">Timeout ms</label>
+                                        <input id="aiAgentSettingsTimeoutMs" type="number" min="1000" step="1000" value="60000">
+                                    </div>
+                                </div>
+
+                                <div class="field-group">
+                                    <label for="aiAgentSettingsApiKey">API Key</label>
+                                    <input id="aiAgentSettingsApiKey" type="password" autocomplete="new-password" placeholder="留空则保留已保存 Key">
+                                </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="inline-field">
+                                        <input id="aiAgentSettingsKeepKey" type="checkbox" checked>
+                                        <label for="aiAgentSettingsKeepKey">留空保留已保存 Key</label>
+                                    </div>
+                                    <div class="inline-field">
+                                        <input id="aiAgentSettingsClearKey" type="checkbox">
+                                        <label for="aiAgentSettingsClearKey">清空已保存 Key</label>
+                                    </div>
+                                </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="field-group">
+                                        <label for="aiAgentSettingsTemperature">Temperature</label>
+                                        <input id="aiAgentSettingsTemperature" type="number" min="0" max="2" step="0.1" value="0">
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="aiAgentSettingsMaxTokens">Max tokens</label>
+                                        <input id="aiAgentSettingsMaxTokens" type="number" min="1" step="1" value="1200">
+                                    </div>
+                                </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="inline-field">
+                                        <input id="aiAgentSettingsSaveEvents" type="checkbox" checked>
+                                        <label for="aiAgentSettingsSaveEvents">保存失败事件</label>
+                                    </div>
+                                    <div class="inline-field">
+                                        <input id="aiAgentSettingsApplyLowRiskPatches" type="checkbox">
+                                        <label for="aiAgentSettingsApplyLowRiskPatches">允许低风险自动补丁</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="action-row">
+                                <button id="saveAiAgentSettingsBtn" class="btn btn-primary" type="button">保存 AI Agent 配置</button>
+                            </div>
+
+                            <div id="aiAgentSettingsStatus" class="status-banner">等待加载 AI Agent 配置</div>
+                        </article>
+
 	                    </div>
 	                </section>
             </main>

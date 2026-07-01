@@ -36,6 +36,11 @@ class Method2Service {
         this.failureAnalyzer = options.failureAnalyzer || new RequestFailureAnalyzer({ config: options.aiAgentConfig || {} });
     }
 
+    setAiAgentConfig(config = {}) {
+        this.failureAnalyzer = new RequestFailureAnalyzer({ config });
+        return this.failureAnalyzer.getStatus();
+    }
+
     /**
      * GET /api/method2/status
      * 返回 mitmdump、recorder、proxy、harOutput 状态

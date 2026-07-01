@@ -1,12 +1,15 @@
 'use strict';
 
 const express = require('express');
-const { getRequestFailureAnalyzer } = require('../services/request-failure-analyzer');
+const { RequestFailureAnalyzer } = require('../services/request-failure-analyzer');
 
 const router = express.Router();
 
 function analyzer(req) {
-    return getRequestFailureAnalyzer({ config: req.app.locals.config || {} });
+    const config = typeof req.app.locals.getEffectiveConfig === 'function'
+        ? req.app.locals.getEffectiveConfig()
+        : (req.app.locals.config || {});
+    return new RequestFailureAnalyzer({ config });
 }
 
 router.get('/status', (req, res) => {

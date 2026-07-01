@@ -42,6 +42,11 @@ class Method3Service {
         });
     }
 
+    setAiAgentConfig(config = {}) {
+        this.failureAnalyzer = new RequestFailureAnalyzer({ config });
+        return this.failureAnalyzer.getStatus();
+    }
+
     /**
      * GET /api/method3/status
      * 返回模板统计、语料统计、最近失败原因

@@ -50,12 +50,38 @@ const Method3Service = require('./services/method3-service');
 const DidiSignatureProvider = require('./services/didi-signature-provider');
 const TestChainOrchestrator = require('./services/test-chain-orchestrator');
 const GlobalAgentService = require('./services/global-agent-service');
+const { buildAiAgentConfig, publicConfig } = require('./services/ai-agent-client');
 
 // 创建 Express 应用
 const app = express();
 app.locals.config = config;
 const PORT = Number(process.env.PORT || config.server.port || 3000);
 const AI_FEATURES_ENABLED = /^(1|true|yes|on)$/i.test(String(process.env.AI_FEATURES_ENABLED || ''));
+
+function getEffectiveConfig() {
+    return {
+        ...config,
+        aiAgent: AppSettingModel.getAiAgentSettings(config.aiAgent || {})
+    };
+}
+
+function getAiAgentSettingsResponse() {
+    const saved = AppSettingModel.getAiAgentSettings(config.aiAgent || {});
+    const effective = buildAiAgentConfig({ aiAgent: saved });
+    return {
+        ...AppSettingModel.publicAiAgentSettings(saved),
+        effective: publicConfig(effective),
+        envOverride: {
+            mode: Boolean(process.env.AI_AGENT_MODE),
+            type: Boolean(process.env.AI_AGENT_TYPE),
+            baseUrl: Boolean(process.env.AI_AGENT_BASE_URL),
+            apiKey: Boolean(process.env.AI_AGENT_API_KEY),
+            modelId: Boolean(process.env.AI_AGENT_MODEL_ID)
+        }
+    };
+}
+
+app.locals.getEffectiveConfig = getEffectiveConfig;
 // LEGACY_CHARLES_WATCH removed — capture-recorder is the only engine
 
 // 中间件
@@ -229,12 +255,12 @@ const chainSignatureProvider = new DidiSignatureProvider({
 });
 const method2ServiceForOrchestrator = new Method2Service({
     recorder: captureRecorderService,
-    aiAgentConfig: config
+    aiAgentConfig: getEffectiveConfig()
 });
 app.locals.method2Service = method2ServiceForOrchestrator;
 const method3ServiceForOrchestrator = new Method3Service({
     signatureProvider: chainSignatureProvider,
-    aiAgentConfig: config,
+    aiAgentConfig: getEffectiveConfig(),
     templateDir: path.join(__dirname, '../data')
 });
 app.locals.method3Service = method3ServiceForOrchestrator;
@@ -249,8 +275,17 @@ const globalAgentService = new GlobalAgentService({
     orchestrator: testChainOrchestrator,
     reportService: blueTeamReportService,
     mobileCommandService,
-    config
+    config: getEffectiveConfig()
 });
+function refreshAiAgentRuntimeConfig() {
+    const effectiveConfig = getEffectiveConfig();
+    app.locals.config = effectiveConfig;
+    app.locals.getEffectiveConfig = getEffectiveConfig;
+    globalAgentService.setConfig(effectiveConfig);
+    method2ServiceForOrchestrator.setAiAgentConfig(effectiveConfig);
+    method3ServiceForOrchestrator.setAiAgentConfig(effectiveConfig);
+    return effectiveConfig;
+}
 const syncUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 const syncService = new SyncService({
     nodesPath: path.join(__dirname, '../config/sync-nodes.json'),
@@ -1519,6 +1554,24 @@ app.put('/api/settings/network', (req, res) => {
         const settings = normalizeNetworkSettingsPayload(req.body || {});
         const data = AppSettingModel.saveProxySettings(settings);
         res.json({ success: true, data });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/settings/ai-agent', (req, res) => {
+    try {
+        res.json({ success: true, data: getAiAgentSettingsResponse() });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.put('/api/settings/ai-agent', (req, res) => {
+    try {
+        AppSettingModel.saveAiAgentSettings(req.body || {}, config.aiAgent || {});
+        refreshAiAgentRuntimeConfig();
+        res.json({ success: true, data: getAiAgentSettingsResponse() });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }

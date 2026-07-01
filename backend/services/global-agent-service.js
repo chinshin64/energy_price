@@ -73,8 +73,13 @@ class GlobalAgentService {
         this.orchestrator = options.orchestrator;
         this.reportService = options.reportService || null;
         this.mobileCommandService = options.mobileCommandService || null;
-        this.config = buildAiAgentConfig(options.config || {});
+        this.setConfig(options.config || {});
+    }
+
+    setConfig(config = {}) {
+        this.config = buildAiAgentConfig(config);
         this.config.mode = normalizeMode(this.config.mode);
+        return this.config;
     }
 
     getStatus() {

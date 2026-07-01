@@ -9,6 +9,7 @@ const tests = [
   ['GET', '/runs'],
   ['GET', '/run-logs'],
   ['GET', '/settings/network'],
+  ['GET', '/settings/ai-agent'],
   ['GET', '/self-heal/settings'],
   ['GET', '/self-heal/runs'],
   ['GET', '/crawler/run-quota'],
