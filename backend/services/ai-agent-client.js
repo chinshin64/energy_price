@@ -4,6 +4,8 @@ const axios = require('axios');
 const { redactObject } = require('./sensitive-redactor');
 
 const DEFAULT_TIMEOUT_MS = 60000;
+const DEFAULT_ANTHROPIC_VERSION = '2023-06-01';
+const SUPPORTED_TYPES = new Set(['openai_compatible', 'anthropic_native']);
 
 function normalizeMode(value) {
     const mode = String(value || 'disabled').trim().toLowerCase();
@@ -11,6 +13,17 @@ function normalizeMode(value) {
         return mode === 'dry-run' ? 'dry_run' : mode;
     }
     return 'disabled';
+}
+
+function normalizeType(value) {
+    const raw = String(value || 'openai_compatible').trim().toLowerCase();
+    if (['openai', 'openai-compatible', 'openai_compatible'].includes(raw)) {
+        return 'openai_compatible';
+    }
+    if (['anthropic', 'anthropic-native', 'anthropic_native', 'claude', 'claude-native', 'claude_native'].includes(raw)) {
+        return 'anthropic_native';
+    }
+    return raw || 'openai_compatible';
 }
 
 function truthy(value) {
@@ -21,7 +34,7 @@ function buildAiAgentConfig(baseConfig = {}) {
     const cfg = baseConfig.aiAgent || baseConfig || {};
     return {
         mode: normalizeMode(process.env.AI_AGENT_MODE || cfg.mode),
-        type: String(process.env.AI_AGENT_TYPE || cfg.type || 'openai_compatible').trim().toLowerCase(),
+        type: normalizeType(process.env.AI_AGENT_TYPE || cfg.type || 'openai_compatible'),
         baseUrl: String(process.env.AI_AGENT_BASE_URL || cfg.baseUrl || '').trim(),
         apiKey: String(process.env.AI_AGENT_API_KEY || cfg.apiKey || '').trim(),
         modelId: String(process.env.AI_AGENT_MODEL_ID || cfg.modelId || cfg.model || '').trim(),
@@ -34,6 +47,7 @@ function buildAiAgentConfig(baseConfig = {}) {
             : cfg.saveEvents !== false,
         temperature: Number(process.env.AI_AGENT_TEMPERATURE || cfg.temperature || 0),
         maxTokens: Number(process.env.AI_AGENT_MAX_TOKENS || cfg.maxTokens || 1200),
+        anthropicVersion: String(process.env.AI_AGENT_ANTHROPIC_VERSION || cfg.anthropicVersion || DEFAULT_ANTHROPIC_VERSION).trim(),
     };
 }
 
@@ -100,6 +114,43 @@ function validateAgentAnalysis(raw) {
     };
 }
 
+function joinEndpoint(baseUrl, endpoint) {
+    const cleanBase = String(baseUrl || '').trim().replace(/\/+$/, '');
+    const cleanEndpoint = String(endpoint || '').replace(/^\/+/, '');
+    if (!cleanBase) return `/${cleanEndpoint}`;
+    if (cleanBase.toLowerCase().endsWith(`/${cleanEndpoint.toLowerCase()}`)) {
+        return cleanBase;
+    }
+    return `${cleanBase}/${cleanEndpoint}`;
+}
+
+function modelContentToText(content) {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+        return content.map(part => {
+            if (typeof part === 'string') return part;
+            if (part && typeof part.text === 'string') return part.text;
+            if (part && typeof part.content === 'string') return part.content;
+            return '';
+        }).filter(Boolean).join('\n');
+    }
+    if (content && typeof content.text === 'string') return content.text;
+    return '';
+}
+
+function buildFailureAnalysisPrompt() {
+    return [
+        'You are the request failure diagnosis agent for a blue-team testing system.',
+        'Analyze why a request or chain failed and return only safe operational advice.',
+        'Never suggest bypassing login, authorization, signatures, captcha, or risk control.',
+        'Never suggest forging sign, signature, token, cookie, wsgsig, or credentials.',
+        'Never suggest increasing maxPages, maxRequestCount, maxQps, or collection radius.',
+        'Distinguish HTTP status 501 from business response code=501.',
+        'Return JSON only. Do not return Markdown or explanatory prose.',
+        'JSON schema: {"success":boolean,"diagnosis":{"category":string,"confidence":number,"reason":string,"evidence":string[]},"strategyPatch":{"patchType":string,"riskLevel":"low|medium|high","applyMode":"auto|manual_review","changes":object},"nextAction":{"action":string,"reason":string}}'
+    ].join('\n');
+}
+
 class AiAgentClient {
     constructor(config = {}) {
         this.config = buildAiAgentConfig(config);
@@ -110,7 +161,7 @@ class AiAgentClient {
         if (cfg.mode === 'disabled') {
             return { success: true, available: false, reason: 'ai_agent_disabled', config: publicConfig(cfg) };
         }
-        if (cfg.type !== 'openai_compatible') {
+        if (!SUPPORTED_TYPES.has(cfg.type)) {
             return { success: true, available: false, reason: 'ai_agent_type_unsupported', config: publicConfig(cfg) };
         }
         if (!cfg.baseUrl || !cfg.apiKey || !cfg.modelId) {
@@ -119,89 +170,149 @@ class AiAgentClient {
         return { success: true, available: true, reason: 'ai_agent_configured', config: publicConfig(cfg) };
     }
 
-    async analyzeFailure(payload) {
-        const cfg = this.config;
-        if (cfg.mode === 'disabled') {
-            return { success: false, reason: 'ai_agent_disabled' };
-        }
-        if (cfg.type !== 'openai_compatible') {
-            return { success: false, reason: 'ai_agent_type_unsupported', type: cfg.type };
-        }
-        if (!cfg.baseUrl || !cfg.apiKey || !cfg.modelId) {
-            return { success: false, reason: 'ai_agent_not_configured' };
+    async completeJson({ system, payload }) {
+        const status = this.getStatus();
+        if (!status.available) {
+            return { success: false, reason: status.reason, config: status.config };
         }
 
-        const url = cfg.baseUrl.replace(/\/$/, '') + '/chat/completions';
-        const safePayload = redactObject(payload || {});
-        const body = {
+        try {
+            const response = await this.callModel({
+                system,
+                payload: redactObject(payload || {})
+            });
+            if (!response.success) {
+                return response;
+            }
+            const parsed = extractJsonFromModelContent(response.content);
+            return {
+                success: true,
+                parsed,
+                rawMeta: response.rawMeta
+            };
+        } catch (err) {
+            const isJsonError = /JSON|empty model content|not JSON|Unexpected token/i.test(err.message || '');
+            return {
+                success: false,
+                reason: isJsonError ? 'ai_agent_invalid_json' : (err.code === 'ECONNABORTED' ? 'ai_agent_timeout' : 'ai_agent_call_failed'),
+                message: err.message,
+            };
+        }
+    }
+
+    async callModel({ system, payload }) {
+        if (this.config.type === 'anthropic_native') {
+            return this.callAnthropicNative({ system, payload });
+        }
+        return this.callOpenAICompatible({ system, payload });
+    }
+
+    async callOpenAICompatible({ system, payload }) {
+        const cfg = this.config;
+        const resp = await axios.post(joinEndpoint(cfg.baseUrl, 'chat/completions'), {
             model: cfg.modelId,
             temperature: cfg.temperature,
             max_tokens: cfg.maxTokens,
             messages: [
-                {
-                    role: 'system',
-                    content: [
-                        '你是风控蓝军测试系统的请求失败诊断 Agent。',
-                        '你只能分析失败原因并输出请求策略建议。',
-                        '禁止建议绕过登录、鉴权、签名校验、验证码或风控。',
-                        '禁止建议伪造 sign/signature/token/cookie。',
-                        '禁止建议提高 maxPages、maxRequestCount 或 maxQps。',
-                        '必须区分 HTTP status 501 与响应体业务 code=501。',
-                        '必须只输出 JSON，不要输出 Markdown、代码块或解释性正文。',
-                        'JSON schema: {"success":boolean,"diagnosis":{"category":string,"confidence":number,"reason":string,"evidence":string[]},"strategyPatch":{"patchType":string,"riskLevel":"low|medium|high","applyMode":"auto|manual_review","changes":object},"nextAction":{"action":string,"reason":string}}'
-                    ].join('\n')
-                },
-                {
-                    role: 'user',
-                    content: JSON.stringify(safePayload)
-                }
+                { role: 'system', content: String(system || '') },
+                { role: 'user', content: JSON.stringify(payload || {}) }
             ]
+        }, {
+            timeout: cfg.timeoutMs,
+            headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${cfg.apiKey}`,
+            },
+            validateStatus: () => true,
+        });
+
+        if (resp.status < 200 || resp.status >= 300) {
+            return this.requestFailed(resp);
+        }
+
+        const content = modelContentToText(resp.data?.choices?.[0]?.message?.content);
+        if (!content) {
+            return { success: false, reason: 'ai_agent_empty_response' };
+        }
+        return {
+            success: true,
+            content,
+            rawMeta: {
+                provider: cfg.type,
+                model: resp.data?.model,
+                usage: resp.data?.usage
+            }
         };
+    }
 
-        try {
-            const resp = await axios.post(url, body, {
-                timeout: cfg.timeoutMs,
-                headers: {
-                    'content-type': 'application/json',
-                    authorization: `Bearer ${cfg.apiKey}`,
-                },
-                validateStatus: () => true,
-            });
+    async callAnthropicNative({ system, payload }) {
+        const cfg = this.config;
+        const resp = await axios.post(joinEndpoint(cfg.baseUrl, 'messages'), {
+            model: cfg.modelId,
+            max_tokens: cfg.maxTokens,
+            temperature: Math.max(0, Math.min(1, Number(cfg.temperature) || 0)),
+            system: String(system || ''),
+            messages: [
+                { role: 'user', content: JSON.stringify(payload || {}) }
+            ]
+        }, {
+            timeout: cfg.timeoutMs,
+            headers: {
+                'content-type': 'application/json',
+                'x-api-key': cfg.apiKey,
+                'anthropic-version': cfg.anthropicVersion || DEFAULT_ANTHROPIC_VERSION,
+            },
+            validateStatus: () => true,
+        });
 
-            if (resp.status < 200 || resp.status >= 300) {
-                return {
-                    success: false,
-                    reason: 'ai_agent_request_failed',
-                    status: resp.status,
-                    message: typeof resp.data === 'string' ? resp.data.slice(0, 1000) : JSON.stringify(redactObject(resp.data || {})).slice(0, 1000),
-                };
+        if (resp.status < 200 || resp.status >= 300) {
+            return this.requestFailed(resp);
+        }
+
+        const content = modelContentToText(resp.data?.content);
+        if (!content) {
+            return { success: false, reason: 'ai_agent_empty_response' };
+        }
+        return {
+            success: true,
+            content,
+            rawMeta: {
+                provider: cfg.type,
+                model: resp.data?.model,
+                usage: resp.data?.usage
             }
+        };
+    }
 
-            const content = resp.data?.choices?.[0]?.message?.content;
-            if (!content) {
-                return { success: false, reason: 'ai_agent_empty_response' };
-            }
+    requestFailed(resp) {
+        return {
+            success: false,
+            reason: 'ai_agent_request_failed',
+            status: resp.status,
+            message: typeof resp.data === 'string'
+                ? resp.data.slice(0, 1000)
+                : JSON.stringify(redactObject(resp.data || {})).slice(0, 1000),
+        };
+    }
 
-            let parsed;
-            try {
-                parsed = extractJsonFromModelContent(content);
-            } catch (err) {
-                return {
-                    success: false,
-                    reason: 'ai_agent_invalid_json',
-                    message: err.message,
-                    rawContent: content.slice(0, 2000),
-                };
-            }
+    async analyzeFailure(payload) {
+        const completion = await this.completeJson({
+            system: buildFailureAnalysisPrompt(),
+            payload
+        });
+        if (!completion.success) {
+            return completion;
+        }
 
-            return validateAgentAnalysis(parsed);
-        } catch (err) {
-            return {
-                success: false,
-                reason: err.code === 'ECONNABORTED' ? 'ai_agent_timeout' : 'ai_agent_call_failed',
-                message: err.message,
+        const analysis = validateAgentAnalysis(completion.parsed);
+        if (analysis.success && completion.rawMeta) {
+            analysis.rawMeta = {
+                ...(analysis.rawMeta || {}),
+                provider: completion.rawMeta.provider,
+                model: completion.rawMeta.model
             };
         }
+        return analysis;
     }
 }
 
@@ -210,4 +321,5 @@ module.exports = {
     buildAiAgentConfig,
     publicConfig,
     validateAgentAnalysis,
+    extractJsonFromModelContent,
 };

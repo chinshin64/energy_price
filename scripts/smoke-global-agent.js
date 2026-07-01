@@ -26,6 +26,19 @@ function assertOk(name, condition, detail) {
   console.log(`[PASS] ${name}`);
 }
 
+const ALLOWED_TOOLS = new Set([
+  'get_chain_status',
+  'run_method1',
+  'run_method2',
+  'run_method3',
+  'run_best_chain',
+  'diagnose_chain_failure',
+  'append_report_event',
+  'append_report_evidence',
+  'finalize_report',
+  'start_mobile_workflow'
+]);
+
 (async () => {
   console.log(`[smoke-global-agent] API_BASE=${API_BASE}`);
 
@@ -60,7 +73,11 @@ function assertOk(name, condition, detail) {
   console.log('[global-agent/actions/plan]', JSON.stringify(plan.body, null, 2));
   assertOk('global-agent plan', plan.ok && plan.body?.success === true && Array.isArray(plan.body?.plan?.actions), `status=${plan.status}`);
   const plannedTool = plan.body?.plan?.actions?.[0]?.tool;
-  assertOk('global-agent selects best executable chain', plannedTool === 'run_best_chain', `tool=${plannedTool}`);
+  if (agentStatus.body?.model?.available && plan.body?.plan?.source === 'model') {
+    assertOk('model plan uses a whitelisted tool', ALLOWED_TOOLS.has(plannedTool), `tool=${plannedTool}`);
+  } else {
+    assertOk('global-agent selects best executable chain', plannedTool === 'run_best_chain', `tool=${plannedTool}`);
+  }
 
   const execute = await call('/global-agent/actions/execute', {
     method: 'POST',
@@ -87,9 +104,10 @@ function assertOk(name, condition, detail) {
     }
   });
   console.log('[global-agent/chat dry-run]', JSON.stringify(chat.body, null, 2));
-  assertOk('global-agent chat plans best chain', chat.ok && chat.body?.plan?.actions?.[0]?.tool === 'run_best_chain', `status=${chat.status}`);
+  const chatTool = chat.body?.plan?.actions?.[0]?.tool;
+  assertOk('global-agent chat plans allowed action', chat.ok && ALLOWED_TOOLS.has(chatTool), `status=${chat.status} tool=${chatTool}`);
   if (agentStatus.body?.mode !== 'disabled') {
-    assertOk('global-agent chat dry-run executes', chat.body?.execution?.results?.some(r => r.tool === 'run_best_chain' && r.dryRun === true), 'chat did not dry-run execute run_best_chain');
+    assertOk('global-agent chat dry-run executes', chat.body?.execution?.results?.some(r => r.tool === chatTool && r.dryRun === true), `chat did not dry-run execute ${chatTool}`);
   }
 })().catch(err => {
   console.error('[smoke-global-agent] failed:', err);

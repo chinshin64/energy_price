@@ -189,7 +189,10 @@ class AppSettingModel {
         const base = fallback && typeof fallback === 'object' ? fallback : DEFAULT_AI_AGENT_SETTINGS;
         const modeValue = String(source.mode ?? base.mode ?? 'disabled').trim().toLowerCase();
         const normalizedMode = modeValue === 'dry-run' ? 'dry_run' : modeValue;
-        const type = String(source.type ?? base.type ?? 'openai_compatible').trim().toLowerCase() || 'openai_compatible';
+        const typeValue = String(source.type ?? base.type ?? 'openai_compatible').trim().toLowerCase();
+        const type = ['anthropic', 'anthropic-native', 'claude', 'claude_native'].includes(typeValue)
+            ? 'anthropic_native'
+            : (typeValue || 'openai_compatible');
         const timeoutMs = Math.max(1000, Math.floor(Number(source.timeoutMs ?? base.timeoutMs ?? 60000) || 60000));
         const temperature = Number(source.temperature ?? base.temperature ?? 0);
         const maxTokens = Math.max(1, Math.floor(Number(source.maxTokens ?? base.maxTokens ?? 1200) || 1200));

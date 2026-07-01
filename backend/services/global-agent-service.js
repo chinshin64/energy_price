@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildAiAgentConfig, publicConfig } = require('./ai-agent-client');
+const { AiAgentClient, buildAiAgentConfig, publicConfig } = require('./ai-agent-client');
 const { buildConstraints } = require('./request-failure-analyzer');
 
 const TOOL_DEFINITIONS = {
@@ -68,6 +68,29 @@ function normalizeMode(mode) {
     return ['disabled', 'dry_run', 'enabled'].includes(value) ? value : 'disabled';
 }
 
+function buildGlobalPlanPrompt() {
+    return [
+        'You are the global planning agent for a blue-team test-chain console.',
+        'Choose exactly one whitelisted tool for the user request.',
+        'Allowed tools: ' + Object.keys(TOOL_DEFINITIONS).join(', ') + '.',
+        'Never bypass login, authorization, signatures, captcha, or risk controls.',
+        'Never forge token, cookie, signature, wsgsig, sign, or credentials.',
+        'Never increase request volume, QPS, collection radius, maxPages, or maxRequestCount.',
+        'Prefer get_chain_status for status questions and run_best_chain for small verification requests.',
+        'Return JSON only. Schema: {"tool":string,"input":object,"reason":string}.'
+    ].join('\n');
+}
+
+function summarizeChainStatus(status = {}) {
+    const chains = status.chains && typeof status.chains === 'object' ? status.chains : {};
+    return Object.fromEntries(Object.entries(chains).map(([key, value]) => [key, {
+        available: Boolean(value.available),
+        status: value.status || 'unknown',
+        blockingReason: value.blockingReason || '',
+        recommendedAction: value.recommendedAction || ''
+    }]));
+}
+
 class GlobalAgentService {
     constructor(options = {}) {
         this.orchestrator = options.orchestrator;
@@ -79,16 +102,23 @@ class GlobalAgentService {
     setConfig(config = {}) {
         this.config = buildAiAgentConfig(config);
         this.config.mode = normalizeMode(this.config.mode);
+        this.client = new AiAgentClient(this.config);
         return this.config;
     }
 
     getStatus() {
+        const modelStatus = this.client.getStatus();
         return {
             success: true,
             available: this.config.mode !== 'disabled',
             mode: this.config.mode,
             reason: this.config.mode === 'disabled' ? 'global_agent_disabled' : 'global_agent_ready',
             config: publicConfig(this.config),
+            model: {
+                available: Boolean(modelStatus.available),
+                reason: modelStatus.reason,
+                config: modelStatus.config
+            },
             tools: Object.entries(TOOL_DEFINITIONS).map(([name, meta]) => ({
                 name,
                 mutating: meta.mutating,
@@ -150,6 +180,11 @@ class GlobalAgentService {
         let tool = input.tool || input.action || '';
 
         if (!tool) {
+            const modelPlan = await this.planWithModel(input, target);
+            if (modelPlan.success || modelPlan.blocked) {
+                return modelPlan;
+            }
+
             if (/执行|开始|运行|验证|run|execute/.test(message)) {
                 if (/方式一|页面|method1/.test(message)) {
                     tool = 'run_method1';
@@ -206,6 +241,97 @@ class GlobalAgentService {
                 mode: this.config.mode,
                 dryRun,
                 target,
+                actions: [action],
+                createdAt: nowIso()
+            }
+        };
+    }
+
+    async planWithModel(input = {}, target = {}) {
+        const modelStatus = this.client.getStatus();
+        if (!modelStatus.available || this.config.mode === 'disabled') {
+            return { success: false, reason: modelStatus.reason || 'model_not_available' };
+        }
+
+        let chainSummary = {};
+        try {
+            chainSummary = summarizeChainStatus(await this.orchestrator.getStatus(target));
+        } catch (error) {
+            chainSummary = { error: error.message };
+        }
+
+        const completion = await this.client.completeJson({
+            system: buildGlobalPlanPrompt(),
+            payload: {
+                taskType: 'global_agent_plan',
+                message: String(input.message || input.prompt || ''),
+                requestedTool: input.tool || input.action || '',
+                target,
+                chainSummary,
+                mode: this.config.mode,
+                allowedTools: Object.keys(TOOL_DEFINITIONS),
+                guardrails: {
+                    ...buildConstraints(),
+                    highRiskRequiresConfirmation: true,
+                    dryRunBlocksMutation: true
+                }
+            }
+        });
+
+        if (!completion.success) {
+            return { success: false, reason: completion.reason || 'model_plan_failed', modelError: completion };
+        }
+
+        const rawPlan = completion.parsed || {};
+        const guardrail = this.checkGuardrails({ input, modelPlan: rawPlan });
+        if (!guardrail.allowed) {
+            return {
+                success: false,
+                blocked: true,
+                reason: guardrail.reason,
+                plan: {
+                    mode: this.config.mode,
+                    actions: [],
+                    blocked: true,
+                    guardrail,
+                    model: completion.rawMeta || null
+                }
+            };
+        }
+
+        const tool = String(rawPlan.tool || rawPlan.action || '').trim();
+        if (!TOOL_DEFINITIONS[tool]) {
+            return { success: false, reason: 'model_plan_invalid_tool', modelTool: tool };
+        }
+
+        const meta = TOOL_DEFINITIONS[tool];
+        const dryRun = input.dryRun === true || this.config.mode !== 'enabled';
+        const modelInput = rawPlan.input && typeof rawPlan.input === 'object' && !Array.isArray(rawPlan.input)
+            ? rawPlan.input
+            : {};
+        const action = {
+            tool,
+            input: {
+                ...input,
+                ...modelInput,
+                target
+            },
+            mutating: meta.mutating,
+            dryRun: dryRun || Boolean(input.planOnly),
+            requiresConfirmation: meta.mutating && this.config.mode === 'enabled' && input.confirm !== true,
+            description: meta.description,
+            reason: String(rawPlan.reason || '')
+        };
+
+        return {
+            success: true,
+            plan: {
+                id: `global-agent-plan-${Date.now()}`,
+                mode: this.config.mode,
+                dryRun,
+                target,
+                source: 'model',
+                model: completion.rawMeta || null,
                 actions: [action],
                 createdAt: nowIso()
             }
