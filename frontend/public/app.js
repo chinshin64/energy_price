@@ -1187,6 +1187,20 @@ function renderAiAgentSettings(data = {}) {
         }
         setStatusBannerState(statusEl, parts.join(' · '), configured ? 'success' : 'warn');
     }
+    updateAiAgentProviderHints();
+}
+
+function updateAiAgentProviderHints() {
+    const type = document.getElementById('aiAgentSettingsType')?.value || 'openai_compatible';
+    const baseUrlEl = document.getElementById('aiAgentSettingsBaseUrl');
+    const modelEl = document.getElementById('aiAgentSettingsModelId');
+    if (type === 'anthropic_native') {
+        if (baseUrlEl) baseUrlEl.placeholder = 'https://api.anthropic.com/v1';
+        if (modelEl) modelEl.placeholder = 'claude-sonnet-4-6';
+        return;
+    }
+    if (baseUrlEl) baseUrlEl.placeholder = 'https://api.openai.com/v1';
+    if (modelEl) modelEl.placeholder = 'gpt-4.1-mini';
 }
 
 function collectAiAgentSettingsFromForm() {
@@ -5052,6 +5066,7 @@ function setupEventListeners() {
             alert(error.message);
         }
     });
+    document.getElementById('aiAgentSettingsType')?.addEventListener('change', updateAiAgentProviderHints);
     document.getElementById('aiAgentSettingsClearKey')?.addEventListener('change', event => {
         const keyEl = document.getElementById('aiAgentSettingsApiKey');
         const keepEl = document.getElementById('aiAgentSettingsKeepKey');

@@ -3771,19 +3771,20 @@
                                         <label for="aiAgentSettingsType">接口类型</label>
                                         <select id="aiAgentSettingsType">
                                             <option value="openai_compatible">OpenAI compatible</option>
+                                            <option value="anthropic_native">Anthropic Claude native</option>
                                         </select>
                                     </div>
                                 </div>
 
                                 <div class="field-group">
                                     <label for="aiAgentSettingsBaseUrl">Base URL</label>
-                                    <input id="aiAgentSettingsBaseUrl" type="text" autocomplete="off" placeholder="https://api.openai.com/v1">
+                                    <input id="aiAgentSettingsBaseUrl" type="text" autocomplete="off" placeholder="https://api.openai.com/v1 或 https://api.anthropic.com/v1">
                                 </div>
 
                                 <div class="field-grid two-col">
                                     <div class="field-group">
                                         <label for="aiAgentSettingsModelId">Model ID</label>
-                                        <input id="aiAgentSettingsModelId" type="text" autocomplete="off" placeholder="gpt-4.1-mini">
+                                        <input id="aiAgentSettingsModelId" type="text" autocomplete="off" placeholder="gpt-4.1-mini / claude-sonnet-4-6">
                                     </div>
                                     <div class="field-group">
                                         <label for="aiAgentSettingsTimeoutMs">Timeout ms</label>
