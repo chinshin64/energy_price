@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">DataForDidi Collector</string>
+    <string name="accessibility_service_description">自动下滑微信小程序页面，用于采集公开展示的场站信息。</string>
+</resources>

@@ -43,6 +43,8 @@ mobile/location-controller-android/.gradle/
 mobile/location-controller-android/build/
 mobile/location-controller-android/app/build/
 mobile/location-controller-android/local.properties
+mobile/ios/.build/
+mobile/ios/.swiftpm/
 remotion-video/out/
 remotion-video/dist/
 remotion-video/.cache/

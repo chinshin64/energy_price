@@ -1,0 +1,489 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0C7A0F9C4FD1F5EFE2CB1F5A /* CollectedStation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F639DB9E8ACC00B094A32C1 /* CollectedStation.swift */; };
+		4CBF7E35793CBCC1D36DCD97 /* StationSyncClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C634F540328B2F8909710D /* StationSyncClientTests.swift */; };
+		562309C993C65E2D5F82DE49 /* ScreenCaptureOCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AFB295EEFC8E3B53C643EDC /* ScreenCaptureOCRService.swift */; };
+		6952B630734FE4ED1C672845 /* CredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98DA953FD60EBE4AA6B4E295 /* CredentialStore.swift */; };
+		6CA5E9BC1FC70F5A72E6BD6D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 66180040475A29579F97A284 /* Assets.xcassets */; };
+		A8D90628489462C52B272D61 /* CaptureViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3F157FF5AF1E1FAE3317A6 /* CaptureViewModel.swift */; };
+		B24C31A7DB1DE38CEE94A5D0 /* StationOCRCore in Frameworks */ = {isa = PBXBuildFile; productRef = B07D675341BC68487819E63F /* StationOCRCore */; };
+		C7FABD9CF9463E8174A0930E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10E799A2AAF1418425BA3A14 /* ContentView.swift */; };
+		C8BBD29CB9FF68AFBD52DCC4 /* StationSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C935EF1A012248DB55D530D0 /* StationSyncClient.swift */; };
+		D574E7A95A191B9012B7908D /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E0A7F25424D0FA1E632E6B3 /* AppConfiguration.swift */; };
+		D57F31B11A33AE11885CDFA1 /* DataForDidiOCRApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 314BEE6C33E74C78132A3B4E /* DataForDidiOCRApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		DB464F85543CEF4D094358CF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 63642ED5411EF232FDA0AAD6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C14DCF72ECA2831C268B3020;
+			remoteInfo = DataForDidiOCR;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0E0A7F25424D0FA1E632E6B3 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
+		10E799A2AAF1418425BA3A14 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		265F8E7A587D69CDC0E5AC03 /* DataForDidiOCRTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DataForDidiOCRTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2AFB295EEFC8E3B53C643EDC /* ScreenCaptureOCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureOCRService.swift; sourceTree = "<group>"; };
+		314BEE6C33E74C78132A3B4E /* DataForDidiOCRApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataForDidiOCRApp.swift; sourceTree = "<group>"; };
+		41C1816FCA8AF17FEC4CF876 /* DataForDidiOCR.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DataForDidiOCR.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		66180040475A29579F97A284 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		74E746634221039BD969F514 /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = .; sourceTree = SOURCE_ROOT; };
+		98DA953FD60EBE4AA6B4E295 /* CredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStore.swift; sourceTree = "<group>"; };
+		9D3F157FF5AF1E1FAE3317A6 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
+		9F639DB9E8ACC00B094A32C1 /* CollectedStation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectedStation.swift; sourceTree = "<group>"; };
+		B5C634F540328B2F8909710D /* StationSyncClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StationSyncClientTests.swift; sourceTree = "<group>"; };
+		C935EF1A012248DB55D530D0 /* StationSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StationSyncClient.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1939B52D5849E67C5D49235C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B24C31A7DB1DE38CEE94A5D0 /* StationOCRCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5AC25EB468FC7E463CD54493 /* DataForDidiOCRTests */ = {
+			isa = PBXGroup;
+			children = (
+				B5C634F540328B2F8909710D /* StationSyncClientTests.swift */,
+			);
+			path = DataForDidiOCRTests;
+			sourceTree = "<group>";
+		};
+		83B6507BA376CE95D7AD1822 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				41C1816FCA8AF17FEC4CF876 /* DataForDidiOCR.app */,
+				265F8E7A587D69CDC0E5AC03 /* DataForDidiOCRTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8CFE6CAFDFA987DACF13C099 = {
+			isa = PBXGroup;
+			children = (
+				BA70C826F1A73E6B7D2DB952 /* DataForDidiOCRApp */,
+				5AC25EB468FC7E463CD54493 /* DataForDidiOCRTests */,
+				9D8C1977C614E5A27A3A2AE3 /* Packages */,
+				83B6507BA376CE95D7AD1822 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9D8C1977C614E5A27A3A2AE3 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				74E746634221039BD969F514 /* ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		BA70C826F1A73E6B7D2DB952 /* DataForDidiOCRApp */ = {
+			isa = PBXGroup;
+			children = (
+				0E0A7F25424D0FA1E632E6B3 /* AppConfiguration.swift */,
+				66180040475A29579F97A284 /* Assets.xcassets */,
+				9D3F157FF5AF1E1FAE3317A6 /* CaptureViewModel.swift */,
+				9F639DB9E8ACC00B094A32C1 /* CollectedStation.swift */,
+				10E799A2AAF1418425BA3A14 /* ContentView.swift */,
+				98DA953FD60EBE4AA6B4E295 /* CredentialStore.swift */,
+				314BEE6C33E74C78132A3B4E /* DataForDidiOCRApp.swift */,
+				2AFB295EEFC8E3B53C643EDC /* ScreenCaptureOCRService.swift */,
+				C935EF1A012248DB55D530D0 /* StationSyncClient.swift */,
+			);
+			path = DataForDidiOCRApp;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5E43D7B09C875E84D1AC07FD /* DataForDidiOCRTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9EF980064CDF20A78E96B083 /* Build configuration list for PBXNativeTarget "DataForDidiOCRTests" */;
+			buildPhases = (
+				EEBC5D486D9716CC67C82D60 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E1E621F3EB579CB18D313064 /* PBXTargetDependency */,
+			);
+			name = DataForDidiOCRTests;
+			packageProductDependencies = (
+			);
+			productName = DataForDidiOCRTests;
+			productReference = 265F8E7A587D69CDC0E5AC03 /* DataForDidiOCRTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		C14DCF72ECA2831C268B3020 /* DataForDidiOCR */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C994DDB33E61DD60265A89A0 /* Build configuration list for PBXNativeTarget "DataForDidiOCR" */;
+			buildPhases = (
+				4E824085902964B9418FAD92 /* Sources */,
+				57ABBC34CA34AC0B63E6A7A5 /* Resources */,
+				1939B52D5849E67C5D49235C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DataForDidiOCR;
+			packageProductDependencies = (
+				B07D675341BC68487819E63F /* StationOCRCore */,
+			);
+			productName = DataForDidiOCR;
+			productReference = 41C1816FCA8AF17FEC4CF876 /* DataForDidiOCR.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		63642ED5411EF232FDA0AAD6 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					5E43D7B09C875E84D1AC07FD = {
+						ProvisioningStyle = Automatic;
+					};
+					C14DCF72ECA2831C268B3020 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = C63175F46B4EBE7B495C972F /* Build configuration list for PBXProject "DataForDidiOCR" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 8CFE6CAFDFA987DACF13C099;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				2B3D9A4AEE8E74D0770637B7 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 83B6507BA376CE95D7AD1822 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C14DCF72ECA2831C268B3020 /* DataForDidiOCR */,
+				5E43D7B09C875E84D1AC07FD /* DataForDidiOCRTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		57ABBC34CA34AC0B63E6A7A5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6CA5E9BC1FC70F5A72E6BD6D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4E824085902964B9418FAD92 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D574E7A95A191B9012B7908D /* AppConfiguration.swift in Sources */,
+				A8D90628489462C52B272D61 /* CaptureViewModel.swift in Sources */,
+				0C7A0F9C4FD1F5EFE2CB1F5A /* CollectedStation.swift in Sources */,
+				C7FABD9CF9463E8174A0930E /* ContentView.swift in Sources */,
+				6952B630734FE4ED1C672845 /* CredentialStore.swift in Sources */,
+				D57F31B11A33AE11885CDFA1 /* DataForDidiOCRApp.swift in Sources */,
+				562309C993C65E2D5F82DE49 /* ScreenCaptureOCRService.swift in Sources */,
+				C8BBD29CB9FF68AFBD52DCC4 /* StationSyncClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EEBC5D486D9716CC67C82D60 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4CBF7E35793CBCC1D36DCD97 /* StationSyncClientTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E1E621F3EB579CB18D313064 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C14DCF72ECA2831C268B3020 /* DataForDidiOCR */;
+			targetProxy = DB464F85543CEF4D094358CF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		06F2E82002B7623867B176F2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = DataForDidiOCRApp/DataForDidiOCR.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DataForDidiOCRApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.datafordidi.mobileocr;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		553F27936A11C9B7EA900305 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.datafordidi.mobileocr.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DataForDidiOCR.app/DataForDidiOCR";
+			};
+			name = Release;
+		};
+		89FAE985784AB19F3EE9008A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B6958E614B38D729F9D97742 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		EE9D3EEC87EB2753A8F8C238 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = DataForDidiOCRApp/DataForDidiOCR.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DataForDidiOCRApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.datafordidi.mobileocr;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F0901FF8DD78E18082F2CCBA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.datafordidi.mobileocr.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DataForDidiOCR.app/DataForDidiOCR";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9EF980064CDF20A78E96B083 /* Build configuration list for PBXNativeTarget "DataForDidiOCRTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F0901FF8DD78E18082F2CCBA /* Debug */,
+				553F27936A11C9B7EA900305 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C63175F46B4EBE7B495C972F /* Build configuration list for PBXProject "DataForDidiOCR" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				89FAE985784AB19F3EE9008A /* Debug */,
+				B6958E614B38D729F9D97742 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C994DDB33E61DD60265A89A0 /* Build configuration list for PBXNativeTarget "DataForDidiOCR" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EE9D3EEC87EB2753A8F8C238 /* Debug */,
+				06F2E82002B7623867B176F2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		2B3D9A4AEE8E74D0770637B7 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B07D675341BC68487819E63F /* StationOCRCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = StationOCRCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 63642ED5411EF232FDA0AAD6 /* Project object */;
+}

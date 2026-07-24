@@ -1,0 +1,73 @@
+name: DataForDidiOCR
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: "27.0"
+packages:
+  StationOCRCore:
+    path: .
+targets:
+  DataForDidiOCR:
+    type: application
+    platform: iOS
+    sources:
+      - path: DataForDidiOCRApp
+        excludes:
+          - Info.plist
+          - DataForDidiOCR.entitlements
+          - Assets.xcassets
+      - path: DataForDidiOCRApp/Assets.xcassets
+        buildPhase: resources
+    info:
+      path: DataForDidiOCRApp/Info.plist
+      properties:
+        CFBundleDisplayName: 信息自动识别
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSScreenCaptureUsageDescription: 用于识别您主动共享页面中的场站名称、地址、枪状态和价格。
+        UIBackgroundModes:
+          - screen-capture
+        UILaunchScreen: {}
+    entitlements:
+      path: DataForDidiOCRApp/DataForDidiOCR.entitlements
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        PRODUCT_BUNDLE_IDENTIFIER: com.datafordidi.mobileocr
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: 2.0.0
+        CURRENT_PROJECT_VERSION: 2
+        SUPPORTS_MACCATALYST: NO
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - package: StationOCRCore
+        product: StationOCRCore
+  DataForDidiOCRTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - DataForDidiOCRTests
+    settings:
+      base:
+        CODE_SIGN_STYLE: Automatic
+        PRODUCT_BUNDLE_IDENTIFIER: com.datafordidi.mobileocr.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+    dependencies:
+      - target: DataForDidiOCR
+schemes:
+  DataForDidiOCR:
+    build:
+      targets:
+        DataForDidiOCR: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - name: DataForDidiOCRTests
+    archive:
+      config: Release

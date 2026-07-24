@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">定位控制</string>
+    <string name="screen_title">模拟定位</string>
+    <string name="permission_ready">测试定位已授权</string>
+    <string name="permission_required">未选择为模拟定位应用</string>
+    <string name="open_developer_settings">开发者设置</string>
+    <string name="selected_coordinate">当前选择</string>
+    <string name="latitude">纬度</string>
+    <string name="longitude">经度</string>
+    <string name="apply_location">应用定位</string>
+    <string name="stop_location">停止并恢复真实定位</string>
+    <string name="open_wechat">打开微信</string>
+    <string name="status_idle">未运行</string>
+    <string name="status_active">模拟定位运行中</string>
+    <string name="status_error">定位应用失败</string>
+    <string name="map_attribution">© OpenFreeMap · OpenMapTiles · OpenStreetMap</string>
+    <string name="location_notification_channel">模拟定位状态</string>
+    <string name="location_notification_title">模拟定位运行中</string>
+    <string name="notification_stop">停止</string>
+    <string name="invalid_coordinate">请输入有效的经纬度</string>
+    <string name="mock_permission_message">请在开发者选项的“选择模拟位置信息应用”中选择“定位控制”。</string>
+    <string name="location_permission_message">需要位置权限才能向 Android 测试位置 provider 写入坐标。</string>
+    <string name="wechat_not_installed">未找到微信</string>
+    <string name="coordinate_pair">%1$s, %2$s</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_muted">#F5F6F8</color>
+    <color name="text_primary">#17191C</color>
+    <color name="text_secondary">#62676E</color>
+    <color name="brand">#1769E0</color>
+    <color name="success">#16835B</color>
+    <color name="danger">#B42318</color>
+    <color name="border">#D8DCE2</color>
+</resources>

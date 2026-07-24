@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+def mapStyleUrl = providers.gradleProperty('MAP_STYLE_URL')
+        .orElse('https://tiles.openfreemap.org/styles/liberty')
+        .get()
+if (!mapStyleUrl.startsWith('https://')) {
+    throw new GradleException('MAP_STYLE_URL must use https://')
+}
+def escapedMapStyleUrl = mapStyleUrl.replace('\\', '\\\\').replace('"', '\\"')
+
+android {
+    namespace 'com.datafordidi.mocklocation'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.datafordidi.mocklocation'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+        buildConfigField 'String', 'MAP_STYLE_URL', "\"${escapedMapStyleUrl}\""
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    implementation 'org.maplibre.gl:android-sdk:11.8.0'
+    testImplementation 'junit:junit:4.13.2'
+}

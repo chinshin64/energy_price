@@ -1,0 +1,95 @@
+plugins {
+    id 'com.android.application'
+}
+
+def outputVersion = '2.0.0'
+def privateCaFile = file('src/main/res/raw/forty_seven_private_ca.pem')
+
+android {
+    namespace = 'com.datafordidi.ocruploader'
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = 'com.datafordidi.ocruploader'
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 17
+        versionName = outputVersion
+        testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+def validateFortySevenPrivateCa = tasks.register('validateFortySevenPrivateCa') {
+    doLast {
+        if (!privateCaFile.isFile()) {
+            throw new GradleException(
+                    "Missing 47 private CA certificate: ${privateCaFile}. "
+                            + 'Place the PEM public certificate before building.'
+            )
+        }
+        java.security.cert.X509Certificate certificate
+        privateCaFile.withInputStream { input ->
+            certificate = (java.security.cert.X509Certificate) java.security.cert.CertificateFactory
+                    .getInstance('X.509')
+                    .generateCertificate(input)
+        }
+        certificate.checkValidity()
+        if (certificate.getBasicConstraints() < 0) {
+            throw new GradleException('47 trust resource must be a CA certificate')
+        }
+        logger.lifecycle(
+                "Validated 47 private CA: subject=${certificate.subjectX500Principal.name}, "
+                        + "serial=${certificate.serialNumber.toString(16)}, "
+                        + "notAfter=${certificate.notAfter}"
+        )
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(validateFortySevenPrivateCa)
+}
+
+android.applicationVariants.configureEach { variant ->
+    variant.outputs.configureEach {
+        outputFileName = "information-auto-recognition-v${outputVersion}-${variant.name}.apk"
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    implementation 'androidx.work:work-runtime:2.10.0'
+    implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation 'androidx.work:work-testing:2.10.0'
+}
+
+tasks.withType(Test).configureEach {
+    def fixtureOutput = project.findProperty('contractFixtureOutput')
+    if (fixtureOutput != null && !fixtureOutput.toString().trim().isEmpty()) {
+        systemProperty 'mobile.contract.fixtureOutput', fixtureOutput.toString().trim()
+    }
+}

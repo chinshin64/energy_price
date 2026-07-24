@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="location_map" type="id" />
+    <item name="permission_status" type="id" />
+    <item name="latitude_input" type="id" />
+    <item name="longitude_input" type="id" />
+    <item name="runtime_status" type="id" />
+    <item name="apply_location" type="id" />
+    <item name="stop_location" type="id" />
+    <item name="open_wechat" type="id" />
+</resources>
