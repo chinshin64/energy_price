@@ -1,6 +1,8 @@
 node_modules/
 backend/node_modules/
 **/node_modules/
+edge-agent/desktop/dist/
+dist/edge-agents/
 *.log
 *.pid
 .env
@@ -26,6 +28,7 @@ outputs/
 build/
 data/*
 !data/.gitkeep
+!data/platform-security-test-history.json
 !data/blue-team-reports/
 data/blue-team-reports/*
 !data/blue-team-reports/.gitkeep
@@ -36,6 +39,10 @@ mobile/android/.gradle/
 mobile/android/build/
 mobile/android/app/build/
 mobile/android/local.properties
+mobile/location-controller-android/.gradle/
+mobile/location-controller-android/build/
+mobile/location-controller-android/app/build/
+mobile/location-controller-android/local.properties
 remotion-video/out/
 remotion-video/dist/
 remotion-video/.cache/
@@ -88,3 +95,8 @@ identi.md
 
 # Internal config
 config/sync-nodes.json
+
+# Local debug artifacts and caches
+.codex_tmp/
+__pycache__/
+*.pyc
