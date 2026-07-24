@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-07-24",
+  "requirements": [
+    {
+      "id": "android",
+      "title": "Android 采集端",
+      "implementationEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/main/java/com/datafordidi/mobilecollector/OcrCaptureService.java",
+          "contains": ["MediaProjection", "LocalStationStore", "OutboxStore"]
+        },
+        {
+          "path": "mobile/android-ocr-uploader/app/src/main/java/com/datafordidi/mobilecollector/AutoScrollAccessibilityService.java",
+          "contains": ["ACTION_SCROLL_FORWARD"]
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/test/java/com/datafordidi/mobilecollector/CapturePolicyTest.java",
+          "contains": ["manualModeWaitsForUserScrollAndAutoFailureFallsBackToSamePath"]
+        },
+        {
+          "path": "mobile/android-ocr-uploader/app/src/test/java/com/datafordidi/mobilecollector/AndroidProductionV3PayloadFixtureTest.java",
+          "contains": ["buildsFixtureThroughProductionSerializerAndOptionallyWritesIt"]
+        }
+      ],
+      "externalEvidence": {
+        "status": "missing",
+        "required": ["小米真机系统整屏授权", "真实目标页面连续采集", "APK 哈希与采集时间线"]
+      }
+    },
+    {
+      "id": "ios",
+      "title": "iOS 采集端",
+      "implementationEvidence": [
+        {
+          "path": "mobile/ios/DataForDidiOCRApp/ScreenCaptureOCRService.swift",
+          "contains": ["SCContentSharingPicker", "SCStream", "VNRecognizeTextRequest"]
+        },
+        {
+          "path": "mobile/ios/DataForDidiOCRApp/CollectedStation.swift",
+          "contains": ["OutboxRepository", "enqueue"]
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "mobile/ios/Tests/StationOCRCoreTests/StationParserTests.swift",
+          "contains": ["import Testing", "parsesVisibleStationFieldsAndComputesBusyPorts"]
+        },
+        {
+          "path": "mobile/ios/DataForDidiOCRTests/StationSyncClientTests.swift",
+          "contains": ["testOutboxPersistsAcrossRepositoryInstances", "testStrictAckMatches47Fixture"]
+        }
+      ],
+      "externalEvidence": {
+        "status": "missing",
+        "required": ["完整 Xcode 27 构建", "开发者签名与 iPhone 安装", "其他 App 前台连续采集 10 分钟"]
+      }
+    },
+    {
+      "id": "ocr_fields",
+      "title": "OCR 名称、地址、价格、枪闲忙数",
+      "implementationEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/main/java/com/datafordidi/mobilecollector/GenericStationParser.java",
+          "contains": ["stationName", "address", "fastIdlePorts", "priceFast"]
+        },
+        {
+          "path": "mobile/ios/Sources/StationOCRCore/StationParser.swift",
+          "contains": ["stationName", "address", "availablePorts", "priceFast"]
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/test/java/com/datafordidi/mobilecollector/GenericStationParserTest.java",
+          "contains": ["parsesRealTeldMlKitRowsCardByCard", "nameOnlyPayloadIsExplicitlyIncomplete"]
+        },
+        {
+          "path": "mobile/ios/Tests/StationOCRCoreTests/StationParserTests.swift",
+          "contains": ["parsesVisibleStationFieldsAndComputesBusyPorts", "detectsTuanyouFuelAddressThreePricesGradeGunAndPorts"]
+        }
+      ],
+      "externalEvidence": {
+        "status": "missing",
+        "required": ["滴滴/高德/团油脱敏真值集", "名称准确率", "地址/价格/枪数逐字段召回率"]
+      }
+    },
+    {
+      "id": "local_display",
+      "title": "端内本地展示",
+      "implementationEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/main/java/com/datafordidi/mobilecollector/StationDisplayFormatter.java",
+          "contains": ["地址待补全", "枪状态待补全", "待补价格"]
+        },
+        {
+          "path": "mobile/ios/DataForDidiOCRApp/CollectedStation.swift",
+          "contains": ["StationCardPresenter", "地址待补全", "syncPresentation"]
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/test/java/com/datafordidi/mobilecollector/StationResultPresenterTest.java",
+          "contains": ["cardFormatterShowsAddressAndNeverUsesFailureDetail", "fuelQuoteCardShowsProviderThreePricesAndExpectedPaymentWithoutChargingSemantics"]
+        },
+        {
+          "path": "mobile/ios/Tools/presenter_semantics_qa.swift",
+          "contains": ["nil ports must remain unknown", "explicit zero ports must be preserved", "source agent lost"]
+        }
+      ],
+      "externalEvidence": {
+        "status": "missing",
+        "required": ["Android 与 iOS 真实结果页截图/录屏", "缺失字段和同步状态人工验收"]
+      }
+    },
+    {
+      "id": "per_capture_upload",
+      "title": "每次新采集本地持久化并形成回传任务",
+      "implementationEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/main/java/com/datafordidi/mobilecollector/OcrCaptureService.java",
+          "contains": ["CaptureTransactionCoordinator.commitCharging", "CaptureTransactionCoordinator.commitFuel"]
+        },
+        {
+          "path": "mobile/android-ocr-uploader/app/src/main/java/com/datafordidi/mobilecollector/CaptureTransactionCoordinator.java",
+          "contains": ["AFTER_JOURNAL", "AFTER_LOCAL", "AFTER_OUTBOX", "reconcile"]
+        },
+        {
+          "path": "mobile/ios/DataForDidiOCRApp/CollectedStation.swift",
+          "contains": ["ensureCapacity", "outboxRepository.enqueue"]
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/test/java/com/datafordidi/mobilecollector/StationSafetyPartitionRobolectricTest.java",
+          "contains": ["chargingMixedBatchUsesOneSafeListForLocalOutboxAndTracker", "fuelMixedBatchRecomputesFeatureAfterRejectedQuoteAndKeepsSafeReady"]
+        },
+        {
+          "path": "mobile/ios/DataForDidiOCRTests/StationSyncClientTests.swift",
+          "contains": ["testOutboxPersistsAcrossRepositoryInstances"]
+        },
+        {
+          "path": "mobile/android-ocr-uploader/app/src/test/java/com/datafordidi/mobilecollector/CaptureTransactionCrashRecoveryQaRobolectricTest.java",
+          "contains": ["crashAfterJournalReplaysOnceAndRepeatedRecoveryDoesNotDuplicate", "reconcileDoesNotMigrateFortyFiveLegacyRowsWithoutJournal", "acknowledgementClearsJournalAndEvenStaleIntentCannotReviveBatch"]
+        }
+      ],
+      "externalEvidence": {
+        "status": "missing",
+        "required": ["进程终止/重启恢复", "断网后真实重试", "真实 47 持久化 ACK"]
+      }
+    },
+    {
+      "id": "source_47",
+      "title": "47 接收、落库、ACK 与增量转发",
+      "implementationEvidence": [
+        {
+          "path": "backend/services/mobile-source-node-service.js",
+          "contains": ["normalizeBatch", "sourceNode"]
+        },
+        {
+          "path": "backend/services/mysql-mobile-source-store.js",
+          "contains": ["beginTransaction", "listAfter"]
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "backend/test/mobile-source-node.test.js",
+          "contains": ["47 source node commits station batch and returns durable acknowledgement", "ingress rejects Header/body agent mismatch before durable storage"]
+        },
+        {
+          "path": "backend/test/mysql-mobile-source-store.test.js",
+          "contains": ["MySQL source store commits batch and snapshots in one transaction", "MySQL source store rolls back parent, offers and quotes when a quote insert fails"]
+        }
+      ],
+      "externalEvidence": {
+        "status": "missing",
+        "required": ["172 到 47 的 API v3 verifier", "47 MySQL 本轮 ingestId/首末游标", "重复提交真实幂等证据"]
+      }
+    },
+    {
+      "id": "main_product_merge",
+      "title": "主产品增量合并、查询与导出",
+      "implementationEvidence": [
+        {
+          "path": "backend/services/remote-mobile-source-sync.js",
+          "contains": ["pullOnce", "assertBatchPersisted", "saveState"]
+        },
+        {
+          "path": "backend/models/station.js",
+          "contains": ["sourceAgent", "sourceRecordId"]
+        },
+        {
+          "path": "backend/services/station-export-service.js",
+          "contains": ["Source Agent", "generateLines"]
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "backend/test/remote-mobile-source-sync.test.js",
+          "contains": ["local cursor does not advance when local database transaction fails", "local cursor does not advance when persistence reports any rejected record"]
+        },
+        {
+          "path": "backend/test/station-storage.test.js",
+          "contains": ["47 sourceRecordId 在本地主库形成幂等边界并进入统一视图"]
+        },
+        {
+          "path": "backend/test/station-export.test.js",
+          "contains": ["燃油扩展导出包含 provider、公共枪状态、规范 offers/quotes 和来源 Agent"]
+        }
+      ],
+      "externalEvidence": {
+        "status": "missing",
+        "required": ["主产品同步启用后的真实 cursor", "Android/iOS 实际行合并结果", "页面与导出人工验收"]
+      }
+    },
+    {
+      "id": "source_agent",
+      "title": "xx-agent 来源标识",
+      "implementationEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/main/java/com/datafordidi/mobilecollector/LocalStationStore.java",
+          "contains": ["android-ocr-agent"]
+        },
+        {
+          "path": "mobile/ios/DataForDidiOCRApp/AppConfiguration.swift",
+          "contains": ["ios-ocr-agent"]
+        },
+        {
+          "path": "backend/services/mobile-source-node-service.js",
+          "contains": ["SOURCE_AGENT_PATTERN"]
+        }
+      ],
+      "testEvidence": [
+        {
+          "path": "mobile/android-ocr-uploader/app/src/test/java/com/datafordidi/mobilecollector/StandaloneIdentityTest.java",
+          "contains": ["sourceAgentIsDistinctAndAcceptedBy47Contract"]
+        },
+        {
+          "path": "mobile/ios/DataForDidiOCRTests/StationSyncClientTests.swift",
+          "contains": ["testStrictAckRejectsAgentMismatch"]
+        },
+        {
+          "path": "backend/test/verify-47-mobile-source-from-172.test.js",
+          "contains": ["production Android Java and iOS Swift serializers feed the strict Node v3 contract"]
+        }
+      ],
+      "externalEvidence": {
+        "status": "missing",
+        "required": ["47 与主产品真实行中的 android-ocr-agent", "47 与主产品真实行中的 ios-ocr-agent"]
+      }
+    }
+  ]
+}

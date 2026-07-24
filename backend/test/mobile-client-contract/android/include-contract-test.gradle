@@ -1,0 +1,21 @@
+def contractTestDir = System.getProperty('mobile.contract.testDir')
+def contractFixtureOutput = System.getProperty('mobile.contract.fixtureOutput')
+
+if (!contractTestDir || !contractFixtureOutput) {
+    throw new GradleException('mobile contract test directory and fixture output are required')
+}
+
+gradle.projectsEvaluated {
+    def appProject = rootProject.findProject(':app')
+    if (appProject == null) {
+        throw new GradleException('Android OCR uploader app project was not found')
+    }
+    appProject.android.sourceSets.test.java.srcDir(contractTestDir)
+    // Keep this backend-owned contract run independent from optional mobile fixture writers.
+    appProject.android.sourceSets.test.java.exclude(
+        '**/AndroidProductionV3PayloadFixtureTest.java'
+    )
+    appProject.tasks.withType(Test).configureEach {
+        systemProperty 'mobile.contract.fixtureOutput', contractFixtureOutput
+    }
+}
