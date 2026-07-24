@@ -1,0 +1,17 @@
+{
+  "name": "data-for-didi-mobile-source-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal production dependencies for the 47 MySQL mobile OCR source node",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "dependencies": {
+    "dotenv": "16.6.1",
+    "express": "4.22.2",
+    "mysql2": "3.23.1"
+  },
+  "overrides": {
+    "body-parser": "1.20.6"
+  }
+}
