@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">油价采集</string>
+    <string name="accessibility_description">在用户操作高德加油页面时读取页面文字并识别油价，不自动点击或支付。</string>
+</resources>
