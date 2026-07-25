@@ -2,6 +2,10 @@
 
 const path = require('path');
 const fs = require('fs');
+const { resolveDataRoot } = require('../config/runtime');
+const FuelOcrConfidence = require('./fuel-ocr-confidence');
+
+const dataRoot = resolveDataRoot(path.resolve(__dirname, '../..'), process.env.DATA_ROOT);
 
 // ── 来源信任层级 ──
 const SOURCE_TRUST = { manual: 100, 'api-curated': 80, 'mobile-ocr': 40 };
@@ -29,6 +33,13 @@ const DIMENSION_WEIGHTS = {
     ocrConfidence: 0.15,
     addressCompleteness: 0.15
 };
+const STANDALONE_ANDROID_NO_ADDRESS_WEIGHTS = {
+    stationNameNorm: 0.30,
+    priceReasonability: 0.325,
+    portConsistency: 0.225,
+    ocrConfidence: 0.15
+};
+const STANDALONE_ANDROID_AGENTS = new Set(['android-ocr-agent', 'standalone-android-ocr']);
 
 // ── 阈值 ──
 const THRESHOLD = { green: 80, yellow: 60 };
@@ -39,6 +50,9 @@ const THRESHOLD = { green: 80, yellow: 60 };
  * @returns {{ score: number, light: 'green'|'yellow'|'red', dimensions: Object, hardRules: string[], sourceTrust: number }}
  */
 function evaluate(data = {}) {
+    if (String(data.stationType || data.station_type || '').trim() === 'fuel') {
+        return FuelOcrConfidence.evaluateFuel(data);
+    }
     const hardRules = [];
     const dimensions = {};
 
@@ -53,6 +67,16 @@ function evaluate(data = {}) {
     const priceService = Number(data.priceService ?? data.price_service ?? NaN);
     const confidence = Number(data.confidence ?? data.raw?.confidence ?? 0.5);
     const sourceType = String(data.sourceType || data.source_type || data.raw?.sourceType || 'mobile-ocr').trim();
+    const sourceAgent = String(
+        data.sourceAgent
+        || data.source_agent
+        || data.raw?.sourceAgent
+        || data.raw?.mobileSync?.meta?.sourceAgent
+        || ''
+    ).trim().toLowerCase();
+    const standaloneAndroidWithoutAddress = sourceType === 'mobile-ocr'
+        && STANDALONE_ANDROID_AGENTS.has(sourceAgent)
+        && !address;
 
     // ── 硬规则1：营销词红灯 ──
     const hitMarketing = MARKETING_KEYWORDS.find(kw => name.includes(kw));
@@ -154,7 +178,9 @@ function evaluate(data = {}) {
     dimensions.ocrConfidence = Math.round(clampedConf * 100);
 
     // ── 维度5：地址完整性 (15%) ──
-    if (!address) {
+    if (standaloneAndroidWithoutAddress) {
+        dimensions.addressCompleteness = null;
+    } else if (!address) {
         dimensions.addressCompleteness = 0;
     } else if (ADMIN_REGION_KEYWORDS.some(kw => address.includes(kw))) {
         dimensions.addressCompleteness = 100;
@@ -166,10 +192,17 @@ function evaluate(data = {}) {
 
     // ── 加权总分 ──
     let score = 0;
-    for (const [dim, weight] of Object.entries(DIMENSION_WEIGHTS)) {
+    const appliedWeights = standaloneAndroidWithoutAddress
+        ? STANDALONE_ANDROID_NO_ADDRESS_WEIGHTS
+        : DIMENSION_WEIGHTS;
+    for (const [dim, weight] of Object.entries(appliedWeights)) {
         score += (dimensions[dim] || 0) * weight;
     }
     score = Math.round(score);
+    const hasPorts = totalPorts > 0;
+    if (standaloneAndroidWithoutAddress && hasAnyPrice !== hasPorts) {
+        score = Math.min(score, THRESHOLD.green - 1);
+    }
 
     const light = score >= THRESHOLD.green ? 'green'
         : score >= THRESHOLD.yellow ? 'yellow'
@@ -180,7 +213,8 @@ function evaluate(data = {}) {
         light,
         dimensions,
         hardRules: [],
-        sourceTrust: SOURCE_TRUST[sourceType] ?? SOURCE_TRUST['mobile-ocr']
+        sourceTrust: SOURCE_TRUST[sourceType] ?? SOURCE_TRUST['mobile-ocr'],
+        weightPolicy: standaloneAndroidWithoutAddress ? 'standalone-android-no-address' : 'default'
     };
 }
 
@@ -207,8 +241,7 @@ function trustMerge(existingTrust, incomingTrust, existingValue, incomingValue) 
  * @param {Object} result - evaluate() 返回结果
  */
 function writeRejectedLog(data, result) {
-    const projectRoot = path.resolve(__dirname, '../../');
-    const rejectedDir = path.join(projectRoot, 'data', 'ocr-rejected');
+    const rejectedDir = path.join(dataRoot, 'ocr-rejected');
     if (!fs.existsSync(rejectedDir)) {
         fs.mkdirSync(rejectedDir, { recursive: true });
     }
@@ -272,6 +305,8 @@ module.exports = {
     writeRejectedLog,
     SOURCE_TRUST,
     DIMENSION_WEIGHTS,
+    STANDALONE_ANDROID_NO_ADDRESS_WEIGHTS,
+    STANDALONE_ANDROID_AGENTS,
     THRESHOLD,
     MARKETING_KEYWORDS,
     STATION_NAME_KEYWORDS,

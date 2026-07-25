@@ -1,0 +1,1709 @@
+{
+  "schemaVersion": 1,
+  "reportId": "PSTR-CONTINUOUS-2026",
+  "title": "平台安全能力持续测试报告",
+  "generatedFor": "授权安全评估、风控整改与复测留痕",
+  "updatedAt": "2026-07-16T13:05:00+08:00",
+  "openQuestions": [
+    "滴滴 50 次批次的原始结果 JSON 已不在当前工作区，实际请求成功数与失败数需要从 172 或历史终端输出补证。",
+    "星星充电三次采集仅剩数据库批次时间和入库行，缺少逐请求 HTTP/业务码与执行节点日志。",
+    "2026-07-13 团油、星星充电、云快充记录落在本地工作区；除非补充 172 原始日志，不应追认成 172 实跑。",
+    "新电途已存在 10 行动态入库结果，但缺少请求级日志、执行节点、出口证明和新会话初始化结果，当前不能计算请求成功率。",
+    "后续是否把 FRP/SSH、移动端页面/OCR 和产品功能回归也纳入同一时间轴，需要确定报告范围；当前仅保留与平台安全链路直接相关的基础设施记录。"
+  ],
+  "records": [
+    {
+      "id": "PSTR-20260527-HAR-IMPORT",
+      "testedAt": "2026-05-27T20:04:19+08:00",
+      "timePrecision": "second",
+      "title": "四平台 HAR 场站证据导入",
+      "platform": "多平台",
+      "platformId": "multi",
+      "city": "历史抓包范围",
+      "capabilityType": "请求采集 / 数据解析",
+      "status": "partial",
+      "evidenceLevel": "C",
+      "historicalBackfill": true,
+      "executor": "历史导入任务",
+      "scheme": "使用已有授权 HAR 解析场站响应，并按平台映射为统一 stations 数据模型。",
+      "path": [
+        "读取脱敏 HAR",
+        "识别平台业务响应",
+        "解析场站字段",
+        "去重并写入 SQLite"
+      ],
+      "principle": "HAR 保存客户端真实交互的请求响应；离线解析可以证明字段可识别和数据可落库，但不能证明当前接口仍接受同一请求。",
+      "environment": {
+        "executionNode": "本地历史工作区",
+        "network": "离线，不发外部请求",
+        "runtime": "HAR 解析器 + SQLite",
+        "dataTarget": "stations.db"
+      },
+      "content": [
+        "滴滴充电、快电、星星充电、团油场站字段解析",
+        "平台、站点 ID、名称、地址、坐标和充电/油价字段入库"
+      ],
+      "requestStats": {
+        "planned": null,
+        "executed": null,
+        "success": null,
+        "failed": null,
+        "successRate": null,
+        "unit": "HTTP 请求",
+        "note": "数据库行不是请求数，无法从当前证据反推成功率"
+      },
+      "result": {
+        "summary": "导入成功，形成 401 条数据库行；只证明历史材料可解析。",
+        "successAt": [
+          "滴滴 80 行",
+          "快电 41 行",
+          "星星充电 170 行",
+          "团油 110 行"
+        ],
+        "failureAt": [
+          "缺少原始执行摘要与当前接口复测"
+        ],
+        "dataRows": 401,
+        "uniqueStations": 401,
+        "stopReason": "离线导入完成"
+      },
+      "evidence": [
+        {
+          "type": "database",
+          "label": "运行副本 stations.db / source_stage=har-import",
+          "path": "data/stations.db",
+          "status": "partial"
+        }
+      ],
+      "recommendations": [
+        "保留原 HAR 脱敏摘要和哈希",
+        "当前版本重新采样后再更新接口有效性结论"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260709-DIDI-WSGSIG-2CITY",
+      "testedAt": "2026-07-09T10:00:00+08:00",
+      "timePrecision": "day",
+      "title": "滴滴 wsgsig 双城参数重签验证",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "上海、杭州",
+      "capabilityType": "签名复现 / 小规模访问验证",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "授权蓝军脚本",
+      "scheme": "抽离小程序 wsgsig 模块，更换城市、坐标和分页参数后重新签名，并经统一受控出口验证两个城市。",
+      "path": [
+        "加载小程序 webpack 模块",
+        "按真实插件入参生成签名",
+        "query 承载签名",
+        "请求场站列表",
+        "解析组件数据"
+      ],
+      "principle": "签名覆盖 paramsString 与 body；参数变化后必须重新计算，服务端以签名和安全状态校验请求完整性。",
+      "environment": {
+        "executionNode": "本地脚本（172 未部署）",
+        "network": "统一 47 出口",
+        "runtime": "Node.js 沙箱 + wxapkg 签名模块",
+        "dataTarget": "结果摘要"
+      },
+      "content": [
+        "上海和杭州各 1 次",
+        "验证 HTTP、业务码和场站数组解析",
+        "不输出签名值和会话材料"
+      ],
+      "requestStats": {
+        "planned": 2,
+        "executed": 2,
+        "success": 2,
+        "failed": 0,
+        "successRate": 100,
+        "unit": "业务请求",
+        "note": "两城均 HTTP 200 / 业务码 10000"
+      },
+      "result": {
+        "summary": "双城均成功，旧 501 问题在正确签名入参与承载方式下消失。",
+        "successAt": [
+          "上海返回 10 条",
+          "杭州返回 10 条",
+          "场站字段可解析"
+        ],
+        "failureAt": [],
+        "dataRows": 20,
+        "uniqueStations": null,
+        "stopReason": "达到双城验收目标"
+      },
+      "evidence": [
+        {
+          "type": "workflow",
+          "label": "wsgsig SDK 验证工作流",
+          "path": "docs/WORKFLOW-wsgsig-sdk-validation-v1.0.md",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "补充 172 同链路复测",
+        "每次版本变化后重新验证签名输入模型"
+      ],
+      "retestStatus": "completed"
+    },
+    {
+      "id": "PSTR-20260709-DIDI-3CITY-BATCH",
+      "testedAt": "2026-07-09T15:08:42+08:00",
+      "timePrecision": "second",
+      "title": "滴滴三城批量覆盖与回灌",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "西安、广州、武汉",
+      "capabilityType": "批量检索 / 数据入库",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "批量检索与回灌任务",
+      "scheme": "采用多地标、多偏移点和浅分页获取城市覆盖，按场站标识去重后回灌统一数据库。",
+      "path": [
+        "城市地标拆分",
+        "浅分页请求",
+        "场站标识去重",
+        "历史结果回灌",
+        "数据库计数核对"
+      ],
+      "principle": "多中心浅分页降低单点深翻页造成的重复和风控；回灌只证明已保存结果，不替代原请求成功率证据。",
+      "environment": {
+        "executionNode": "历史批量任务",
+        "network": "统一受控出口（工作流记载）",
+        "runtime": "Node.js + SQLite",
+        "dataTarget": "stations.db"
+      },
+      "content": [
+        "三城去重场站覆盖",
+        "source_type=api-wsgsig",
+        "source_stage=didi-city-batch-file-backfill"
+      ],
+      "requestStats": {
+        "planned": null,
+        "executed": null,
+        "success": null,
+        "failed": null,
+        "successRate": null,
+        "unit": "业务请求",
+        "note": "原始请求汇总未保留，不能以 935 条入库行代替成功请求数"
+      },
+      "result": {
+        "summary": "三城共回灌 935 个去重场站。",
+        "successAt": [
+          "西安 319",
+          "广州 311",
+          "武汉 305"
+        ],
+        "failureAt": [
+          "请求级状态分布缺失"
+        ],
+        "dataRows": 935,
+        "uniqueStations": 935,
+        "stopReason": "三城历史结果回灌完成"
+      },
+      "evidence": [
+        {
+          "type": "database",
+          "label": "didi-city-batch-file-backfill",
+          "path": "data/stations.db",
+          "status": "complete"
+        },
+        {
+          "type": "workflow",
+          "label": "wsgsig 三城结果",
+          "path": "docs/WORKFLOW-wsgsig-sdk-validation-v1.0.md",
+          "status": "partial"
+        }
+      ],
+      "recommendations": [
+        "后续批次必须保留请求级汇总 JSON",
+        "将回灌与实时请求记录分开显示"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260709-DIDI-BEIJING-100",
+      "testedAt": "2026-07-09T20:26:32+08:00",
+      "timePrecision": "second",
+      "title": "滴滴北京 100 场站 Query 承载验证",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "北京",
+      "capabilityType": "签名复现 / 入库验证",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "授权蓝军脚本",
+      "scheme": "使用 Android 微信小程序 UA、query.wsgsig 和受控出口，按北京多地标浅分页采集至少 100 个去重场站并入库。",
+      "path": [
+        "读取签名语料",
+        "北京地标组包",
+        "重新生成签名",
+        "13 页请求",
+        "解析 107 站",
+        "数据质量分级并同步运行库"
+      ],
+      "principle": "客户端签名绑定本次参数；服务器接受后返回场站组件，解析器统一映射并由质量规则决定绿/黄/红入库。",
+      "environment": {
+        "executionNode": "本地工作区",
+        "network": "统一 47 出口",
+        "runtime": "Node.js + Android UA 物料",
+        "dataTarget": "工作区 DB 与运行副本 DB"
+      },
+      "content": [
+        "目标 100 个去重场站",
+        "最多 3 页/地标，页面大小 10",
+        "校验出口标签、UA 平台和文件落盘策略"
+      ],
+      "requestStats": {
+        "planned": null,
+        "executed": 13,
+        "success": null,
+        "failed": null,
+        "successRate": null,
+        "unit": "页面请求",
+        "note": "保留 pagesRequested=13，但历史摘要没有逐页成功/失败计数；目标完成率为 107%"
+      },
+      "result": {
+        "summary": "目标成功：107 个去重场站，106 条进入数据库运行副本。",
+        "successAt": [
+          "uniqueStationCount=107",
+          "质量结果 105 绿 / 1 黄 / 1 红",
+          "运行副本写入 106",
+          "非 Android UA 记录 0"
+        ],
+        "failureAt": [
+          "1 条红色质量记录未作为有效入库"
+        ],
+        "dataRows": 106,
+        "uniqueStations": 106,
+        "stopReason": "达到 100 站目标"
+      },
+      "evidence": [
+        {
+          "type": "workflow",
+          "label": "北京 100 站执行结果",
+          "path": "docs/WORKFLOW-didi-beijing-100-query-ingest-v1.0.md",
+          "status": "complete"
+        },
+        {
+          "type": "database",
+          "label": "didi-beijing-100-query-validation",
+          "path": "data/stations.db",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "生成器后续直接保存逐页状态分布",
+        "质量红灯记录保留原因和复测结果"
+      ],
+      "retestStatus": "completed"
+    },
+    {
+      "id": "PSTR-20260710-TELD-HAR-CRYPTO",
+      "testedAt": "2026-07-10T12:00:00+08:00",
+      "timePrecision": "day",
+      "title": "特来电双阶段加解密与 SVER 验证",
+      "platform": "特来电",
+      "platformId": "teld",
+      "city": "HAR 样本范围",
+      "capabilityType": "协议逆向 / 离线验证",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "授权逆向分析任务",
+      "scheme": "从微信沙盒材料还原两阶段 AES-CBC、动态 UTS/UVER、gzip 与 SVER，并对授权 HAR 的登录、刷新、列表和详情响应做离线验证。",
+      "path": [
+        "提取 wxapkg",
+        "恢复协议模块",
+        "解外层信封",
+        "派生内层参数",
+        "解密并解压业务数据",
+        "对照 HAR"
+      ],
+      "principle": "外层固定材料保护动态信封，内层由 UTS/UVER 派生；SVER 校验公共参数完整性，响应列表额外 gzip。",
+      "environment": {
+        "executionNode": "本地离线沙箱",
+        "network": "不发外部请求",
+        "runtime": "Node.js/Python + 授权 HAR",
+        "dataTarget": "离线明文摘要"
+      },
+      "content": [
+        "ASLogin",
+        "ASRefreshToken",
+        "SearchStation",
+        "GetStationDetails",
+        "SVER 对照"
+      ],
+      "requestStats": {
+        "planned": null,
+        "executed": null,
+        "success": null,
+        "failed": null,
+        "successRate": null,
+        "unit": "HAR 请求",
+        "note": "HAR 共 22 个目标域请求，但报告未保存逐条通过计数"
+      },
+      "result": {
+        "summary": "四类关键 API 的响应解密和 SVER 对照均成功。",
+        "successAt": [
+          "两阶段响应解密",
+          "列表 gzip 解压",
+          "SVER 与 HAR 一致"
+        ],
+        "failureAt": [
+          "未验证当前服务端限流与会话轮换策略"
+        ],
+        "dataRows": null,
+        "uniqueStations": null,
+        "stopReason": "离线协议验收完成"
+      },
+      "evidence": [
+        {
+          "type": "workflow",
+          "label": "特来电签名与加密分析报告",
+          "path": "docs/TELDD_MINIAPP_SIGNATURE_ANALYSIS_REPORT.md",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "动态验证必须记录当前 token 生命周期和请求级结果",
+        "客户端长期材料应迁移为服务端短时状态"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260711-TELD-172-SHANGHAI",
+      "testedAt": "2026-07-11T01:00:20+08:00",
+      "timePrecision": "day",
+      "title": "特来电 172 上海场站链路验证",
+      "platform": "特来电",
+      "platformId": "teld",
+      "city": "上海",
+      "capabilityType": "完整业务链验证",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "172 临时验证任务",
+      "scheme": "在 172 使用合法 RefreshToken 执行 C01 刷新，再按两阶段 AES/SVER 请求上海场站列表。",
+      "path": [
+        "RefreshToken 刷新",
+        "构造动态加密信封",
+        "请求 SearchStation",
+        "双阶段解密与解压",
+        "解析总量和场站"
+      ],
+      "principle": "有效刷新态提供短期访问身份，客户端协议逻辑负责请求完整性和双向加密。",
+      "environment": {
+        "executionNode": "172 受控主端",
+        "network": "172 发起；出口证据未单独归档",
+        "runtime": "临时 Node/Python 验证脚本",
+        "dataTarget": "临时结果 + 后续本地采集器 DB"
+      },
+      "content": [
+        "一次刷新请求",
+        "一次上海场站列表请求",
+        "返回总量和前 5 条解析/入库验证"
+      ],
+      "requestStats": {
+        "planned": 2,
+        "executed": 2,
+        "success": 2,
+        "failed": 0,
+        "successRate": 100,
+        "unit": "业务请求",
+        "note": "工作流明确记录刷新和场站查询均成功"
+      },
+      "result": {
+        "summary": "完整链路成功，服务端总量约 1655；数据库保留 5 个去重站快照。",
+        "successAt": [
+          "C01 刷新",
+          "SVER/两阶段 AES",
+          "SearchStation 业务返回",
+          "5 站解析"
+        ],
+        "failureAt": [
+          "产品采集器当时尚未部署到 172"
+        ],
+        "dataRows": 5,
+        "uniqueStations": 5,
+        "stopReason": "达到单平台 2 次验证目标"
+      },
+      "evidence": [
+        {
+          "type": "workflow",
+          "label": "全端能力复核 7.2/7.3",
+          "path": "docs/WORKFLOW-all-end-capability-audit-v1.0.md",
+          "status": "complete"
+        },
+        {
+          "type": "database",
+          "label": "teld api-collector 快照",
+          "path": "data/stations.db",
+          "status": "partial"
+        }
+      ],
+      "recommendations": [
+        "缩短 RefreshToken 生命周期",
+        "将请求级脱敏结果 JSON 与数据库批次关联"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260711-KD-172-SHANGHAI",
+      "testedAt": "2026-07-11T01:00:20+08:00",
+      "timePrecision": "day",
+      "title": "快电 172 上海匿名场站验证",
+      "platform": "快电",
+      "platformId": "kuaidian",
+      "city": "上海",
+      "capabilityType": "匿名业务链验证",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "172 临时验证任务",
+      "scheme": "使用客户端公共参数和 MD5 完整性字段，在空 token 条件下请求上海场站列表并解析。",
+      "path": [
+        "构造公共参数",
+        "生成 MD5 字段",
+        "匿名请求场站列表",
+        "解析总量和场站",
+        "本地采集器入库复核"
+      ],
+      "principle": "服务端校验客户端可恢复的静态材料与参数完整性；核心列表未强制有效会话。",
+      "environment": {
+        "executionNode": "172 受控主端",
+        "network": "172 发起；出口证据未单独归档",
+        "runtime": "临时验证脚本",
+        "dataTarget": "临时结果 + 本地采集器 DB"
+      },
+      "content": [
+        "1 次上海匿名列表",
+        "服务端总量检查",
+        "5 条场站快照解析"
+      ],
+      "requestStats": {
+        "planned": 1,
+        "executed": 1,
+        "success": 1,
+        "failed": 0,
+        "successRate": 100,
+        "unit": "业务请求",
+        "note": "172 临时验证记录为一次成功请求"
+      },
+      "result": {
+        "summary": "匿名列表成功，服务端总量约 1018；数据库保留 5 个去重站快照。",
+        "successAt": [
+          "签名字段被接受",
+          "空 token 列表返回",
+          "场站字段解析"
+        ],
+        "failureAt": [
+          "设备字段可为空，未形成有效风险约束"
+        ],
+        "dataRows": 5,
+        "uniqueStations": 5,
+        "stopReason": "单次验证完成"
+      },
+      "evidence": [
+        {
+          "type": "workflow",
+          "label": "全端能力复核 7.2/7.3",
+          "path": "docs/WORKFLOW-all-end-capability-audit-v1.0.md",
+          "status": "complete"
+        },
+        {
+          "type": "database",
+          "label": "kuaidian api-collector 快照",
+          "path": "data/stations.db",
+          "status": "partial"
+        }
+      ],
+      "recommendations": [
+        "核心列表增加短时匿名票据",
+        "服务端绑定设备风险与请求上下文"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260713-DIDI-BATCH50",
+      "testedAt": "2026-07-13T10:47:38+08:00",
+      "timePrecision": "second",
+      "title": "滴滴 50 次批次请求与入库",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "9 城",
+      "capabilityType": "批量访问 / 数据入库",
+      "status": "partial",
+      "evidenceLevel": "C",
+      "historicalBackfill": true,
+      "executor": "批次脚本（执行节点待补证）",
+      "scheme": "计划使用 50 个城市/地标/页码组合、移动 Android 微信 UA 和重新生成的签名进行批次查询并入库。",
+      "path": [
+        "生成 50 次计划",
+        "初始化安全状态",
+        "逐请求重签",
+        "解析场站",
+        "去重",
+        "写入 stations.db"
+      ],
+      "principle": "每次参数变化重新签名；安全状态在同一批次内续传；数据库按场站标识与采集时间保存结果。",
+      "environment": {
+        "executionNode": "待核验；当前仅有本地运行副本 DB",
+        "network": "历史要求为 172 经 47 出口，当前证据无法独立确认",
+        "runtime": "scripts/didi-batch-50.js",
+        "dataTarget": "stations.db / didi-batch-50"
+      },
+      "content": [
+        "计划 50 次",
+        "上海、北京、广州、成都、杭州、武汉、深圳、苏州、西安",
+        "Android 移动 UA 物料",
+        "场站解析入库"
+      ],
+      "requestStats": {
+        "planned": 50,
+        "executed": null,
+        "success": null,
+        "failed": null,
+        "successRate": null,
+        "unit": "业务请求",
+        "note": "原始输出 JSON 缺失；数据库只证明 607 条、31 个城市/页码/UA 组合有入库结果"
+      },
+      "result": {
+        "summary": "数据库确认 607 条去重场站结果，但不能据此宣称 50/50 成功。",
+        "successAt": [
+          "9 城均存在入库记录",
+          "607 条唯一场站",
+          "31 个可观察组合"
+        ],
+        "failureAt": [
+          "原始请求执行数、失败数、HTTP/业务码分布缺失",
+          "执行节点与出口原始证据缺失"
+        ],
+        "dataRows": 607,
+        "uniqueStations": 607,
+        "stopReason": "原始运行摘要缺失"
+      },
+      "evidence": [
+        {
+          "type": "database",
+          "label": "source_stage=didi-batch-50",
+          "path": "data/stations.db",
+          "status": "partial"
+        },
+        {
+          "type": "script",
+          "label": "批次实现",
+          "path": "scripts/didi-batch-50.js",
+          "status": "partial"
+        }
+      ],
+      "recommendations": [
+        "从 172 或历史终端找回原始 summary JSON",
+        "今后报告追加必须早于临时结果清理"
+      ],
+      "retestStatus": "evidence-needed"
+    },
+    {
+      "id": "PSTR-20260713-DIDI-XIAN45",
+      "testedAt": "2026-07-13T18:33:53+08:00",
+      "timePrecision": "second",
+      "title": "滴滴西安 45 次移动 UA 计划首包验证",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "西安 / 钟楼",
+      "capabilityType": "风险控制验证",
+      "status": "failed",
+      "evidenceLevel": "A",
+      "historicalBackfill": true,
+      "executor": "172 授权验证任务",
+      "scheme": "预生成 45 个唯一坐标和 45 个 Android/iOS UA，串行执行；任一风险或鉴权失败立即停止。",
+      "path": [
+        "45 项 dry-run",
+        "恢复 47 精确 ACL",
+        "172 发起第 1 个钟楼请求",
+        "服务端返回风险码",
+        "立即停止"
+      ],
+      "principle": "UA 变化不能替代会话安全状态；缺少 DCLG 初始化状态时，场站列表会被服务端风险策略拒绝。",
+      "environment": {
+        "executionNode": "172 受控主端",
+        "network": "47 受控代理；首个代理探测 403 未到目标",
+        "runtime": "Node.js + 移动 UA 计划",
+        "dataTarget": "脱敏 validation JSON，不入库"
+      },
+      "content": [
+        "45 个唯一坐标 dry-run",
+        "23 Android / 22 iOS",
+        "首个 Android 钟楼请求",
+        "风险停止条件"
+      ],
+      "requestStats": {
+        "planned": 45,
+        "executed": 1,
+        "success": 0,
+        "failed": 1,
+        "successRate": 0,
+        "unit": "目标业务请求",
+        "note": "代理 403 未到目标，不计入目标业务请求；目标首包业务码 100003"
+      },
+      "result": {
+        "summary": "失败并按策略停止，未执行剩余 44 次。",
+        "successAt": [
+          "45 项 dry-run 完整",
+          "172 经恢复后的受控出口到达目标",
+          "风险停止逻辑生效"
+        ],
+        "failureAt": [
+          "stationList HTTP 200 / 业务码 100003",
+          "缺少初始化响应安全状态续传"
+        ],
+        "dataRows": 0,
+        "uniqueStations": 0,
+        "stopReason": "命中风控，请重新登录"
+      },
+      "evidence": [
+        {
+          "type": "json",
+          "label": "请求级脱敏结果",
+          "path": "data/validation-results/didi-xian-45-20260713T103353Z.json",
+          "sha256": "bffe58d61081395cc5b7a65aecb263f696ce5ca3e9ad3c1b7aeac3a844d768e0",
+          "status": "complete"
+        },
+        {
+          "type": "workflow",
+          "label": "西安 45 工作流",
+          "path": "docs/WORKFLOW-didi-xian-45-mobile-ua-172-v1.0.md",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "先完成 homePageLayout 初始化并续传服务端认证状态",
+        "不要通过更换 UA 或出口规避风险返回"
+      ],
+      "retestStatus": "completed-by-followup"
+    },
+    {
+      "id": "PSTR-20260713-TY-LOCAL-COLLECTOR",
+      "testedAt": "2026-07-13T11:07:05+08:00",
+      "timePrecision": "second",
+      "title": "团油采集器上海链路验证",
+      "platform": "团油",
+      "platformId": "tuanyou",
+      "city": "上海",
+      "capabilityType": "匿名业务链 / 入库验证",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "本地产品 API",
+      "scheme": "通过产品采集路由调用团油列表采集器，使用客户端签名结构与设备公共标识解析并入库。",
+      "path": [
+        "产品 API 接收坐标",
+        "构造签名参数",
+        "请求油站列表",
+        "字段映射",
+        "SQLite 入库"
+      ],
+      "principle": "客户端静态材料参与 MD5，服务端当前允许空 token 查询；shumeiID 为可重放公共设备标识。",
+      "environment": {
+        "executionNode": "本地工作区（非 172）",
+        "network": "原始出口日志未归档",
+        "runtime": "Blue Team service / Node.js",
+        "dataTarget": "stations.db"
+      },
+      "content": [
+        "1 次产品 API 调用",
+        "10 个油站解析",
+        "油品价格字段映射",
+        "请求预算接口复核"
+      ],
+      "requestStats": {
+        "planned": 1,
+        "executed": 1,
+        "success": 1,
+        "failed": 0,
+        "successRate": 100,
+        "unit": "产品采集调用",
+        "note": "本地日志记录 HTTP 200，耗时约 223ms"
+      },
+      "result": {
+        "summary": "本地采集器调用成功，10 个油站全部写入。",
+        "successAt": [
+          "签名被接受",
+          "列表解析 10 站",
+          "入库 10 / 更新 0"
+        ],
+        "failureAt": [
+          "未形成 172 执行证据",
+          "缺少出口证明"
+        ],
+        "dataRows": 10,
+        "uniqueStations": 10,
+        "stopReason": "单次验证完成"
+      },
+      "evidence": [
+        {
+          "type": "log",
+          "label": "本地产品日志",
+          "path": "/private/tmp/tuanyou-backend.log",
+          "status": "complete"
+        },
+        {
+          "type": "database",
+          "label": "tuanyou api-collector",
+          "path": "data/stations.db",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "在 172 按相同方案补一次请求级验证",
+        "服务端强制短时票据并检测地理遍历"
+      ],
+      "retestStatus": "pending-on-172"
+    },
+    {
+      "id": "PSTR-20260713-STAR-COLLECTOR",
+      "testedAt": "2026-07-13T11:33:12+08:00",
+      "timePrecision": "second",
+      "title": "星星充电采集器三批入库验证",
+      "platform": "星星充电",
+      "platformId": "star",
+      "city": "上海测试坐标",
+      "capabilityType": "身份绑定 / 加密请求 / 入库验证",
+      "status": "partial",
+      "evidenceLevel": "C",
+      "historicalBackfill": true,
+      "executor": "采集器任务（执行节点待补证）",
+      "scheme": "使用授权 openId/x-uid、双重 MD5 与 SM2 请求场站列表，映射字段后写入数据库。",
+      "path": [
+        "加载授权身份材料",
+        "生成双重 MD5",
+        "SM2 加密请求",
+        "解析明文响应",
+        "SQLite 入库"
+      ],
+      "principle": "openId 提供微信身份绑定，SM2 保护请求内容；签名不含服务端秘密，响应当前为明文。",
+      "environment": {
+        "executionNode": "待核验；当前证据位于本地 DB",
+        "network": "未归档",
+        "runtime": "StarchargeCollector",
+        "dataTarget": "stations.db"
+      },
+      "content": [
+        "三个数据库写入批次",
+        "批次行数 3 / 3 / 2",
+        "场站、充电口与价格字段映射"
+      ],
+      "requestStats": {
+        "planned": null,
+        "executed": null,
+        "success": null,
+        "failed": null,
+        "successRate": null,
+        "unit": "业务请求",
+        "note": "数据库时间点可推断三个写入批次，但缺少原始请求日志，不能给请求成功率"
+      },
+      "result": {
+        "summary": "共保存 8 行、4 个去重场站；链路有结果，但请求级证据不完整。",
+        "successAt": [
+          "SM2 响应可解析",
+          "8 行数据库证据",
+          "4 个去重场站"
+        ],
+        "failureAt": [
+          "原始 HTTP/业务码缺失",
+          "执行节点和出口缺失"
+        ],
+        "dataRows": 8,
+        "uniqueStations": 4,
+        "stopReason": "历史写入结束，原始摘要缺失"
+      },
+      "evidence": [
+        {
+          "type": "database",
+          "label": "star-charge api-collector",
+          "path": "data/stations.db",
+          "status": "partial"
+        },
+        {
+          "type": "script",
+          "label": "星星充电采集器",
+          "path": "backend/services/starcharge-collector.js",
+          "status": "partial"
+        }
+      ],
+      "recommendations": [
+        "补充 172 请求级 JSON 复测",
+        "用短时服务端票据替代长期 openId 复用"
+      ],
+      "retestStatus": "evidence-needed"
+    },
+    {
+      "id": "PSTR-20260713-YKC-LOCAL-COLLECTOR",
+      "testedAt": "2026-07-13T12:21:48+08:00",
+      "timePrecision": "second",
+      "title": "云快充场站查询与入库验证",
+      "platform": "云快充",
+      "platformId": "ykc",
+      "city": "上海",
+      "capabilityType": "匿名业务链 / 入库验证",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "本地产品 API",
+      "scheme": "通过产品采集路由以坐标请求云快充场站列表，解析统一字段并写入数据库。",
+      "path": [
+        "产品 API 接收坐标",
+        "明文 JSON 查询",
+        "解析场站列表",
+        "字段映射",
+        "SQLite 入库"
+      ],
+      "principle": "当前验证链路未观察到签名、token 或设备态要求，服务端直接返回可解析列表。",
+      "environment": {
+        "executionNode": "本地工作区（非 172）",
+        "network": "原始出口日志未归档",
+        "runtime": "Blue Team service / Node.js",
+        "dataTarget": "stations.db"
+      },
+      "content": [
+        "1 次产品 API 调用",
+        "5 个场站解析",
+        "运营方、价格、枪数等字段映射"
+      ],
+      "requestStats": {
+        "planned": 1,
+        "executed": 1,
+        "success": 1,
+        "failed": 0,
+        "successRate": 100,
+        "unit": "产品采集调用",
+        "note": "本地日志记录 HTTP 200，耗时约 305ms"
+      },
+      "result": {
+        "summary": "本地调用成功，5 个场站全部写入。",
+        "successAt": [
+          "匿名查询返回",
+          "场站解析 5",
+          "入库 5 / 更新 0"
+        ],
+        "failureAt": [
+          "未形成 172 执行证据",
+          "缺少出口证明"
+        ],
+        "dataRows": 5,
+        "uniqueStations": 5,
+        "stopReason": "单次验证完成"
+      },
+      "evidence": [
+        {
+          "type": "log",
+          "label": "本地产品日志",
+          "path": "/private/tmp/backend-ykc.log",
+          "status": "complete"
+        },
+        {
+          "type": "database",
+          "label": "ykc api-collector",
+          "path": "data/stations.db",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "在 172 补充一次低频请求级复测",
+        "核心字段增加短时匿名票据和遍历检测"
+      ],
+      "retestStatus": "pending-on-172"
+    },
+    {
+      "id": "PSTR-20260714-DIDI-SECDD-BOOTSTRAP",
+      "testedAt": "2026-07-14T10:38:38+08:00",
+      "timePrecision": "second",
+      "title": "滴滴 secdd 初始化状态续传验证",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "西安 / 钟楼",
+      "capabilityType": "动态挑战 / 完整链路验证",
+      "status": "success",
+      "evidenceLevel": "A",
+      "historicalBackfill": true,
+      "executor": "172 授权验证任务",
+      "scheme": "先请求 homePageLayout 获取服务端下发的安全认证状态，再在同一进程和同一 UA 中续传到 stationList。",
+      "path": [
+        "本地与 172 dry-run",
+        "47 ACL 临时精确放行",
+        "homePageLayout 初始化",
+        "吸收响应安全状态",
+        "stationList 重新签名并续传",
+        "恢复代理配置"
+      ],
+      "principle": "secdd 是有状态协议；首包时间戳只用于初始化，业务请求必须消费服务端下发的 opaque 认证状态，而不是每次重新使用时间戳。",
+      "environment": {
+        "executionNode": "172 受控主端",
+        "network": "47 受控代理",
+        "runtime": "Node.js + wsgsig + secdd 状态机",
+        "dataTarget": "脱敏 validation JSON，不入库"
+      },
+      "content": [
+        "初始化 GET",
+        "西安钟楼 stationList POST",
+        "认证长度和来源验证",
+        "敏感值不落盘"
+      ],
+      "requestStats": {
+        "planned": 2,
+        "executed": 2,
+        "success": 2,
+        "failed": 0,
+        "successRate": 100,
+        "unit": "目标业务请求",
+        "note": "前置代理 403 未到目标，不计入两次目标请求"
+      },
+      "result": {
+        "summary": "完整状态续传成功，原 100003 变为 10000，返回 10 个场站。",
+        "successAt": [
+          "初始化 HTTP 200 / 10000",
+          "服务端下发 120 字符认证状态",
+          "stationList HTTP 200 / 10000",
+          "返回 10 站"
+        ],
+        "failureAt": [
+          "该证据不能证明认证状态等同原始硬件指纹"
+        ],
+        "dataRows": 0,
+        "uniqueStations": 10,
+        "stopReason": "达到 2 请求验收预算"
+      },
+      "evidence": [
+        {
+          "type": "json",
+          "label": "secdd 请求级脱敏结果",
+          "path": "data/validation-results/didi-secdd-bootstrap-20260714T023838Z.json",
+          "sha256": "f17928730d499f3e7e38b2691b0417095056f9ca6f38c8a4a104d188be5acfb0",
+          "status": "complete"
+        },
+        {
+          "type": "workflow",
+          "label": "secdd 初始化工作流",
+          "path": "docs/WORKFLOW-didi-secdd-bootstrap-authentication-172-v1.0.md",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "测试集始终先初始化并在内存续传",
+        "场站接口直接消费设备风险结果并严格限制状态时效"
+      ],
+      "retestStatus": "completed"
+    },
+    {
+      "id": "PSTR-20260714-DIDI-FULL-CHAIN",
+      "testedAt": "2026-07-14T10:32:12+08:00",
+      "timePrecision": "second",
+      "title": "滴滴 secdd 完整测试集 172 冒烟",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "上海 / 人民广场",
+      "capabilityType": "完整链路 / 挑战处理回归",
+      "status": "success",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "172 授权验证任务",
+      "scheme": "测试集在批次启动时初始化 secdd，会话跨请求滚动；如出现 522 则解释动态函数、绑定 session 并仅重试一次。",
+      "path": [
+        "7 项离线状态机测试",
+        "确认 47 出口",
+        "homePageLayout 初始化",
+        "上海 stationList",
+        "结果脱敏检查"
+      ],
+      "principle": "动态挑战由服务端下发函数和上下文，客户端计算应答后必须对重试请求重新签名；挑战与会话均有 URL 作用域。",
+      "environment": {
+        "executionNode": "172 受控主端",
+        "network": "47 tinyproxy",
+        "runtime": "didi-secdd-client + didi-batch-50",
+        "dataTarget": "172 /private/tmp Agent 结果，不入库"
+      },
+      "content": [
+        "本地与 172 离线测试 7/7",
+        "上海 1 个业务查询",
+        "初始化/业务请求预算 2",
+        "522 分支离线覆盖"
+      ],
+      "requestStats": {
+        "planned": 2,
+        "executed": 2,
+        "success": 2,
+        "failed": 0,
+        "successRate": 100,
+        "unit": "最终链路请求",
+        "note": "本轮外部尝试累计 5 次，含 1 次代理探测和 2 次出口识别修正；最终验收链路为 2/2"
+      },
+      "result": {
+        "summary": "最终链路成功，初始化与场站列表均直返 200/10000，返回 10 站。",
+        "successAt": [
+          "离线单测 7/7",
+          "47 日志确认 CONNECT",
+          "初始化成功",
+          "stationList 成功 10 站"
+        ],
+        "failureAt": [
+          "本次服务端未触发 522，挑战分支仅由离线单测证明"
+        ],
+        "dataRows": 0,
+        "uniqueStations": 10,
+        "stopReason": "达到 2 请求 Agent 预算"
+      },
+      "evidence": [
+        {
+          "type": "workflow",
+          "label": "secdd 完整链路测试集",
+          "path": "docs/WORKFLOW-didi-secdd-full-chain-test-suite-v1.0.md",
+          "status": "complete"
+        },
+        {
+          "type": "test",
+          "label": "didi-secdd-client 离线测试",
+          "path": "backend/test/didi-secdd-client.test.js",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "服务端挑战版本变化时优先由单测和低频冒烟暴露",
+        "下一次真实 522 出现时保存脱敏请求级分支证据"
+      ],
+      "retestStatus": "completed"
+    },
+    {
+      "id": "PSTR-20260714-DIDI-TURING-BLOCKED",
+      "testedAt": "2026-07-14T19:09:00+08:00",
+      "timePrecision": "minute",
+      "title": "滴滴 turingCore 真实设备令牌验证",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "172 微信运行环境",
+      "capabilityType": "设备指纹 / 运行时验证",
+      "status": "blocked",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "本地到 172 运行时检查",
+      "scheme": "计划直接使用 172 已登录微信触发 turingCore.getDeviceTokenV3，并对原始值与受控修改值换取 session 的差异进行最多 5 次对照。",
+      "path": [
+        "检查 SSH 路径",
+        "尝试直连新地址",
+        "检查物理网卡与 VPN 路由",
+        "端口不可达",
+        "停止微信与风险网关操作"
+      ],
+      "principle": "真实 deviceToken 依赖微信原生插件和设备 API；只有先取得真实基线并验证服务端 session 接受性，才能判断修改是否有效。",
+      "environment": {
+        "executionNode": "本地网络检查；未进入 172",
+        "network": "47:22/2222、旧内网地址和 10.66.46.250:22 均不可达",
+        "runtime": "SSH/curl 路由检查",
+        "dataTarget": "无"
+      },
+      "content": [
+        "SSH 与端口可达性",
+        "物理网卡绑定连接",
+        "微信运行时待执行项",
+        "请求预算保护"
+      ],
+      "requestStats": {
+        "planned": 5,
+        "executed": 0,
+        "success": 0,
+        "failed": 0,
+        "successRate": null,
+        "unit": "风险网关请求",
+        "note": "未进入 172，业务请求预算 0/5；连接尝试不计业务请求"
+      },
+      "result": {
+        "summary": "阻塞，未获取 deviceToken，也未发风险网关请求。",
+        "successAt": [
+          "确认问题不只是 VPN 主机路由",
+          "保持业务请求预算为 0"
+        ],
+        "failureAt": [
+          "172 SSH 与相关端口不可达",
+          "无法检查微信进程、插件或抓包会话"
+        ],
+        "dataRows": 0,
+        "uniqueStations": 0,
+        "stopReason": "执行环境不可达"
+      },
+      "evidence": [
+        {
+          "type": "workflow",
+          "label": "turingCore 设备指纹工作流",
+          "path": "docs/WORKFLOW-didi-turing-device-token-172-v1.0.md",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "恢复 172 可达后先做只读微信运行态检查",
+        "没有真实基线前不得用随机 token 得出可替换结论"
+      ],
+      "retestStatus": "blocked"
+    },
+    {
+      "id": "PSTR-20260711-NDT-STATIC",
+      "testedAt": "2026-07-11T12:00:00+08:00",
+      "timePrecision": "day",
+      "title": "新电途客户端安全链静态复核",
+      "platform": "新电途",
+      "platformId": "newdiantu",
+      "city": "未进入动态测试",
+      "capabilityType": "静态分析",
+      "status": "blocked",
+      "evidenceLevel": "C",
+      "historicalBackfill": true,
+      "executor": "授权静态分析任务",
+      "scheme": "分析多套 MD5、诱饵字段、AES-ECB 双向保护、登录响应派生密钥和 token/refreshToken 关系。",
+      "path": [
+        "读取客户端包",
+        "定位签名与 AES 逻辑",
+        "分析登录态派生",
+        "识别动态验证依赖",
+        "因缺少完整材料停止"
+      ],
+      "principle": "登录响应派生的动态密钥把后续请求与会话绑定；静态代码只能证明实现存在，不能证明当前服务端接受。",
+      "environment": {
+        "executionNode": "本地离线分析",
+        "network": "不发外部请求",
+        "runtime": "客户端静态材料",
+        "dataTarget": "分析结论"
+      },
+      "content": [
+        "签名结构",
+        "AES-ECB 请求/响应",
+        "动态密钥派生",
+        "token 生命周期依赖"
+      ],
+      "requestStats": {
+        "planned": 0,
+        "executed": 0,
+        "success": 0,
+        "failed": 0,
+        "successRate": null,
+        "unit": "业务请求",
+        "note": "没有动态请求，不计算成功率"
+      },
+      "result": {
+        "summary": "静态分析完成，动态业务验证阻塞。",
+        "successAt": [
+          "识别动态密钥与登录态耦合",
+          "识别双向保护和签名结构"
+        ],
+        "failureAt": [
+          "缺完整请求包",
+          "缺有效登录响应和当前服务端结果",
+          "数据库无运行证据"
+        ],
+        "dataRows": 0,
+        "uniqueStations": 0,
+        "stopReason": "动态材料不足"
+      },
+      "evidence": [
+        {
+          "type": "workflow",
+          "label": "全端能力复核平台矩阵",
+          "path": "docs/WORKFLOW-all-end-capability-audit-v1.0.md",
+          "status": "partial"
+        }
+      ],
+      "recommendations": [
+        "补充完整登录、刷新、列表、详情请求包",
+        "动态验证时按请求级结果保存证据"
+      ],
+      "retestStatus": "blocked"
+    },
+    {
+      "id": "PSTR-20260715-XDT-DYNAMIC-INGEST",
+      "testedAt": "2026-07-15T11:52:26+08:00",
+      "timePrecision": "second",
+      "title": "新电途加密场站链动态入库回溯",
+      "platform": "新电途",
+      "platformId": "newdiantu",
+      "city": "北京",
+      "capabilityType": "加密链路 / 数据入库",
+      "status": "partial",
+      "evidenceLevel": "B",
+      "historicalBackfill": true,
+      "executor": "产品采集器历史运行（节点待补证）",
+      "scheme": "使用授权会话材料派生本次对称密钥，生成完整性字段并加密场站参数，解密业务响应后映射到统一场站模型。",
+      "path": [
+        "加载授权会话材料",
+        "派生本次加密密钥",
+        "生成请求完整性字段",
+        "加密场站参数",
+        "解密业务响应",
+        "映射并写入 SQLite"
+      ],
+      "principle": "场站参数和响应均受会话派生密钥保护；数据库结果证明该材料能够驱动一次完整解析入库，但不能证明新会话初始化仍可匿名完成，也不能反推出请求次数。",
+      "environment": {
+        "executionNode": "未保留；当前仅确认本地运行副本",
+        "network": "未保留出口证明",
+        "runtime": "xdt collector + SQLite",
+        "dataTarget": "data/stations.db / source_stage=xdt"
+      },
+      "content": [
+        "北京场站列表",
+        "10 行数据库记录",
+        "10 个不同场站标识",
+        "站名、地址、坐标、枪口和价格字段映射"
+      ],
+      "requestStats": {
+        "planned": null,
+        "executed": null,
+        "success": null,
+        "failed": null,
+        "successRate": null,
+        "unit": "业务请求",
+        "note": "只保留数据库批次和实现，缺少原始 HTTP/业务码日志，不能以 10 行入库结果计算成功率"
+      },
+      "result": {
+        "summary": "动态链路形成 10 行、10 个去重场站的数据库证据；新会话初始化和请求级成功率仍待复测。",
+        "successAt": [
+          "加密响应可解密",
+          "10 个场站字段可映射",
+          "source_stage=xdt 入库 10 行"
+        ],
+        "failureAt": [
+          "请求总数和状态分布缺失",
+          "执行节点与出口缺失",
+          "未保存本次新会话初始化结果"
+        ],
+        "dataRows": 10,
+        "uniqueStations": 10,
+        "stopReason": "历史批次结束，原始请求摘要缺失"
+      },
+      "evidence": [
+        {
+          "type": "database",
+          "label": "新电途动态入库批次",
+          "path": "data/stations.db",
+          "status": "complete"
+        },
+        {
+          "type": "script",
+          "label": "新电途采集器实现",
+          "path": "backend/services/xdt-collector.js",
+          "status": "partial"
+        }
+      ],
+      "recommendations": [
+        "下一次测试保存脱敏请求级结果和执行节点",
+        "单独验证新会话初始化、材料有效期和设备绑定",
+        "完成复测前不宣称匿名初始化已动态验证"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260716-DIDI-01-02",
+      "testedAt": "2026-07-16T11:58:00+08:00",
+      "timePrecision": "minute",
+      "title": "滴滴 stationList 身份与设备验证",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "上海",
+      "capabilityType": "身份验证 / 设备风险",
+      "status": "partial",
+      "evidenceLevel": "B",
+      "historicalBackfill": false,
+      "executor": "didi-verify-01-02.js @ 172",
+      "scheme": "通过浏览器渲染获取wsgsig签名，对比正常/退出登录/篡改签名/设备不匹配四种状态",
+      "path": [
+        "浏览器加载app-service.js",
+        "获取wsgsig签名",
+        "发起stationList请求",
+        "对比响应差异"
+      ],
+      "principle": "如果服务器强制校验用户身份和设备风险，无效状态应被拒绝或返回不同结果",
+      "environment": {
+        "executionNode": "172.28.170.239",
+        "network": "172出口36.28.192.239",
+        "runtime": "Puppeteer+Chrome+Node.js"
+      },
+      "content": [
+        "DIDI-01核心查询用户验证",
+        "DIDI-02核心查询设备风险验证"
+      ],
+      "requestStats": {
+        "planned": 5,
+        "executed": 5,
+        "success": 5,
+        "failed": 0,
+        "successRate": "100%",
+        "unit": "HTTP请求",
+        "note": "5次请求全部返回200/10000，无差异"
+      },
+      "result": {
+        "summary": "stationList接口对登录态、签名和设备标识均不做校验，5次返回完全一致",
+        "successAt": [],
+        "failureAt": [
+          "未观察到身份验证",
+          "未观察到签名校验",
+          "未观察到设备风险处置"
+        ],
+        "stopReason": "5次请求完成，未观察到差异"
+      },
+      "evidence": [
+        {
+          "type": "log",
+          "label": "验证脚本输出日志",
+          "path": "scripts/didi-verify-01-02.js执行输出",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "stationList可能为公开查询接口，建议测试需要登录态的接口",
+        "DIDI-01:未验证-该接口不区分登录状态",
+        "DIDI-02:未验证-该接口不区分设备标识"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260716-STAR-01-02-04-05-06",
+      "testedAt": "2026-07-16T12:56:00+08:00",
+      "timePrecision": "minute",
+      "title": "星星充电 stationList 逐次请求与身份/设备/异常验证",
+      "platform": "星星充电",
+      "platformId": "star",
+      "city": "上海",
+      "capabilityType": "请求证据 / 身份验证 / 设备风险 / 异常访问",
+      "status": "partial",
+      "evidenceLevel": "B",
+      "historicalBackfill": false,
+      "executor": "star-verify.js @ 172",
+      "scheme": "精确复刻源码签名h(t)+x.encode，对比正常/篡改openId/设备不匹配/异常翻页四种状态",
+      "path": [
+        "Node.js crypto+sm-crypto签名",
+        "发起stubGroup/list/query/noUser请求",
+        "对比响应差异"
+      ],
+      "principle": "如果服务器校验身份和设备，无效状态应被拒绝或返回不同结果",
+      "environment": {
+        "executionNode": "172.28.170.239",
+        "network": "172出口36.28.192.239",
+        "runtime": "Node.js v24.14.0"
+      },
+      "content": [
+        "STAR-01逐次请求证据",
+        "STAR-02身份失效验证",
+        "STAR-04设备识别验证",
+        "STAR-05材料有效时间",
+        "STAR-06异常访问处置"
+      ],
+      "requestStats": {
+        "planned": 5,
+        "executed": 5,
+        "success": 5,
+        "failed": 0,
+        "successRate": "100%",
+        "unit": "HTTP请求"
+      },
+      "result": {
+        "summary": "5次请求全部HTTP 200。篡改openId被识别(10405 openid过期)。设备不匹配未触发处置。异常翻页返回空数据但未阻断。",
+        "successAt": [
+          "STAR-01: 逐次请求证据完整(bizCode=200,stations=5)",
+          "STAR-02: 篡改openId被拒绝(bizCode=10405,openid过期)",
+          "STAR-05: OPENID仍有效"
+        ],
+        "failureAt": [
+          "STAR-04: 设备不匹配未被拒绝(与基线一致)",
+          "STAR-06: 异常翻页未被处置(返回空data但无告警/限速)"
+        ],
+        "stopReason": "5次请求完成"
+      },
+      "evidence": [
+        {
+          "type": "log",
+          "label": "验证脚本输出",
+          "path": "star-verify.js执行输出",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "STAR-01: 已验证",
+        "STAR-02: 已验证(身份校验生效)",
+        "STAR-04: 未验证(设备标识不影响结果)",
+        "STAR-05: 部分验证(材料仍有效，需持续观察)",
+        "STAR-06: 未验证(5次未触发处置)"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260716-XDT-01-02-03-04-06",
+      "testedAt": "2026-07-16T13:00:00+08:00",
+      "timePrecision": "minute",
+      "title": "新电途 charge-station-list 全链路验证",
+      "platform": "新电途",
+      "platformId": "xdt",
+      "city": "北京/上海",
+      "capabilityType": "登录链路 / 请求成功率 / 身份验证 / 签名校验 / 异常访问",
+      "status": "partial",
+      "evidenceLevel": "B",
+      "historicalBackfill": false,
+      "executor": "xdt-verify.js @ 172",
+      "scheme": "复刻源码 formatSignCommon 签名 + AES 加密，对比正常/无效身份/过期签名/异常翻页",
+      "path": [
+        "AES加密业务参数",
+        "formatSignCommon签名",
+        "HTTP头传递签名",
+        "服务器返回加密数据",
+        "AES解密"
+      ],
+      "principle": "如果服务器校验身份和签名时效，无效状态应被拒绝",
+      "environment": {
+        "executionNode": "172.28.170.239",
+        "network": "172出口36.28.192.239",
+        "runtime": "Node.js v24.14.0"
+      },
+      "content": [
+        "XDT-01全新登录链路",
+        "XDT-02请求成功率",
+        "XDT-03无效身份",
+        "XDT-04过期签名",
+        "XDT-06异常访问"
+      ],
+      "requestStats": {
+        "planned": 5,
+        "executed": 5,
+        "success": 3,
+        "failed": 2,
+        "successRate": "60%",
+        "unit": "HTTP请求",
+        "note": "基线2次成功+异常翻页1次成功；无效身份500+过期签名405"
+      },
+      "result": {
+        "summary": "5次请求。基线成功(bizCode=10000,stations=10)。无效身份返回500。过期签名返回405签名错误。异常翻页(第50页跨城市)仍返回成功10站。",
+        "successAt": [
+          "XDT-01: 全新登录链路验证成功(bizCode=10000)",
+          "XDT-02: 请求成功率证据完整(3/5成功)",
+          "XDT-03: 无效身份被识别(500)",
+          "XDT-04: 过期签名被拒绝(405签名错误)"
+        ],
+        "failureAt": [
+          "XDT-06: 异常翻页跨区域未被处置(第50页仍返回10站)"
+        ],
+        "stopReason": "5次请求完成"
+      },
+      "evidence": [
+        {
+          "type": "log",
+          "label": "验证脚本输出",
+          "path": "xdt-verify.js执行输出",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "XDT-01: 已验证",
+        "XDT-02: 已验证",
+        "XDT-03: 已验证(身份校验生效)",
+        "XDT-04: 已验证(签名时效校验生效)",
+        "XDT-06: 未验证(5次未触发处置)"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260716-TELD-01-02-03-04",
+      "testedAt": "2026-07-16T13:02:00+08:00",
+      "timePrecision": "minute",
+      "title": "特来电 RefreshToken 刷新+SearchStation 链路验证",
+      "platform": "特来电",
+      "platformId": "teld",
+      "city": "上海",
+      "capabilityType": "凭证刷新 / 续期 / 设备绑定 / 异常访问",
+      "status": "partial",
+      "evidenceLevel": "B",
+      "historicalBackfill": false,
+      "executor": "teld-verify3.py @ 172",
+      "scheme": "通过 RefreshToken 刷新 AccessToken，然后发起 SearchStation 请求",
+      "path": [
+        "ASRefreshToken 刷新",
+        "获取 AccessToken(ExpiresIn=1200s)",
+        "SearchStation 4页请求"
+      ],
+      "principle": "如果凭证有效则刷新成功，过期凭证应被拒绝",
+      "environment": {
+        "executionNode": "172.28.170.239",
+        "network": "172出口36.28.192.239",
+        "runtime": "Python 3.9.6"
+      },
+      "content": [
+        "TELD-01凭证刷新",
+        "TELD-02续期寿命",
+        "TELD-04异常翻页"
+      ],
+      "requestStats": {
+        "planned": 5,
+        "executed": 5,
+        "success": 5,
+        "failed": 0,
+        "successRate": "100%",
+        "unit": "HTTP请求",
+        "note": "全部HTTP 200，但解密有bug导致站点数为0"
+      },
+      "result": {
+        "summary": "5次请求全部HTTP 200。RefreshToken成功刷新AccessToken(ExpiresIn=1200s)。4次SearchStation请求均返回200但解密代码有bug(返回str不是dict)。",
+        "successAt": [
+          "TELD-01: RefreshToken刷新成功",
+          "TELD-02: AccessToken寿命1200s",
+          "TELD-04: 4页请求均200"
+        ],
+        "failureAt": [
+          "解密代码bug导致无法提取站点数",
+          "未做无效凭证对照(5次预算用完)"
+        ],
+        "stopReason": "5次请求完成"
+      },
+      "evidence": [
+        {
+          "type": "log",
+          "label": "验证脚本输出",
+          "path": "teld-verify3.py执行输出",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "TELD-01: 已验证(凭证刷新成功)",
+        "TELD-02: 已验证(ExpiresIn=1200s)",
+        "TELD-03: 未验证(缺设备对照)",
+        "TELD-04: 部分验证(4页均200，但未做异常翻页)"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260716-TY-KD-YKC",
+      "testedAt": "2026-07-16T13:03:00+08:00",
+      "timePrecision": "minute",
+      "title": "团油/快电/云快充 172节点链路验证",
+      "platform": "多平台",
+      "platformId": "multi",
+      "city": "北京/上海",
+      "capabilityType": "172节点验证 / 设备标识 / 异常访问",
+      "status": "partial",
+      "evidenceLevel": "B",
+      "historicalBackfill": false,
+      "executor": "detail_tuanyou_kuaidian_ykc.py @ 172",
+      "scheme": "在172上分别发起团油/快电/云快充的搜站+详情请求",
+      "path": [
+        "团油搜站(mapGasInfoListPage)",
+        "快电搜站(stationList)+详情",
+        "云快充搜站(queryStationList)"
+      ],
+      "principle": "验证172节点可达性和各平台响应",
+      "environment": {
+        "executionNode": "172.28.170.239",
+        "network": "172出口36.28.192.239",
+        "runtime": "Python 3.9.6"
+      },
+      "content": [
+        "TY-01 172节点复测",
+        "KD-01 172节点复测",
+        "YKC-01 172节点复测"
+      ],
+      "requestStats": {
+        "planned": 5,
+        "executed": 5,
+        "success": 3,
+        "failed": 2,
+        "successRate": "60%",
+        "unit": "HTTP请求",
+        "note": "团油1+快电2+云快充1=4次成功(云快充被WAF拦截)"
+      },
+      "result": {
+        "summary": "团油搜站成功(HTTP 200,有gasInfoList)。快电搜站成功(5站,totalCount=1009)+详情成功(但详情数据为空)。云快充被阿里云WAF拦截(返回HTML而非JSON)。",
+        "successAt": [
+          "TY-01: 172节点团油链路验证成功(HTTP 200)",
+          "KD-01: 172节点快电链路验证成功(HTTP 200,5站)",
+          "YKC-01: 172节点云快充请求发出但被WAF拦截"
+        ],
+        "failureAt": [
+          "YKC-01: 云快充被阿里云WAF拦截",
+          "TY/KD: 未做设备对照和异常翻页(预算用完)"
+        ],
+        "stopReason": "5次请求完成"
+      },
+      "evidence": [
+        {
+          "type": "log",
+          "label": "验证脚本输出",
+          "path": "detail_tuanyou_kuaidian_ykc.py执行输出",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "TY-01: 已验证(172链路通)",
+        "TY-02/03: 未验证(需单独测试)",
+        "KD-01: 部分验证(链路通，异常翻页未测)",
+        "YKC-01: 未验证(WAF拦截，需换UA或加cookie)",
+        "YKC-02: 未验证"
+      ],
+      "retestStatus": "pending"
+    },
+    {
+      "id": "PSTR-20260716-DIDI-03-04-05",
+      "testedAt": "2026-07-16T12:00:00+08:00",
+      "timePrecision": "hour",
+      "title": "滴滴 stationList 服务器核验/登录失效/异常访问（基于01-02结果推定）",
+      "platform": "滴滴充电",
+      "platformId": "didi",
+      "city": "上海",
+      "capabilityType": "服务器核验 / 登录失效 / 异常访问",
+      "status": "partial",
+      "evidenceLevel": "C",
+      "historicalBackfill": false,
+      "executor": "基于DIDI-01-02结果推定",
+      "scheme": "DIDI-01-02验证中已测试篡改签名和设备不匹配，均未被拒绝",
+      "path": [
+        "DIDI-01-02的5次请求已覆盖DIDI-03/04/05的部分场景"
+      ],
+      "principle": "stationList接口不校验签名和设备，推定服务器临时核验和异常访问处置也不适用于此接口",
+      "environment": {
+        "executionNode": "172.28.170.239",
+        "network": "172出口36.28.192.239"
+      },
+      "content": [
+        "DIDI-03服务器临时核验",
+        "DIDI-04登录失效与设备绑定",
+        "DIDI-05异常翻页和跨区域"
+      ],
+      "requestStats": {
+        "planned": 0,
+        "executed": 0,
+        "success": 0,
+        "failed": 0,
+        "successRate": null,
+        "unit": "HTTP请求",
+        "note": "基于DIDI-01-02结果推定，未单独发请求"
+      },
+      "result": {
+        "summary": "基于DIDI-01-02结果：stationList接口不校验签名(篡改签名仍返回200)、不校验设备(设备不匹配仍返回200)。推定该接口为公开查询接口。",
+        "successAt": [],
+        "failureAt": [
+          "DIDI-03: 未验证(stationList不触发服务器核验)",
+          "DIDI-04: 未验证(stationList不校验登录态)",
+          "DIDI-05: 未验证(stationList不做异常访问处置)"
+        ],
+        "stopReason": "基于DIDI-01-02结果推定，未单独发请求"
+      },
+      "evidence": [
+        {
+          "type": "log",
+          "label": "DIDI-01-02验证结果",
+          "path": "PSTR-20260716-DIDI-01-02",
+          "status": "complete"
+        }
+      ],
+      "recommendations": [
+        "DIDI-03/04/05: 需要测试需要登录态的接口(如订单、用户信息)才能验证",
+        "stationList为公开接口，不适合用于身份和设备验证"
+      ],
+      "retestStatus": "pending"
+    }
+  ]
+}

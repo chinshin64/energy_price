@@ -68,6 +68,27 @@ final class ScreenContextResolver {
         return ParsedScreen.charging(platform, city(rows), stations);
     }
 
+    /**
+     * 用户在开始识别前手动选择了平台时使用：跳过包名/品牌词自动检测，直接用所选平台解析。
+     * 解决手动下滑模式下拿不到前台包名、detector 判成 generic-fuel 被 47 拒绝的问题。
+     */
+    static ParsedScreen resolveWithHint(List<OcrRow> rows, String userPlatform, String sourceStage) {
+        if (userPlatform == null || userPlatform.trim().isEmpty()) {
+            return resolve(rows, "", sourceStage);
+        }
+        String platform = compact(userPlatform);
+        if (FuelPlatformHint.isFuel(platform)) {
+            List<FuelStationRecord> fuelStations = FuelStationParser.extract(rows, platform, sourceStage);
+            return ParsedScreen.fuel(platform, city(rows), fuelStations);
+        }
+        List<DidiLocalStationParser.StationRecord> generic = GenericStationParser.extract(rows, platform, sourceStage);
+        for (DidiLocalStationParser.StationRecord station : generic) {
+            station.platform = platform;
+            station.screenRowCount = rows == null ? 0 : rows.size();
+        }
+        return ParsedScreen.charging(platform, city(rows), generic);
+    }
+
     static String platform(
             String packageName,
             String pageText,

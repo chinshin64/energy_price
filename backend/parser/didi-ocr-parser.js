@@ -7,7 +7,7 @@ class DidiOcrParser {
         // 滴滴场站标题关键词
         this.stationTitleKeywords = [
             '充电站', '充电中心', '充电广场', '充电桩',
-            '超充站', '快充站', '极充站', '小桔充电'
+            '超充站', '快充站', '慢充站', '极充站', '小桔充电'
         ];
         // 排除关键词（不是场站标题）
         this.excludeKeywords = [
@@ -91,7 +91,7 @@ class DidiOcrParser {
         );
         const likelyBottomOrigin = normalizedCoordinateRows.length > 0
             && normalizedCoordinateRows.length === rows.length
-            && rows.some(row => row.y > 0.75 && /搜索|城市|首页|我的|筛选|列表/.test(row.text));
+            && rows.some(row => row.y > 0.75 && /搜索|城市|首页|我的|筛选|列表|附近|地图|登录|加载更多|立即登录/.test(row.text));
 
         if (!likelyBottomOrigin) {
             return rows;
@@ -156,9 +156,6 @@ class DidiOcrParser {
 
         const y = Number(row.y) || 0;
         const x = Number(row.x) || 0;
-        if (y < 0.18 || x > 0.72) {
-            return false;
-        }
 
         const sameLineText = rows
             .filter(item => {
@@ -177,7 +174,19 @@ class DidiOcrParser {
             .map(item => String(item.text || '').replace(/\s+/g, ''))
             .join(' ');
 
-        return this.hasStrongStationNamePattern(compact) && (this.hasPriceSignal(bandText) || this.hasPortSignal(`${sameLineText} ${bandText}`))
+        const hasPriceOrPortSignal = this.hasPriceSignal(bandText) || this.hasPortSignal(`${sameLineText} ${bandText}`);
+        const isHeaderResultTitle = y >= 0.12
+            && y < 0.18
+            && x >= 0.24
+            && x <= 0.68
+            && this.hasLocationStationNamePattern(compact)
+            && hasPriceOrPortSignal;
+
+        if ((y < 0.18 && !isHeaderResultTitle) || x > 0.72) {
+            return false;
+        }
+
+        return (this.hasStrongStationNamePattern(compact) || this.hasLocationStationNamePattern(compact)) && hasPriceOrPortSignal
             || this.hasPortSignal(sameLineText);
     }
 
@@ -307,9 +316,18 @@ class DidiOcrParser {
             totalPorts: portInfo.fastTotal + portInfo.slowTotal + portInfo.superTotal,
             sourceType: meta.sourceType || 'ocr',
             sourceStage: meta.sourceStage || 'page-capture',
+            operator: meta.operator || null,
             raw: {
                 ocrTexts: texts,
-                priceSchedules: priceInfo.schedules
+                priceSchedules: priceInfo.schedules,
+                source: meta.source || 'page-ocr',
+                sourceType: meta.sourceType || 'ocr',
+                sourceStage: meta.sourceStage || 'page-capture',
+                runId: meta.runId || null,
+                city: meta.city || null,
+                landmark: meta.landmark || null,
+                capturedAt: meta.capturedAt || null,
+                screenshotPath: meta.screenshotPath || null
             }
         };
     }
@@ -684,7 +702,14 @@ class DidiOcrParser {
     hasStrongStationNamePattern(text) {
         const compact = String(text || '').replace(/\s+/g, '');
         return this.stationTitleKeywords.some(keyword => compact.includes(keyword))
+            || /(小桔|万马爱充|特来电|星星充电|云快充|新电途|开迈斯|国家电网|南方电网|蔚来|小鹏|理想|特斯拉|玖桔|驴充充|依威|全日充|能链|bp\s*pulse|bppulse).*(站|中心|广场|大厦|车库)/i.test(compact)
             || /(超快充|超级充电|智能充电|来充电|蔚来超充|小鹏超充|小鹏S4超快充|bp\s*pulse快充|bppulse快充).*(站|中心|广场|大厦|车库)/i.test(compact);
+    }
+
+    hasLocationStationNamePattern(text) {
+        const compact = String(text || '').replace(/\s+/g, '');
+        return /(站|出发层|到达层|停车场|车库|广场|中心|园区|大厦|天地|机场|枢纽)/.test(compact)
+            && !/(搜索|附近|地图|登录|立即登录|加载更多|首页|我的)/.test(compact);
     }
 
     /**

@@ -14,8 +14,6 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
-MOBILE_SYNC_TOKEN=""  # 访问鉴权已关闭，不再需要 token
-
 NODE_BIN="${NODE_BIN:-}"
 if [ -z "$NODE_BIN" ] && [ -x /usr/local/bin/node ]; then
   NODE_BIN=/usr/local/bin/node

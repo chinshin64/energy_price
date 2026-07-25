@@ -70,8 +70,11 @@ final class FuelOffer {
 
     static boolean validRolePrice(BigDecimal price) {
         if (price == null) return true;
+        // 油价（元/升）合理区间 3~20：覆盖 92/95/98 汽油与 0# 柴油，
+        // 同时排除促销文案「加200省1」里被误抓的 2、200 片段等非价格数字。
         return price.signum() > 0
-                && price.compareTo(new BigDecimal("30")) <= 0
+                && price.compareTo(new BigDecimal("3")) >= 0
+                && price.compareTo(new BigDecimal("20")) <= 0
                 && price.stripTrailingZeros().scale() <= 4;
     }
 

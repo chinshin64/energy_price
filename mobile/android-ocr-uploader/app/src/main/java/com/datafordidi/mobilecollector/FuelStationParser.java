@@ -20,6 +20,11 @@ final class FuelStationParser {
     );
     private static final Pattern DISTANCE = Pattern.compile("\\d+(?:\\.\\d+)?\\s*(?:km|KM|公里|m|米)");
     private static final Pattern TIME = Pattern.compile("\\d{1,2}:\\d{2}");
+    // 促销文案：加200省1 / 省2元 / 立5减3 / 前20升 / 加满X升 / 24时 / 满200减20 等。
+    // 这些里的数字会被 PRICE 误抓成油价，整行屏蔽。
+    private static final Pattern PROMOTION = Pattern.compile(
+            "(?:加\\s*\\d+\\s*(?:省|减|立减|直降)|省\\s*\\d|前\\s*\\d+\\s*升|加满\\s*\\d|满\\s*\\d+\\s*(?:减|省|送)|24\\s*[时点]|\\d{1,2}\\s*时\\s*营业)"
+    );
     private static final Pattern MONEY = Pattern.compile(
             "(?:[¥￥]\\s*)?([0-9]{1,6}(?:[.,][0-9]{1,2})?)\\s*(?:元)?"
     );
@@ -224,6 +229,11 @@ final class FuelStationParser {
                 || value.contains("停车费")
                 || value.contains("服务费")
                 || value.contains("起")
+                || value.contains("营业")
+                || value.contains("限时")
+                || value.contains("立减")
+                || value.contains("直降")
+                || PROMOTION.matcher(value).find()
                 || DISTANCE.matcher(value).find()
                 || TIME.matcher(value).find();
     }

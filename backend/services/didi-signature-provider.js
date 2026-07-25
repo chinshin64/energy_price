@@ -3,6 +3,7 @@ const path = require('path');
 
 class DidiSignatureProvider {
     constructor(options = {}) {
+        this.browserSigner = options.browserSigner || null;
         this.corpusPath = options.corpusPath
             || process.env.DIDI_SIGNATURE_CORPUS_PATH
             || path.join(__dirname, '../../data/didi-signature-corpus.json');
@@ -12,6 +13,94 @@ class DidiSignatureProvider {
         );
         this.cache = null;
         this.cacheMtimeMs = 0;
+    }
+
+    async refreshBrowserSignature(pattern, params = {}, headers = {}, providerMeta = null) {
+        if (!this.browserSigner || typeof this.browserSigner.sign !== 'function') {
+            return providerMeta;
+        }
+        if (!this.isDidiListPattern(pattern) && !this.isDidiDetailPattern(pattern)) {
+            return providerMeta;
+        }
+        try {
+            const payload = this.buildBrowserSignerPayload(pattern, params, headers);
+            const signature = await this.browserSigner.sign('didi', payload);
+            if (typeof signature !== 'string' || !/^dd\d*-/i.test(signature)) {
+                throw new Error('browser signer returned an invalid didi wsgsig');
+            }
+            params.query = { ...(params.query || {}) };
+            delete params.query._wsgsig;
+            params.query.wsgsig = signature;
+            return {
+                ...(providerMeta || {}),
+                provider: 'browser-signer',
+                fallbackProvider: providerMeta?.provider || null,
+                browserSignatureApplied: true
+            };
+        } catch {
+            return providerMeta;
+        }
+    }
+
+    buildBrowserSignerPayload(pattern, params = {}, headers = {}) {
+        const method = String(pattern?.method || 'GET').toUpperCase();
+        const contentType = String(
+            headers['content-type']
+            || headers['Content-Type']
+            || 'application/json'
+        ).toLowerCase();
+        let body;
+        let bodyString;
+        if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+            if (typeof params.body === 'string') bodyString = params.body;
+            else if (params.body && typeof params.body === 'object') body = { ...params.body };
+        }
+        return {
+            contentType,
+            paramsString: this.buildSignerParamsString(pattern?.baseUrl, params.query),
+            body,
+            bodyString,
+            noDomainCheck: true,
+            signUpgrade: false
+        };
+    }
+
+    buildSignerParamsString(baseUrl, query = {}) {
+        const parts = [];
+        try {
+            const url = new URL(baseUrl);
+            for (const [key, value] of url.searchParams.entries()) {
+                if (!/^_?wsgsig$/i.test(key)) {
+                    parts.push(`${this.encodeSignerParam(key)}=${this.encodeSignerParam(value)}`);
+                }
+            }
+        } catch {
+            // Invalid template URL is handled by the existing request path.
+        }
+        for (const [key, rawValue] of Object.entries(query || {})) {
+            if (/^_?wsgsig$/i.test(key) || rawValue === null || rawValue === undefined) continue;
+            const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+            const normalizedKey = Array.isArray(rawValue) ? `${key}[]` : key;
+            for (const value of values) {
+                const normalizedValue = value && typeof value === 'object'
+                    ? JSON.stringify(value)
+                    : value;
+                parts.push(
+                    `${this.encodeSignerParam(normalizedKey)}=${this.encodeSignerParam(normalizedValue)}`
+                );
+            }
+        }
+        return parts.join('&');
+    }
+
+    encodeSignerParam(value) {
+        return encodeURIComponent(String(value))
+            .replace(/%40/gi, '@')
+            .replace(/%3A/gi, ':')
+            .replace(/%24/g, '$')
+            .replace(/%2C/gi, ',')
+            .replace(/%5B/gi, '[')
+            .replace(/%5D/gi, ']');
     }
 
     normalizeMaxDistance(value) {

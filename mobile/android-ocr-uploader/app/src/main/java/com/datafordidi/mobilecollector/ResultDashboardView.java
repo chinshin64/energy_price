@@ -31,6 +31,9 @@ final class ResultDashboardView extends LinearLayout {
         void onFilterSelected(StationResultPresenter.Filter filter);
 
         void onEditBackfill(JSONObject row);
+
+        /** 用户在多选模式下点「删除选中」时回调，传入所选记录的稳定身份集合。 */
+        void onDeleteSelected(java.util.Set<String> stableIdentities);
     }
 
     private final Palette palette;
@@ -39,9 +42,13 @@ final class ResultDashboardView extends LinearLayout {
     private final Button[] filterButtons = new Button[3];
     private final Button primaryButton;
     private final Button clearButton;
+    private final Button multiSelectButton;
     private final StationAdapter adapter;
     private final TextView emptyView;
     private Listener listener;
+    private boolean selectionMode = false;
+    private final java.util.Set<String> selectedKeys = new java.util.LinkedHashSet<>();
+    private CaptureUiState captureUiState = CaptureUiState.STOPPED;
 
     ResultDashboardView(Context context) {
         super(context);
@@ -132,6 +139,12 @@ final class ResultDashboardView extends LinearLayout {
         primaryButton.setBackground(roundRect(palette.primary, 12, 0, Color.TRANSPARENT));
         primaryButton.setContentDescription("开始识别");
         primaryButton.setOnClickListener(view -> {
+            if (selectionMode) {
+                if (listener != null && !selectedKeys.isEmpty()) {
+                    listener.onDeleteSelected(new java.util.LinkedHashSet<>(selectedKeys));
+                }
+                return;
+            }
             if (listener != null) listener.onPrimaryAction();
         });
         actions.addView(primaryButton, new LayoutParams(0, dp(52), 1f));
@@ -146,6 +159,15 @@ final class ResultDashboardView extends LinearLayout {
         LayoutParams clearParams = new LayoutParams(LayoutParams.WRAP_CONTENT, dp(52));
         clearParams.leftMargin = dp(10);
         actions.addView(clearButton, clearParams);
+
+        multiSelectButton = compactButton("多选");
+        multiSelectButton.setTextColor(palette.textSecondary);
+        multiSelectButton.setBackground(roundRect(palette.card, 12, 1, palette.border));
+        multiSelectButton.setContentDescription("进入多选模式删除记录");
+        multiSelectButton.setOnClickListener(view -> toggleSelectionMode());
+        LayoutParams multiParams = new LayoutParams(LayoutParams.WRAP_CONTENT, dp(52));
+        multiParams.leftMargin = dp(10);
+        actions.addView(multiSelectButton, multiParams);
         addView(actions);
 
         selectFilter(StationResultPresenter.Filter.ALL);
@@ -155,14 +177,56 @@ final class ResultDashboardView extends LinearLayout {
         this.listener = listener;
     }
 
+    private void toggleSelectionMode() {
+        selectionMode = !selectionMode;
+        if (!selectionMode) selectedKeys.clear();
+        updateActionButtons();
+        adapter.notifyDataSetChanged();
+    }
+
+    void exitSelectionMode() {
+        if (!selectionMode) return;
+        selectionMode = false;
+        selectedKeys.clear();
+        updateActionButtons();
+        adapter.notifyDataSetChanged();
+    }
+
+    boolean isSelectionMode() {
+        return selectionMode;
+    }
+
+    private void toggleSelection(String stableIdentity) {
+        if (stableIdentity == null || stableIdentity.isEmpty()) return;
+        if (!selectedKeys.add(stableIdentity)) selectedKeys.remove(stableIdentity);
+        updateActionButtons();
+        adapter.notifyDataSetChanged();
+    }
+
+    private void updateActionButtons() {
+        if (selectionMode) {
+            multiSelectButton.setText("取消多选");
+            primaryButton.setText(selectedKeys.isEmpty() ? "删除选中" : "删除选中(" + selectedKeys.size() + ")");
+            primaryButton.setContentDescription("删除选中的 " + selectedKeys.size() + " 条记录");
+        } else {
+            multiSelectButton.setText("多选");
+            CaptureUiState state = captureUiState;
+            primaryButton.setText(state == null ? CaptureUiState.STOPPED.primaryLabel : state.primaryLabel);
+        }
+    }
+
     void setCaptureState(CaptureUiState state) {
-        CaptureUiState value = state == null ? CaptureUiState.STOPPED : state;
-        statusView.setText(value.label);
-        statusView.setContentDescription("识别状态：" + value.label);
-        primaryButton.setText(value.primaryLabel);
-        primaryButton.setContentDescription(value.primaryLabel);
-        primaryButton.setEnabled(value.primaryEnabled);
-        primaryButton.setAlpha(value.primaryEnabled ? 1f : 0.55f);
+        this.captureUiState = state == null ? CaptureUiState.STOPPED : state;
+        statusView.setText(captureUiState.label);
+        statusView.setContentDescription("识别状态：" + captureUiState.label);
+        if (selectionMode) {
+            updateActionButtons();
+        } else {
+            primaryButton.setText(captureUiState.primaryLabel);
+            primaryButton.setContentDescription(captureUiState.primaryLabel);
+            primaryButton.setEnabled(captureUiState.primaryEnabled);
+            primaryButton.setAlpha(captureUiState.primaryEnabled ? 1f : 0.55f);
+        }
     }
 
     void render(StationResultPresenter.ViewState state) {
@@ -296,6 +360,9 @@ final class ResultDashboardView extends LinearLayout {
         private final TextView capturedAt;
         private final TextView agent;
         private final Button edit;
+        private final TextView selectMark;
+        private JSONObject boundRow = null;
+        private String boundIdentity = "";
 
         StationCardView(Context context) {
             super(context);
@@ -309,6 +376,23 @@ final class ResultDashboardView extends LinearLayout {
             name.setMaxLines(2);
             name.setEllipsize(TextUtils.TruncateAt.END);
             addView(name);
+
+            selectMark = text("✓", 18, true, Color.WHITE);
+            selectMark.setGravity(Gravity.CENTER);
+            selectMark.setBackground(roundRect(palette.primary, 12, 0, Color.TRANSPARENT));
+            selectMark.setVisibility(GONE);
+            LayoutParams selectParams = new LayoutParams(dp(26), dp(26));
+            selectParams.topMargin = dp(2);
+            selectParams.leftMargin = dp(8);
+            addView(selectMark, selectParams);
+
+            setOnClickListener(view -> {
+                if (selectionMode) {
+                    toggleSelection(boundIdentity);
+                } else if (listener != null && boundRow != null) {
+                    listener.onEditBackfill(AddressFreePayload.copyObject(boundRow));
+                }
+            });
 
             address = text("", 13, false, palette.textSecondary);
             address.setMaxLines(3);
@@ -366,6 +450,8 @@ final class ResultDashboardView extends LinearLayout {
         }
 
         void bind(JSONObject row) {
+            boundRow = row;
+            boundIdentity = row == null ? "" : row.optString("stableIdentity", "");
             String stationName = row == null ? "" : row.optString("stationName", "未命名场站");
             String addressText = StationDisplayFormatter.address(row);
             String priceText = StationDisplayFormatter.mainPrice(row);
@@ -392,7 +478,21 @@ final class ResultDashboardView extends LinearLayout {
                     com.datafordidi.ocruploader.R.string.source_agent_format,
                     StationDisplayFormatter.sourceAgent(row)
             ));
-            edit.setVisibility(editable ? VISIBLE : GONE);
+            boolean selected = !boundIdentity.isEmpty() && selectedKeys.contains(boundIdentity);
+            if (selectionMode) {
+                edit.setVisibility(GONE);
+                selectMark.setVisibility(VISIBLE);
+                selectMark.setText(selected ? "✓" : "○");
+                selectMark.setTextColor(selected ? Color.WHITE : palette.textSecondary);
+                selectMark.setBackground(roundRect(
+                        selected ? palette.primary : palette.card, 12,
+                        selected ? 0 : 1, palette.border));
+                setBackground(roundRect(selected ? palette.statusBackground : palette.card, 14, 1, palette.border));
+            } else {
+                edit.setVisibility(editable ? VISIBLE : GONE);
+                selectMark.setVisibility(GONE);
+                setBackground(roundRect(palette.card, 14, 1, palette.border));
+            }
             edit.setContentDescription(StationDisplayFormatter.editDescription(row));
             edit.setOnClickListener(view -> {
                 if (listener != null) listener.onEditBackfill(AddressFreePayload.copyObject(row));
@@ -400,7 +500,7 @@ final class ResultDashboardView extends LinearLayout {
             setContentDescription(stationName + "，" + addressText + "，" + priceText + "，" + portsText + "，"
                     + missingText + "，" + syncText + "，" + capturedText
                     + "，来源" + StationDisplayFormatter.sourceAgent(row)
-                    + (editable ? "，可编辑回填" : ""));
+                    + (selectionMode ? (selected ? "，已选中" : "，未选中") : (editable ? "，可编辑回填" : "")));
         }
     }
 

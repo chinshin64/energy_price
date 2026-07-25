@@ -520,9 +520,9 @@
                 <label>测试方式</label>
                 <select id="filterMethod">
                     <option value="">全部</option>
-                    <option value="page-automation">页面自动化</option>
-                    <option value="background-automation">后台自动化</option>
-                    <option value="traffic-template">流量自动化</option>
+                    <option value="page-automation">页面采集</option>
+                    <option value="background-automation">请求采集</option>
+                    <option value="traffic-template">小规模访问验证</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -607,7 +607,7 @@
         const PAGE_SIZE = 50;
         let currentPage = 1;
         let totalRecords = 0;
-        const API_BASE = '/api/blue-team/reports';
+        const SERVICE_BASE = '/api/blue-team/reports';
 
         const STATUS_MAP = {
             passed: { label: '通过', cls: 'badge-passed' },
@@ -678,7 +678,7 @@
             params.set('offset', (currentPage - 1) * PAGE_SIZE);
 
             try {
-                var resp = await fetch(API_BASE + '?' + params.toString());
+                var resp = await fetch(SERVICE_BASE + '?' + params.toString());
                 var json = await resp.json();
                 if (!json.success) {
                     showToast('报告加载失败', 'error');
@@ -804,7 +804,7 @@
         }
 
         function downloadReport(id) {
-            window.open(API_BASE + '/' + encodeURIComponent(id) + '/download?format=markdown&sanitize=true', '_blank');
+            window.open(SERVICE_BASE + '/' + encodeURIComponent(id) + '/download?format=markdown&sanitize=true', '_blank');
         }
 
         var pendingRetestId = null;
@@ -826,7 +826,7 @@
             var id = pendingRetestId;
             closeConfirm();
             try {
-                var resp = await fetch(API_BASE + '/' + encodeURIComponent(id) + '/retest', {
+                var resp = await fetch(SERVICE_BASE + '/' + encodeURIComponent(id) + '/retest', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({})

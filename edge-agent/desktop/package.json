@@ -1,0 +1,27 @@
+{
+  "name": "@blue-team/edge-agent-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Blue Team desktop edge agent for macOS and Windows",
+  "main": "src/index.js",
+  "bin": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "package:mac": "pkg . --target node20-macos-arm64 --output dist/blue-team-edge-agent-macos-arm64",
+    "package:windows": "pkg . --target node20-win-x64 --output dist/blue-team-edge-agent-windows-x64.exe",
+    "package:all": "npm run package:mac && npm run package:windows"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pkg": {
+    "scripts": [
+      "src/**/*.js"
+    ],
+    "outputPath": "dist"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "6.12.0"
+  }
+}

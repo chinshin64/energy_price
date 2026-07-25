@@ -1,0 +1,29 @@
+-- Mobile OCR source physical schema v3 reference.
+--
+-- The executable migration is:
+--   backend/scripts/migrate-mobile-source-mysql.js
+--
+-- The runner uses mysql2 with multipleStatements=false. It inspects
+-- information_schema and executes one guarded DDL statement at a time.
+-- Do not execute this reference file directly.
+--
+-- v3 keeps the API envelope at schemaVersion=2 and adds only physical storage:
+--   mobile_ocr_station_snapshots.provider_name VARCHAR(128) NULL
+--   mobile_ocr_fuel_offers.display_price DECIMAL(10,4) NULL
+--   mobile_ocr_fuel_offers.station_price DECIMAL(10,4) NULL
+--   mobile_ocr_fuel_offers.national_price DECIMAL(10,4) NULL
+--   mobile_ocr_fuel_quotes
+--   uq_mobile_ocr_quote_observation
+--   uq_mobile_ocr_quote_dedup
+--   idx_mobile_ocr_quote_grade
+--   fk_mobile_ocr_fuel_quote_snapshot
+--
+-- Use:
+--   node backend/scripts/migrate-mobile-source-mysql.js --dry-run
+--   node backend/scripts/migrate-mobile-source-mysql.js --apply
+--   node backend/scripts/migrate-mobile-source-mysql.js --validate-only
+--
+-- Rollback is capability-first and non-destructive:
+--   MOBILE_SOURCE_FUEL_QUOTE_V1_ENABLED=false
+-- v3 columns, quote rows, and migration metadata are retained. There is no
+-- DOWN, DROP, or metadata downgrade operation.

@@ -1,0 +1,1757 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>滴滴充电小程序安全 SDK 签名复现风险 Writeup</title>
+  <style>
+    :root {
+      --bg: #0d1112;
+      --panel: #13191a;
+      --panel-2: #171f20;
+      --paper: #e8e4d8;
+      --paper-dim: #aaa89f;
+      --line: #303a3b;
+      --line-hot: #6d4c2c;
+      --orange: #ff7a1a;
+      --orange-soft: #ffae62;
+      --cyan: #6fd3cf;
+      --green: #8ad09a;
+      --red: #ff6c55;
+      --yellow: #f2c65e;
+      --ink: #101414;
+      --max: 1440px;
+      --radius: 6px;
+      --shadow: 0 20px 64px rgba(0, 0, 0, .34);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      color: var(--paper);
+      background:
+        linear-gradient(rgba(255, 255, 255, .018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, .014) 1px, transparent 1px),
+        var(--bg);
+      background-size: 28px 28px;
+      font-family: "Songti SC", "STSong", "Noto Serif CJK SC", Georgia, serif;
+      font-size: 16px;
+      line-height: 1.72;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .18;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");
+      z-index: 100;
+      mix-blend-mode: soft-light;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    code,
+    pre,
+    .eyebrow,
+    .stamp,
+    .metric-label,
+    .chapter-no,
+    .nav-link,
+    .tag,
+    .field,
+    .footer-meta {
+      font-family: "SFMono-Regular", "Cascadia Mono", "Liberation Mono", Menlo, monospace;
+    }
+
+    .shell {
+      width: min(var(--max), calc(100% - 40px));
+      margin: 0 auto;
+      padding: 22px 0 72px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 14px;
+      z-index: 90;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      min-height: 64px;
+      border: 1px solid var(--line);
+      border-top: 2px solid var(--orange);
+      border-radius: var(--radius);
+      background: rgba(13, 17, 18, .92);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 18px;
+      border-right: 1px solid var(--line);
+      min-width: 244px;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      color: var(--ink);
+      background: var(--orange);
+      border-radius: 3px;
+      font: 900 17px/1 "DIN Condensed", "Bahnschrift SemiCondensed", sans-serif;
+    }
+
+    .brand-copy strong,
+    .brand-copy span {
+      display: block;
+    }
+
+    .brand-copy strong {
+      font-family: "DIN Condensed", "Bahnschrift SemiCondensed", "PingFang SC", sans-serif;
+      font-size: 15px;
+      line-height: 1.2;
+      letter-spacing: .08em;
+    }
+
+    .brand-copy span {
+      margin-top: 3px;
+      color: var(--paper-dim);
+      font: 10px/1.2 "SFMono-Regular", Menlo, monospace;
+      text-transform: uppercase;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 14px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav-link {
+      flex: 0 0 auto;
+      padding: 9px 10px;
+      color: var(--paper-dim);
+      border-bottom: 1px solid transparent;
+      font-size: 11px;
+      letter-spacing: .04em;
+      transition: color .2s ease, border-color .2s ease, background .2s ease;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+      color: var(--paper);
+      border-color: var(--orange);
+      background: rgba(255, 122, 26, .08);
+    }
+
+    .print-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 112px;
+      min-height: 62px;
+      padding: 0 18px;
+      color: var(--ink);
+      border: 0;
+      border-left: 1px solid var(--line);
+      border-radius: 0 4px 4px 0;
+      background: var(--orange);
+      font-family: "DIN Condensed", "Bahnschrift SemiCondensed", "PingFang SC", sans-serif;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background .2s ease;
+    }
+
+    .print-button:hover {
+      background: var(--orange-soft);
+    }
+
+    .hero {
+      position: relative;
+      min-height: 670px;
+      margin-top: 18px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.42fr) minmax(320px, .58fr);
+      min-height: 670px;
+    }
+
+    .hero-main {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: clamp(44px, 7vw, 108px) clamp(28px, 6vw, 92px) 50px;
+      border-right: 1px solid var(--line);
+    }
+
+    .hero-main::after {
+      content: "WSGSIG / LOCAL RUNTIME / TRUST BOUNDARY";
+      position: absolute;
+      right: -248px;
+      bottom: 124px;
+      width: 560px;
+      color: rgba(255, 255, 255, .032);
+      font: 900 70px/.92 "DIN Condensed", "Bahnschrift SemiCondensed", sans-serif;
+      transform: rotate(-90deg);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 24px;
+      color: var(--orange-soft);
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 42px;
+      height: 2px;
+      background: var(--orange);
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin: 0;
+      font-family: "DIN Condensed", "Bahnschrift SemiCondensed", "PingFang SC", sans-serif;
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 940px;
+      font-size: clamp(52px, 7.5vw, 116px);
+      font-weight: 900;
+    }
+
+    h1 span {
+      display: block;
+      margin-top: 10px;
+      color: var(--orange);
+      font-size: .44em;
+      font-weight: 700;
+    }
+
+    .lead {
+      max-width: 810px;
+      margin: 30px 0 0;
+      color: #d0cec6;
+      font-size: clamp(17px, 1.5vw, 22px);
+      line-height: 1.75;
+    }
+
+    .hero-foot {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 52px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 5px 10px;
+      color: var(--paper-dim);
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      background: #101516;
+      font-size: 10px;
+      letter-spacing: .04em;
+    }
+
+    .tag.hot {
+      color: var(--orange-soft);
+      border-color: var(--line-hot);
+      background: rgba(255, 122, 26, .08);
+    }
+
+    .hero-side {
+      display: grid;
+      grid-template-rows: auto repeat(4, 1fr) auto;
+      background: #0f1415;
+    }
+
+    .classification {
+      padding: 22px 24px;
+      color: var(--ink);
+      background: var(--orange);
+    }
+
+    .classification .stamp {
+      display: block;
+      font-size: 10px;
+      letter-spacing: .08em;
+    }
+
+    .classification strong {
+      display: block;
+      margin-top: 5px;
+      font: 900 27px/1 "DIN Condensed", "Bahnschrift SemiCondensed", sans-serif;
+    }
+
+    .metric {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 112px;
+      padding: 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .metric-label {
+      color: var(--paper-dim);
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 8px;
+      font: 900 38px/1 "DIN Condensed", "Bahnschrift SemiCondensed", sans-serif;
+    }
+
+    .metric strong.red {
+      color: var(--red);
+    }
+
+    .metric strong.green {
+      color: var(--green);
+    }
+
+    .metric-note {
+      margin-top: 7px;
+      color: var(--paper-dim);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .hero-status {
+      padding: 22px 24px;
+      color: var(--paper-dim);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .hero-status b {
+      color: var(--cyan);
+    }
+
+    .chapter {
+      scroll-margin-top: 94px;
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .chapter-head {
+      display: grid;
+      grid-template-columns: 120px 1fr auto;
+      align-items: end;
+      gap: 22px;
+      padding: 30px 34px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chapter-no {
+      color: var(--orange);
+      font-size: 13px;
+      letter-spacing: .08em;
+    }
+
+    .chapter-title h2 {
+      font-size: clamp(32px, 4vw, 62px);
+    }
+
+    .chapter-title p {
+      max-width: 820px;
+      margin: 10px 0 0;
+      color: var(--paper-dim);
+      font-size: 14px;
+    }
+
+    .chapter-code {
+      color: #676f6f;
+      font: 10px/1.3 "SFMono-Regular", Menlo, monospace;
+      text-align: right;
+      text-transform: uppercase;
+    }
+
+    .chapter-body {
+      padding: 34px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1.45fr .55fr;
+      gap: 1px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .summary-copy,
+    .summary-verdict {
+      background: var(--panel-2);
+      padding: clamp(28px, 4vw, 54px);
+    }
+
+    .summary-copy h3 {
+      max-width: 800px;
+      font-size: clamp(28px, 3vw, 48px);
+    }
+
+    .summary-copy p {
+      max-width: 860px;
+      margin: 20px 0 0;
+      color: #ccc9bf;
+      font-size: 17px;
+    }
+
+    .summary-verdict {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 300px;
+      background: var(--orange);
+      color: var(--ink);
+    }
+
+    .summary-verdict .field {
+      font-size: 10px;
+      letter-spacing: .08em;
+    }
+
+    .summary-verdict strong {
+      display: block;
+      font: 900 clamp(44px, 5vw, 80px)/.9 "DIN Condensed", "Bahnschrift SemiCondensed", sans-serif;
+    }
+
+    .summary-verdict p {
+      margin: 20px 0 0;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .finding-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .finding {
+      min-height: 168px;
+      padding: 24px;
+      background: #101516;
+    }
+
+    .finding .field {
+      color: var(--cyan);
+      font-size: 10px;
+      letter-spacing: .06em;
+    }
+
+    .finding h3 {
+      margin-top: 15px;
+      font-size: 23px;
+      line-height: 1.25;
+    }
+
+    .finding p {
+      margin: 11px 0 0;
+      color: var(--paper-dim);
+      font-size: 13px;
+      line-height: 1.58;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+    }
+
+    table {
+      width: 100%;
+      min-width: 780px;
+      border-collapse: collapse;
+      background: #101516;
+    }
+
+    th,
+    td {
+      padding: 17px 18px;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th:last-child,
+    td:last-child {
+      border-right: 0;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    th {
+      color: var(--orange-soft);
+      background: #171e1f;
+      font: 700 11px/1.4 "SFMono-Regular", Menlo, monospace;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    td {
+      color: #d0cec6;
+      font-size: 14px;
+    }
+
+    td code {
+      color: var(--cyan);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .state {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .state::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 14px currentColor;
+    }
+
+    .state.ok {
+      color: var(--green);
+    }
+
+    .state.warn {
+      color: var(--yellow);
+    }
+
+    .state.stop {
+      color: var(--red);
+    }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin: 4px 0 26px;
+    }
+
+    .arch-node {
+      position: relative;
+      min-height: 170px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      background: #101516;
+    }
+
+    .arch-node:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -11px;
+      width: 11px;
+      height: 1px;
+      background: var(--orange);
+      z-index: 2;
+    }
+
+    .arch-node .field {
+      color: var(--orange-soft);
+      font-size: 10px;
+    }
+
+    .arch-node h3 {
+      margin-top: 18px;
+      font-size: 20px;
+    }
+
+    .arch-node p {
+      margin: 12px 0 0;
+      color: var(--paper-dim);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .tech-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .note {
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--cyan);
+      background: #101516;
+    }
+
+    .note.hot {
+      border-left-color: var(--orange);
+    }
+
+    .note h3 {
+      font-size: 23px;
+    }
+
+    .note p,
+    .note li {
+      color: var(--paper-dim);
+      font-size: 14px;
+    }
+
+    .note p {
+      margin: 12px 0 0;
+    }
+
+    .note ul {
+      margin: 16px 0 0;
+      padding-left: 20px;
+    }
+
+    .note li + li {
+      margin-top: 7px;
+    }
+
+    .code-panel {
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      background: #090d0e;
+    }
+
+    .code-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #121718;
+    }
+
+    .code-head strong {
+      font: 700 11px/1.2 "SFMono-Regular", Menlo, monospace;
+      letter-spacing: .04em;
+    }
+
+    .code-head span {
+      color: var(--red);
+      font: 10px/1.2 "SFMono-Regular", Menlo, monospace;
+    }
+
+    pre {
+      margin: 0;
+      padding: 22px;
+      overflow: auto;
+      color: #c8d8d4;
+      font-size: 12px;
+      line-height: 1.68;
+      tab-size: 2;
+    }
+
+    .comment {
+      color: #647070;
+    }
+
+    .keyword {
+      color: var(--orange-soft);
+    }
+
+    .string {
+      color: var(--green);
+    }
+
+    .redacted {
+      color: var(--red);
+    }
+
+    .route {
+      counter-reset: route;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .route-step {
+      counter-increment: route;
+      position: relative;
+      min-height: 230px;
+      padding: 30px 30px 28px 92px;
+      background: #101516;
+    }
+
+    .route-step::before {
+      content: "0" counter(route);
+      position: absolute;
+      top: 29px;
+      left: 28px;
+      color: var(--orange);
+      font: 900 31px/1 "DIN Condensed", "Bahnschrift SemiCondensed", sans-serif;
+    }
+
+    .route-step h3 {
+      font-size: 25px;
+      line-height: 1.18;
+    }
+
+    .route-step p {
+      margin: 12px 0 0;
+      color: var(--paper-dim);
+      font-size: 14px;
+    }
+
+    .route-step .route-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .boundary {
+      margin: 18px 0;
+      padding: 16px 20px;
+      color: var(--ink);
+      border-left: 10px solid var(--red);
+      background: var(--paper);
+      font-family: "DIN Condensed", "Bahnschrift SemiCondensed", "PingFang SC", sans-serif;
+      font-weight: 700;
+    }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .evidence-card {
+      min-height: 310px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      background: #101516;
+    }
+
+    .evidence-card .field {
+      color: var(--cyan);
+      font-size: 10px;
+    }
+
+    .evidence-value {
+      margin-top: 20px;
+      font: 900 clamp(36px, 5vw, 72px)/.95 "DIN Condensed", "Bahnschrift SemiCondensed", sans-serif;
+    }
+
+    .evidence-card p {
+      color: var(--paper-dim);
+      font-size: 14px;
+    }
+
+    .signature-sample {
+      margin-top: 20px;
+      padding: 17px;
+      overflow-wrap: anywhere;
+      color: var(--red);
+      border: 1px dashed #784538;
+      background: #190f0d;
+      font: 12px/1.65 "SFMono-Regular", Menlo, monospace;
+    }
+
+    .remediation {
+      display: grid;
+      gap: 12px;
+    }
+
+    .fix {
+      display: grid;
+      grid-template-columns: 92px 1fr 230px;
+      gap: 22px;
+      align-items: start;
+      padding: 24px;
+      border: 1px solid var(--line);
+      background: #101516;
+    }
+
+    .fix-priority {
+      color: var(--ink);
+      background: var(--orange);
+      padding: 10px 12px;
+      text-align: center;
+      font: 900 18px/1 "DIN Condensed", "Bahnschrift SemiCondensed", sans-serif;
+    }
+
+    .fix h3 {
+      font-size: 23px;
+    }
+
+    .fix p {
+      margin: 9px 0 0;
+      color: var(--paper-dim);
+      font-size: 13px;
+    }
+
+    .fix-check {
+      color: var(--green);
+      font: 11px/1.65 "SFMono-Regular", Menlo, monospace;
+    }
+
+    .disclosure {
+      display: grid;
+      grid-template-columns: .7fr 1.3fr;
+      gap: 1px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .disclosure > div {
+      padding: 30px;
+      background: #101516;
+    }
+
+    .disclosure h3 {
+      font-size: 27px;
+    }
+
+    .disclosure p {
+      color: var(--paper-dim);
+      font-size: 14px;
+    }
+
+    .disclosure .safe {
+      border-top: 3px solid var(--green);
+    }
+
+    .disclosure .restricted {
+      border-top: 3px solid var(--red);
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 30px;
+      margin-top: 18px;
+      padding: 24px 4px;
+      color: #737b7b;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+    }
+
+    .footer-meta {
+      text-align: right;
+      font-size: 10px;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity .65s ease, transform .65s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    @media (max-width: 1080px) {
+      .topbar {
+        grid-template-columns: auto 1fr auto;
+      }
+
+      .brand {
+        min-width: auto;
+      }
+
+      .brand-copy {
+        display: none;
+      }
+
+      .hero-grid,
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-main {
+        min-height: 580px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .hero-side {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: auto auto auto;
+      }
+
+      .classification,
+      .hero-status {
+        grid-column: 1 / -1;
+      }
+
+      .metric:nth-of-type(odd) {
+        border-right: 1px solid var(--line);
+      }
+
+      .architecture {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .arch-node:not(:last-child)::after {
+        display: none;
+      }
+
+      .finding-strip {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      body {
+        font-size: 15px;
+      }
+
+      .shell {
+        width: min(100% - 20px, var(--max));
+        padding-top: 10px;
+      }
+
+      .topbar {
+        top: 6px;
+        grid-template-columns: auto 1fr;
+        min-height: 56px;
+      }
+
+      .brand {
+        padding: 8px;
+        border-right: 0;
+      }
+
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+      }
+
+      .nav {
+        padding: 0 6px;
+      }
+
+      .print-button {
+        display: none;
+      }
+
+      .hero,
+      .hero-grid {
+        min-height: 0;
+      }
+
+      .hero-main {
+        min-height: 580px;
+        padding: 46px 22px 28px;
+      }
+
+      .hero-main::after {
+        display: none;
+      }
+
+      h1 {
+        font-size: clamp(46px, 15vw, 70px);
+      }
+
+      .hero-side {
+        grid-template-columns: 1fr;
+      }
+
+      .classification,
+      .hero-status {
+        grid-column: auto;
+      }
+
+      .metric:nth-of-type(odd) {
+        border-right: 0;
+      }
+
+      .chapter-head {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 24px 20px;
+      }
+
+      .chapter-code {
+        display: none;
+      }
+
+      .chapter-body {
+        padding: 20px;
+      }
+
+      .tech-grid,
+      .route,
+      .evidence-grid,
+      .disclosure {
+        grid-template-columns: 1fr;
+      }
+
+      .architecture {
+        grid-template-columns: 1fr;
+      }
+
+      .route-step {
+        padding: 82px 22px 24px;
+      }
+
+      .route-step::before {
+        top: 24px;
+        left: 22px;
+      }
+
+      .fix {
+        grid-template-columns: 1fr;
+      }
+
+      .fix-priority {
+        width: 72px;
+      }
+
+      footer {
+        display: block;
+      }
+
+      .footer-meta {
+        margin-top: 16px;
+        text-align: left;
+      }
+    }
+
+    @media print {
+      :root {
+        --bg: #fff;
+        --panel: #fff;
+        --panel-2: #f5f3ec;
+        --paper: #111;
+        --paper-dim: #555;
+        --line: #bbb;
+        --orange: #c95400;
+        --orange-soft: #9c460b;
+        --cyan: #006d68;
+        --green: #167132;
+        --red: #a32116;
+      }
+
+      body {
+        background: #fff;
+        color: #111;
+      }
+
+      body::before,
+      .topbar {
+        display: none;
+      }
+
+      .shell {
+        width: 100%;
+        padding: 0;
+      }
+
+      .hero,
+      .chapter {
+        break-inside: avoid;
+        box-shadow: none;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .hero-grid {
+        min-height: 0;
+      }
+
+      .hero-main,
+      .hero-side,
+      .finding,
+      .arch-node,
+      .note,
+      .route-step,
+      .evidence-card,
+      .fix,
+      .disclosure > div,
+      .code-panel,
+      table {
+        background: #fff;
+      }
+
+      .tag {
+        background: #fff;
+      }
+
+      .summary-copy {
+        background: #f5f3ec;
+      }
+
+      pre {
+        color: #111;
+        white-space: pre-wrap;
+      }
+
+      .reveal {
+        opacity: 1;
+        transform: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="返回报告首页">
+        <span class="brand-mark">R7</span>
+        <span class="brand-copy">
+          <strong>蓝军技术档案</strong>
+          <span>Research writeup / 2026</span>
+        </span>
+      </a>
+      <nav class="nav" aria-label="报告目录">
+        <a class="nav-link" href="#summary">结论</a>
+        <a class="nav-link" href="#environment">环境</a>
+        <a class="nav-link" href="#mechanism">原理</a>
+        <a class="nav-link" href="#route">路线</a>
+        <a class="nav-link" href="#parameters">参数</a>
+        <a class="nav-link" href="#evidence">证据</a>
+        <a class="nav-link" href="#remediation">修复</a>
+      </nav>
+      <button class="print-button" type="button" onclick="window.print()">打印报告</button>
+    </header>
+
+    <section class="hero reveal" id="top">
+      <div class="hero-grid">
+        <div class="hero-main">
+          <div>
+            <p class="eyebrow">Authorized security research / Writeup 07</p>
+            <h1>客户端签名能力<span>滴滴充电微信小程序安全 SDK 本地复现风险</span></h1>
+            <p class="lead">本报告重新梳理一次“直接调用客户端签名模块”的技术实现：客户端包中的安全 SDK 被装入本地兼容运行时，原始请求上下文被重建后可生成结构有效的签名。核心风险不在算法是否被数学破解，而在客户端可执行能力被服务端当作可信身份。</p>
+          </div>
+          <div class="hero-foot">
+            <span class="tag hot">风险评级 / HIGH</span>
+            <span class="tag">验证模式 / LOCAL SIGN ONLY</span>
+            <span class="tag">网络请求 / NOT EXECUTED</span>
+            <span class="tag">数据来源 / CURRENT CODE + FRESH CHECK</span>
+          </div>
+        </div>
+        <aside class="hero-side" aria-label="报告关键指标">
+          <div class="classification">
+            <span class="stamp">DOCUMENT CLASSIFICATION</span>
+            <strong>内部安全评审</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Risk level</span>
+            <strong class="red">高</strong>
+            <span class="metric-note">客户端签名可复现，不等于可信设备证明</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Runtime modules</span>
+            <strong>1,358</strong>
+            <span class="metric-note">主包与安全分包模块共同装载</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Signature result</span>
+            <strong class="green">214</strong>
+            <span class="metric-note">字符长度；明文未写入报告</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Network verification</span>
+            <strong>0</strong>
+            <span class="metric-note">本次重新验证未发起在线请求</span>
+          </div>
+          <div class="hero-status"><b>结论边界：</b>确认本地签名生成链路可运行；未用本次结果声明线上服务端校验已被重新绕过。</div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="chapter reveal" id="summary">
+      <header class="chapter-head">
+        <span class="chapter-no">CHAPTER / 01</span>
+        <div class="chapter-title">
+          <h2>结论摘要</h2>
+          <p>先回答“发生了什么、为什么重要、这次到底验证到哪里”。</p>
+        </div>
+        <span class="chapter-code">finding<br>client-trust-01</span>
+      </header>
+      <div class="chapter-body">
+        <div class="summary-grid">
+          <div class="summary-copy">
+            <h3>这不是破解加密算法，而是把原本只能在小程序内运行的签名能力搬到了本地。</h3>
+            <p>实现通过提取小程序主包和安全 SDK 分包模块，补齐 Webpack 风格加载器与必要运行时接口，再使用授权请求语料重建签名输入。安全 SDK 仍然执行原有算法，但执行环境不再受微信小程序边界约束。</p>
+          </div>
+          <div class="summary-verdict">
+            <span class="field">ASSESSMENT VERDICT</span>
+            <div>
+              <strong>HIGH</strong>
+              <p>一旦服务端仅凭客户端签名判断“请求来自真实小程序”，攻击者就可能把可复制的软件能力伪装成可信终端。</p>
+            </div>
+          </div>
+        </div>
+        <div class="finding-strip">
+          <article class="finding">
+            <span class="field">ROOT CAUSE</span>
+            <h3>客户端持有全部执行能力</h3>
+            <p>签名逻辑、初始化入口和请求包装代码均随客户端分发，具备被提取、装载和调用的条件。</p>
+          </article>
+          <article class="finding">
+            <span class="field">TRUST FAILURE</span>
+            <h3>签名被当作身份而非完整性证据</h3>
+            <p>签名可证明输入经过某段客户端代码处理，但不能单独证明设备、用户、会话和交互过程真实。</p>
+          </article>
+          <article class="finding">
+            <span class="field">CURRENT EVIDENCE</span>
+            <h3>本地签名结构已重新生成</h3>
+            <p>2026-07-10 本地复核成功生成 214 字符、格式符合预期的结果；本次未执行网络访问。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter reveal" id="environment">
+      <header class="chapter-head">
+        <span class="chapter-no">CHAPTER / 02</span>
+        <div class="chapter-title">
+          <h2>实现环境说明</h2>
+          <p>环境按“执行主机、客户端材料、请求上下文、网络出口、数据落点”拆分。</p>
+        </div>
+        <span class="chapter-code">scope<br>local-workstation</span>
+      </header>
+      <div class="chapter-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>层级</th>
+                <th>本次实现</th>
+                <th>用途</th>
+                <th>当前状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>执行主机</td>
+                <td>macOS 15.6.1 / arm64</td>
+                <td>承载 Node.js 沙箱、脚本和离线报告</td>
+                <td><span class="state ok">已核对</span></td>
+              </tr>
+              <tr>
+                <td>运行时</td>
+                <td>Node.js 22.22.1 / npm 10.9.4</td>
+                <td>动态装载小程序模块并调用签名导出</td>
+                <td><span class="state ok">已核对</span></td>
+              </tr>
+              <tr>
+                <td>客户端材料</td>
+                <td>授权获取的小程序主包与安全 SDK 分包</td>
+                <td>提供模块定义、初始化代码和签名实现</td>
+                <td><span class="state ok">本地存在</span></td>
+              </tr>
+              <tr>
+                <td>请求语料</td>
+                <td>2 条授权场站列表请求样本</td>
+                <td>恢复 query、body、content-type 与上下文字段结构</td>
+                <td><span class="state warn">外部数据目录</span></td>
+              </tr>
+              <tr>
+                <td>设备上下文</td>
+                <td>Android 微信 UA 物料 6 条，筛选可用 4 条</td>
+                <td>模拟移动端请求外观；不构成可信设备证明</td>
+                <td><span class="state ok">随机选择</span></td>
+              </tr>
+              <tr>
+                <td>网络出口</td>
+                <td>由 <code>UNIFIED_OUTBOUND_PROXY_URL</code> 注入</td>
+                <td>在线验证时强制统一出口；凭据不写入报告</td>
+                <td><span class="state stop">本次未启用</span></td>
+              </tr>
+              <tr>
+                <td>数据落点</td>
+                <td>SQLite / <code>data/stations.db</code></td>
+                <td>将列表响应映射到 stations 业务字段</td>
+                <td><span class="state warn">本次未写入</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tech-grid" style="margin-top:18px">
+          <article class="note">
+            <h3>涉及的代码职责</h3>
+            <ul>
+              <li><code>scripts/wsgsig-sdk-validation.js</code>：运行时重建、签名和受控验证。</li>
+              <li><code>scripts/didi-batch-city-stations.js</code>：分页请求、解析、去重和入库映射。</li>
+              <li><code>backend/config/unified-proxy.js</code>：代理配置来源与强制策略。</li>
+              <li><code>backend/database/init.js</code>：SQLite 路径、WAL 和业务表结构。</li>
+            </ul>
+          </article>
+          <article class="note hot">
+            <h3>本次验证边界</h3>
+            <p>动态复核只运行本地签名模式，没有设置网络许可开关，也没有向业务接口发送请求。因此“签名模块可被本地调用”是本次确认事实，“服务端当前仍接受该请求”不是本次新增结论。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter reveal" id="mechanism">
+      <header class="chapter-head">
+        <span class="chapter-no">CHAPTER / 03</span>
+        <div class="chapter-title">
+          <h2>安全 SDK 签名技术解读</h2>
+          <p>签名链路由代码载体、兼容运行时、初始化上下文和请求规范化四部分组成。</p>
+        </div>
+        <span class="chapter-code">mechanism<br>runtime-rehost</span>
+      </header>
+      <div class="chapter-body">
+        <div class="architecture" aria-label="签名执行链路">
+          <article class="arch-node">
+            <span class="field">SOURCE / 01</span>
+            <h3>小程序代码包</h3>
+            <p>主包包含业务请求包装，安全分包含签名实现与导出入口。</p>
+          </article>
+          <article class="arch-node">
+            <span class="field">RUNTIME / 02</span>
+            <h3>模块提取</h3>
+            <p>扫描打包后的模块定义，恢复模块编号、参数和函数体。</p>
+          </article>
+          <article class="arch-node">
+            <span class="field">RUNTIME / 03</span>
+            <h3>兼容加载器</h3>
+            <p>实现模块缓存、导出标记和依赖加载等必要能力。</p>
+          </article>
+          <article class="arch-node">
+            <span class="field">SIGN / 04</span>
+            <h3>输入重建</h3>
+            <p>把 query 串、body、content-type 和 SDK 控制位恢复为原形。</p>
+          </article>
+          <article class="arch-node">
+            <span class="field">OUTPUT / 05</span>
+            <h3>签名生成</h3>
+            <p>原 SDK 在本地运行并输出签名，载体位置保持在 query。</p>
+          </article>
+        </div>
+
+        <div class="tech-grid">
+          <article class="note">
+            <h3>签名实际绑定了什么</h3>
+            <p>当前调用形态向 SDK 提交规范化后的 query 参数串、请求体或请求体字符串、内容类型，以及两个 SDK 控制位。业务初始化上下文在签名器加载阶段完成。</p>
+          </article>
+          <article class="note hot">
+            <h3>签名没有天然证明什么</h3>
+            <p>它没有天然证明请求来自未篡改的微信、真实 Android 设备、真实用户操作或唯一会话。UA、普通 Header 和本地时间戳都可由调用方构造，不能单独作为信任根。</p>
+          </article>
+        </div>
+
+        <div class="code-panel">
+          <div class="code-head">
+            <strong>CONTROL FLOW / NON-EXECUTABLE PSEUDOCODE</strong>
+            <span>敏感初始化值与真实模块定位已脱敏</span>
+          </div>
+          <pre><span class="comment">// 1. 读取主包和安全分包，建立最小兼容运行时</span>
+modules = extractModules(MAIN_PACKAGE, SECURITY_PACKAGE)
+runtime = createCompatibleRuntime(modules)
+
+<span class="comment">// 2. 获取签名导出并初始化业务上下文</span>
+signer = runtime.resolve(<span class="redacted">"&lt;REDACTED_SIGNER_MODULE&gt;"</span>)
+signer.initialize({
+  businessId: <span class="redacted">"&lt;REDACTED&gt;"</span>,
+  appVersion: <span class="redacted">"&lt;REDACTED&gt;"</span>,
+  platform: <span class="string">"mobile-mini-program"</span>
+})
+
+<span class="comment">// 3. 从授权语料恢复请求形态，旧签名必须先移除</span>
+request = rebuildRequestShape(authorizedCorpus)
+delete request.query.signature
+payload = normalize({
+  contentType: request.contentType,
+  paramsString: canonicalize(request.query),
+  body: request.body,
+  runtimeFlags: <span class="redacted">"&lt;CONTROLLED&gt;"</span>
+})
+
+<span class="comment">// 4. 仅保留摘要证据，不在报告中输出真实签名</span>
+signature = signer.sign(payload)
+evidence = summarize(signature) <span class="comment">// generated / length / format only</span></pre>
+        </div>
+
+        <div class="boundary">关键判断：只要签名过程不依赖服务端不可导出的秘密或硬件证明，客户端代码被重新托管后就可能继续产生“格式正确”的签名。</div>
+      </div>
+    </section>
+
+    <section class="chapter reveal" id="route">
+      <header class="chapter-head">
+        <span class="chapter-no">CHAPTER / 04</span>
+        <div class="chapter-title">
+          <h2>风险复现与绕过路线</h2>
+          <p>按攻击者需要跨越的能力阶段描述。以下为风险路径，不是可直接执行的攻击手册。</p>
+        </div>
+        <span class="chapter-code">attack path<br>seven stages</span>
+      </header>
+      <div class="chapter-body">
+        <div class="route">
+          <article class="route-step">
+            <h3>获取客户端代码载体</h3>
+            <p>在授权测试环境取得小程序主包和安全 SDK 分包。客户端分发意味着代码最终需要在用户设备可执行，因此无法把所有签名能力永久隐藏。</p>
+            <div class="route-meta"><span class="tag">输入 / WX PACKAGE</span><span class="tag hot">门槛 / 中</span></div>
+          </article>
+          <article class="route-step">
+            <h3>识别签名调用边界</h3>
+            <p>从业务请求包装处定位签名前后的数据流：哪些字段参与签名、签名何时产生、结果放在 query 还是 header，以及初始化发生在哪里。</p>
+            <div class="route-meta"><span class="tag">输出 / CALL GRAPH</span><span class="tag hot">门槛 / 中</span></div>
+          </article>
+          <article class="route-step">
+            <h3>重建最小模块运行时</h3>
+            <p>将主包和分包模块合并到本地加载器，补齐模块缓存、导出定义和依赖解析。目标不是完整模拟微信，而是让签名依赖链能够启动。</p>
+            <div class="route-meta"><span class="tag">输出 / LOCAL RUNTIME</span><span class="tag hot">门槛 / 高</span></div>
+          </article>
+          <article class="route-step">
+            <h3>恢复初始化与输入结构</h3>
+            <p>使用授权语料恢复业务上下文、query 规范化方式、body 表达和 content-type。固定签名不能复用，因此每次请求前重新计算。</p>
+            <div class="route-meta"><span class="tag">输出 / SIGN PAYLOAD</span><span class="tag hot">门槛 / 中</span></div>
+          </article>
+          <article class="route-step">
+            <h3>直接调用原安全 SDK</h3>
+            <p>签名仍由原 SDK 生成，不需要推导算法公式。旧签名先移除，新签名生成后按客户端原始字段分布放回 query。</p>
+            <div class="route-meta"><span class="tag">输出 / WSGSIG-LIKE</span><span class="tag hot">风险点 / 核心</span></div>
+          </article>
+          <article class="route-step">
+            <h3>补齐可伪造的客户端外观</h3>
+            <p>移动端微信 UA、普通浏览器 Header、时间字段和位置参数都可被脚本构造。它们提高请求相似度，但不能提供可信设备身份。</p>
+            <div class="route-meta"><span class="tag">输入 / UA + HEADERS</span><span class="tag hot">门槛 / 低</span></div>
+          </article>
+          <article class="route-step">
+            <h3>受控网络验证</h3>
+            <p>只有在显式许可开关、请求数量上限和统一代理出口同时满足时才允许联网。服务端是否接受签名，需要独立动态证据确认。</p>
+            <div class="route-meta"><span class="tag">控制 / ALLOW FLAG</span><span class="tag">本次 / 未执行</span></div>
+          </article>
+          <article class="route-step">
+            <h3>解析响应并映射入库</h3>
+            <p>业务数据从组件列表中提取，按站点 ID 去重后映射为名称、地址、坐标、价格、充电枪数量和来源证据，写入统一 SQLite。</p>
+            <div class="route-meta"><span class="tag">输出 / STATIONS</span><span class="tag">本次 / 未写入</span></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter reveal" id="parameters">
+      <header class="chapter-head">
+        <span class="chapter-no">CHAPTER / 05</span>
+        <div class="chapter-title">
+          <h2>实验参数与脚本接口</h2>
+          <p>保留复现实验的控制面说明；目标值、签名明文、凭据和在线命令不进入报告。</p>
+        </div>
+        <span class="chapter-code">interface<br>controlled runner</span>
+      </header>
+      <div class="chapter-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>参数</th>
+                <th>默认行为</th>
+                <th>作用</th>
+                <th>安全约束</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>--network</code></td>
+                <td>关闭</td>
+                <td>从本地签名模式切换到网络验证模式</td>
+                <td>还必须满足独立环境许可开关</td>
+              </tr>
+              <tr>
+                <td><code>--corpus</code></td>
+                <td>按候选路径选择</td>
+                <td>指定授权请求语料文件</td>
+                <td>报告不展示语料中的敏感字段值</td>
+              </tr>
+              <tr>
+                <td><code>--max-cases</code></td>
+                <td>2；硬限制 1-3</td>
+                <td>限制单次验证目标数量</td>
+                <td>测试限制留在脚本，不放入产品业务界面</td>
+              </tr>
+              <tr>
+                <td><code>--timeout-ms</code></td>
+                <td>12,000 ms</td>
+                <td>控制单请求超时</td>
+                <td>下限 1,000 ms，超时即销毁请求</td>
+              </tr>
+              <tr>
+                <td><code>--signature-carrier</code></td>
+                <td><code>query</code></td>
+                <td>保持与完整 Android 小程序请求字段分布一致</td>
+                <td>当前实现拒绝其他载体</td>
+              </tr>
+              <tr>
+                <td><code>--proxy-url</code></td>
+                <td>读取统一代理环境变量</td>
+                <td>网络模式的唯一出口</td>
+                <td>缺失即拒绝联网，认证信息只做掩码展示</td>
+              </tr>
+              <tr>
+                <td><code>--ua-file</code></td>
+                <td>移动端微信 UA 物料文件</td>
+                <td>从维护的设备物料中随机选择</td>
+                <td>UA 只用于请求一致性，不作为可信证明</td>
+              </tr>
+              <tr>
+                <td><code>--ua-platform</code></td>
+                <td><code>android</code></td>
+                <td>筛选设备平台</td>
+                <td>不允许据此推断设备真实性</td>
+              </tr>
+              <tr>
+                <td><code>--user-agent</code></td>
+                <td>未指定</td>
+                <td>授权实验中固定单个 UA</td>
+                <td>输出只保留物料 ID、设备和版本摘要</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-panel">
+          <div class="code-head">
+            <strong>RUN PROFILE / DOCUMENTED, NOT COPY-PASTEABLE</strong>
+            <span>目标、代理、业务初始化值和签名均已移除</span>
+          </div>
+          <pre><span class="comment"># 安全审计记录中的执行配置结构</span>
+mode            = <span class="string">"local-sign-only"</span>
+corpus          = <span class="redacted">"&lt;AUTHORIZED_CORPUS_PATH&gt;"</span>
+target_count    = <span class="string">1</span>
+ua_platform     = <span class="string">"android"</span>
+signature_slot  = <span class="string">"query"</span>
+network         = <span class="string">false</span>
+proxy           = <span class="redacted">"&lt;NOT_USED_IN_THIS_RUN&gt;"</span>
+raw_signature   = <span class="redacted">"&lt;NEVER_EMITTED_TO_REPORT&gt;"</span></pre>
+        </div>
+
+        <div class="tech-grid" style="margin-top:18px">
+          <article class="note">
+            <h3>脚本输出结构</h3>
+            <p>验证器只输出模块数量、装载错误数量、语料数量、UA 选择摘要、签名生成状态、长度、格式、输入字段形态和请求字段名列表。真实签名值不会写入标准输出。</p>
+          </article>
+          <article class="note hot">
+            <h3>为什么不在 HTML 放真实签名</h3>
+            <p>签名是短期安全材料。即使当前可能过期，将真实值、业务初始化常量和可执行脚本合并到可传播文档中，也会不必要地降低复现门槛并扩大泄露面。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter reveal" id="evidence">
+      <header class="chapter-head">
+        <span class="chapter-no">CHAPTER / 06</span>
+        <div class="chapter-title">
+          <h2>本次复核证据</h2>
+          <p>证据只来自 2026-07-10 重新执行的本地签名模式，不继承旧报告的网络结果。</p>
+        </div>
+        <span class="chapter-code">evidence<br>fresh-local-run</span>
+      </header>
+      <div class="chapter-body">
+        <div class="evidence-grid">
+          <article class="evidence-card">
+            <span class="field">EV-01 / RUNTIME LOAD</span>
+            <div class="evidence-value">1,358</div>
+            <p>小程序主包与安全分包共同解析出的模块数量。存在 1 个非关键模块装载错误，但签名导出的初始化与调用接口完整。</p>
+          </article>
+          <article class="evidence-card">
+            <span class="field">EV-02 / SIGNATURE SUMMARY</span>
+            <div class="evidence-value">214 chars</div>
+            <p>签名生成状态为 true，格式检测结果为 <code>wsgsig_like</code>。验证器没有输出明文，因此报告也不保存其哈希或可还原内容。</p>
+            <div class="signature-sample">wsgsig=&lt;REDACTED · GENERATED · LENGTH=214 · FORMAT=WSGSIG_LIKE&gt;</div>
+          </article>
+          <article class="evidence-card">
+            <span class="field">EV-03 / INPUT SHAPE</span>
+            <div class="evidence-value">5 fields</div>
+            <p><code>body</code>、<code>contentType</code>、<code>paramsString</code> 与两个 SDK 控制位共同进入签名调用。说明签名不是只对 URL 做简单拼接。</p>
+          </article>
+          <article class="evidence-card">
+            <span class="field">EV-04 / REQUEST PROFILE</span>
+            <div class="evidence-value">Android</div>
+            <p>UA 从 Android 微信物料中随机选择；签名载体为 query，业务请求方法为 POST。本次只构建请求摘要，未通过代理发送。</p>
+          </article>
+        </div>
+
+        <div class="boundary">证据强度：足以证明“客户端安全 SDK 可被本地重新托管并产出结构有效的签名”；不足以单独证明“线上接口在 2026-07-10 接受该签名”。</div>
+      </div>
+    </section>
+
+    <section class="chapter reveal" id="remediation">
+      <header class="chapter-head">
+        <span class="chapter-no">CHAPTER / 07</span>
+        <div class="chapter-title">
+          <h2>修复路线与验收标准</h2>
+          <p>修复目标不是“让 JS 永远无法被分析”，而是让复制客户端代码仍无法获得等价服务端权限。</p>
+        </div>
+        <span class="chapter-code">defense<br>server-side trust</span>
+      </header>
+      <div class="chapter-body">
+        <div class="remediation">
+          <article class="fix">
+            <span class="fix-priority">P0</span>
+            <div>
+              <h3>服务端签名必须绑定短期会话与一次性挑战</h3>
+              <p>服务端下发带过期时间和单次消费语义的 challenge；签名同时绑定用户会话、请求方法、路径、规范化参数、请求体摘要和 challenge。使用后立即作废。</p>
+            </div>
+            <div class="fix-check">验收：相同签名重放失败；跨会话、跨路径、跨 body 使用失败；过期 challenge 失败。</div>
+          </article>
+          <article class="fix">
+            <span class="fix-priority">P0</span>
+            <div>
+              <h3>把业务授权从客户端签名中拆出来</h3>
+              <p>签名只作为完整性信号，不作为唯一身份凭证。关键数据访问必须同时通过登录态、账户授权、业务权限和服务端风险判断。</p>
+            </div>
+            <div class="fix-check">验收：无有效业务会话时，即使签名格式正确也无法读取受保护数据。</div>
+          </article>
+          <article class="fix">
+            <span class="fix-priority">P1</span>
+            <div>
+              <h3>引入不可由 UA 替代的设备证明</h3>
+              <p>结合平台提供的可信环境证明、设备密钥或服务端注册的密钥对。设备私钥应不可导出，服务端验证证明链和设备注册状态。</p>
+            </div>
+            <div class="fix-check">验收：仅修改 UA、Header、时间戳和设备字段不能通过设备可信校验。</div>
+          </article>
+          <article class="fix">
+            <span class="fix-priority">P1</span>
+            <div>
+              <h3>检测“合法签名 + 非法行为”</h3>
+              <p>对地理跳变、分页深度、请求节奏、会话并发、设备切换、代理出口聚集和数据遍历覆盖率建立联合风险规则。</p>
+            </div>
+            <div class="fix-check">验收：低频分布式请求仍可通过跨会话关联发现，告警包含设备、账户、出口和空间轨迹。</div>
+          </article>
+          <article class="fix">
+            <span class="fix-priority">P2</span>
+            <div>
+              <h3>轮换客户端材料并建设泄露响应</h3>
+              <p>SDK 升级和混淆只能提高分析成本，应配合版本最低要求、服务端兼容窗口、材料轮换和旧版本快速失效机制。</p>
+            </div>
+            <div class="fix-check">验收：旧版本材料在窗口结束后无法继续访问；轮换不依赖客户端自行声明版本。</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter reveal" id="disclosure">
+      <header class="chapter-head">
+        <span class="chapter-no">APPENDIX / A</span>
+        <div class="chapter-title">
+          <h2>披露与复现边界</h2>
+          <p>保证报告可用于修复和复核，同时不把证据文档变成攻击工具包。</p>
+        </div>
+        <span class="chapter-code">handling<br>restricted</span>
+      </header>
+      <div class="chapter-body">
+        <div class="disclosure">
+          <div class="safe">
+            <h3>报告内保留</h3>
+            <p>环境版本、代码职责、签名输入形态、运行时结构、参数接口、格式与长度证据、风险路线、修复方案和验收标准。</p>
+          </div>
+          <div class="restricted">
+            <h3>报告内不保留</h3>
+            <p>真实签名值、Cookie、Token、Ticket、OpenID、Authorization、代理认证信息、业务初始化常量、签名模块精确定位值、完整在线命令和可直接发送的请求样本。需要复核时应在受控环境按权限临时获取，不进入长期文档。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div>本报告为授权安全评估材料。结论基于当前项目代码与 2026-07-10 本地动态复核。</div>
+      <div class="footer-meta">REPORT ID / DIDI-MINIAPP-SIGN-RISK-WRITEUP-V2<br>CLASSIFICATION / INTERNAL SECURITY REVIEW</div>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      const sections = [...document.querySelectorAll('.chapter[id]')];
+      const links = [...document.querySelectorAll('.nav-link')];
+      const revealItems = [...document.querySelectorAll('.reveal')];
+
+      const revealObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            revealObserver.unobserve(entry.target);
+          }
+        }
+      }, { threshold: 0.08 });
+
+      revealItems.forEach((item, index) => {
+        item.style.transitionDelay = `${Math.min(index * 45, 180)}ms`;
+        revealObserver.observe(item);
+      });
+
+      const navObserver = new IntersectionObserver((entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!visible) return;
+        links.forEach((link) => {
+          link.classList.toggle('active', link.getAttribute('href') === `#${visible.target.id}`);
+        });
+      }, { rootMargin: '-20% 0px -65% 0px', threshold: [0, .2, .5] });
+
+      sections.forEach((section) => navObserver.observe(section));
+    })();
+  </script>
+</body>
+</html>

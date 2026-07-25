@@ -2,116 +2,132 @@
 
 ## 目标
 
-系统用于采集并统一展示场站数据：
+系统用于在授权范围内采集、验证和报告场站数据风险。它把页面采集、请求采集、小规模访问验证、数据入库和报告归档整合到一个工作台中。
 
-- 充电平台：场站名称、地址、快充/慢充/超充数量、空闲/总数、价格、分时价格。
-- 团油：油站名称、地址、92/95/98/柴油价格；没有值或价格为 0 的油号不展示。
-- 所有链路统一入库、统一去重、统一展示和导出。
+核心目标：
 
-## 三条采集链路
+- 多平台场站数据统一入库。
+- 页面证据、请求证据和数据库校验统一管理。
+- 多城市任务可追踪、可复测、可归档。
+- 普通用户看到的是能力和结论，不需要理解内部服务路径。
 
-### 1. 页面自动化识别
+## 产品能力分层
 
-原“前端读取”。用于读取微信小程序页面已经展示出来的数据。
+### 1. 用户工作台
 
-```text
-手机/微信小程序 -> 自动下滑 -> OCR 或辅助功能文本读取 -> 手机端解析 -> /api/mobile-sync/* -> SQLite
-```
+用户工作台提供统一入口：
 
-主要组件：
+- 选择平台和城市。
+- 启动页面采集、请求采集或小规模访问验证。
+- 查看任务进度、阻塞原因和下一步动作。
+- 查看场站数据、证据中心和蓝军报告。
 
-- Android APK：`mobile/android`
-- OCR 服务：`CaptureOcrService.java`
-- 无截屏文本读取：`AccessibilityTextCollectService.java`
-- 自动下滑：`AutoScrollAccessibilityService.java`
-- 本地解析：`DidiLocalStationParser.java`
-- 后端入口：`POST /api/mobile-sync/ocr`、`POST /api/mobile-sync/stations`
+### 2. 采集执行层
 
-适用场景：
+采集执行层负责把用户动作转成实际采集任务：
 
-- 接口加密或抓包不可读。
-- 页面可见字段已经足够。
-- 需要通过详情页补全名称、地址、价格或枪数。
+- 页面采集：模拟人工浏览页面，读取截图、页面文本和详情信息。
+- 请求采集：通过电脑端小程序触发业务请求，后台记录并解析。
+- 小规模访问验证：使用已授权的请求材料，在请求预算内验证目标范围。
 
-### 2. 后台自动化识别
+### 3. 证据与诊断层
 
-原“自动化 + Charles”升级为“自动化 + 内置抓包中心”。程序负责自动点击、下滑、切城市；后端录包服务负责代理监听、HAR 产出和模板学习输入，Charles 只保留为兜底对照工具。
+证据与诊断层负责保留过程材料：
 
-```text
-主端会话 -> 小程序自动化 -> 内置录包服务 -> HAR 导入 -> HAR 解析/模板学习 -> SQLite
-```
+- 页面截图和页面文本。
+- 请求摘要和响应摘要。
+- 网络出口命中情况。
+- 数据库写入和校验结果。
+- 智能诊断建议和复测记录。
 
-主要组件：
+所有证据默认脱敏。敏感凭证、完整请求内容和完整响应内容不得进入普通报告。
 
-- 自动化控制：`backend/automation/*`
-- 会话接口：`/api/smart-collect/*`
-- HAR 解析：`backend/parser/charles-parser.js`
-- 模板学习：`backend/crawler/smart-crawler.js`
-- HAR 接口：`/api/parse-har-upload`、`/api/crawler/learn-upload`
-- 录包服务：`/api/capture-recorder/status|start|stop`
+### 4. 数据与报告层
 
-适用场景：
+数据与报告层负责统一管理结果：
 
-- 流量响应是明文 JSON。
-- 页面识别不稳定，但抓包可解析。
-- 需要把 HAR 沉淀成流量自动化识别模板。
+- 场站快照。
+- 分时价格。
+- 请求材料库。
+- 任务运行记录。
+- 风控蓝军验证报告。
 
-### 3. 流量自动化识别
+同一场站在不同时间采集到价格或枪数变化时，应保留为新的快照，避免覆盖历史证据。
 
-原“模板 API”。直接使用 HAR 学习或人工维护的模板 API 采集。
+## 三条主链路
 
-```text
-城市/地标定位 -> 网格坐标 -> OutboundClient -> 模板 API 请求 -> 平台解析 -> SQLite
-```
+### 页面采集
 
-主要组件：
+适用于页面可见字段已经足够支撑验证的场景。
 
-- 地标定位：`/api/geocode/search`
-- 网格生成：`/api/crawler/generate-grid`
-- 异步任务：`/api/crawler/crawl-platforms-with-coordinates/start`
-- 模板执行：`backend/crawler/smart-crawler.js`
-- 模板库存：`backend/models/api-template.js`
-- 统一请求客户端：`backend/services/outbound-client.js`
-- 代理池：仅场站/油站模板 API 使用城市代理、省级代理、代理商代理和 47 默认代理
-- 请求证据：`data/outbound-evidence/*.jsonl`
+链路说明：
 
-适用场景：
+1. 用户打开电脑端或手机端小程序页面。
+2. 系统读取截图、页面文本和操作轨迹。
+3. 系统整理场站名称、地址、价格和枪数。
+4. 数据入库并形成页面证据。
 
-- 有稳定列表/详情模板。
-- 需要多城市、多地标、批量请求。
-- 需要城市代理出口规避异地查询风控。
+### 请求采集
 
-## 数据流
+适用于业务请求可以解析、页面识别不稳定的场景。
 
-```mermaid
-flowchart LR
-    UI["主端 Web UI"] --> BE["Node.js Express"]
-    BE --> DB["SQLite"]
-    DB --> Center["数据中心"]
+链路说明：
 
-    Phone["Android APK"] --> Mobile["/api/mobile-sync/*"]
-    Mobile --> BE
+1. 系统检查请求记录服务和小程序窗口状态。
+2. 用户或系统操控小程序完成搜索、列表和详情访问。
+3. 后台记录目标业务请求。
+4. 系统生成脱敏摘要、解析场站字段并入库。
+5. 请求证据进入报告。
 
-    Capture["内置录包 / HAR"] --> Har["HAR 解析与模板学习"]
-    Har --> BE
+### 小规模访问验证
 
-    Template["模板 API 模块"] --> Platform["平台接口"]
-    Platform --> Template
-    Template --> BE
-```
+适用于已具备稳定请求材料，需要验证城市或地标范围风险的场景。
 
-## 统一数据模型
+链路说明：
 
-核心表：
+1. 用户选择城市、地标和请求预算。
+2. 系统生成目标范围。
+3. 系统使用已验证请求材料访问目标平台。
+4. 系统记录请求结果、出口命中和入库结果。
+5. 城市级结论进入报告。
 
-- `stations`：场站快照。相同场站在不同时间采集到价格/枪数时应作为新快照保留。
-- `price_schedules`：分时价格结构化数据。
-- `api_templates`：模板 API 库。
-- `crawl_runs` / `crawl_run_logs`：采集运行记录和日志。
-- `collection_tasks`：定时任务。
+## 数据原则
 
-关键字段原则：
+- `DATA_ROOT` 统一承载证据、报告、请求记录和设备状态；开发、测试、内网与生产必须使用不同目录。
+- `DATABASE_PATH` 与 `DATA_ROOT` 必须同时隔离，禁止测试进程读取或写入正式运行目录。
+- 数据库变更通过 `schema_migrations` 前滚；生产启动只校验版本，发布时按 [数据库迁移与回滚](DATABASE_MIGRATIONS.md) 先备份再应用。
+- 场站截图证据以 `DATA_ROOT/data-center/evidence` 为唯一可读写边界；拒绝目录穿越和符号链接逃逸，新增文件权限为 `0600`。
+- 场站数据按快照保存。
+- 分时价格必须结构化保存。
+- 城市统计以任务上下文和采集元数据为准，不只依赖名称或地址文本。
+- 请求材料必须记录来源、适用平台、适用范围和健康状态。
+- 失败任务必须保留失败原因和可复测证据。
 
-- 价格和枪数保留平台原始结构到 `raw_data`，同时抽取统一字段供主端展示。
-- 分时价格不能只依赖 `raw_data`，需要进入 `price_schedules`。
-- 城市统计以 `raw_data.mobileSync.meta.city` 为准，不能只按名称或地址包含城市文字判断。
+## 安全原则
+
+- 所有采集必须限定在授权目标和授权范围内。
+- 网络出口、账号凭证和会话凭据不得进入普通页面或报告。
+- 请求预算和频率限制必须默认开启。
+- 智能诊断只能提出建议或低风险修复，不得绕过登录态、验证码或平台访问控制。
+
+## 后端模块边界
+
+- `backend/index.js` 只保留应用装配和尚未迁移的兼容路由。
+- `backend/routes/data.js` 负责统计、分时价格、运行记录、场站查询和证据下载协议。
+- `backend/routes/ocr-review.js` 负责 OCR 质量看板与人工复核协议。
+- `backend/routes/runtime-overview.js`、`self-heal.js`、`geocode.js`、`crawler-settings.js` 和 `platform-diagnostics.js` 负责控制面协议，不在入口文件执行 shell 或业务判断。
+- `backend/services/runtime-overview-service.js` 对窗口、请求记录和模板探针分别降级，单项故障不使产品配置整体不可用。
+- `backend/services/self-heal-application-service.js` 统一诊断、运行记录、调度演练和采集失败降级。
+- 定时任务以 SQLite `schedules` 为事实源，由 `node-cron` 恢复启用任务、计算下次运行、阻止重叠，并通过 `ScheduledValidationExecutor` 调用三链路编排器的 `method3`。需要窗口或人工操作的 method1/method2 不允许无人值守调度。
+- 模板管理由 `TemplateApplicationService` 统一校验、脱敏查询、样本合并和受配额执行；固定平台路由优先于动态 ID。
+- CSV 直接迭代场站快照，默认最多 50,000 行，响应明确总数与截断状态，并对公式、引号和换行做安全编码。
+- 城市预设以 `frontend/public/china-city-presets.json` 为结构化数据源；本地结果明确标记 `WGS84`，高德结果明确标记 `GCJ02`，调用方不得忽略坐标系后直接混算。
+- 路由通过依赖注入调用模型或服务，错误响应统一包含稳定错误码和 `requestId`。
+
+## 验收标准
+
+- 普通用户能从主页面理解三条能力链路的差异。
+- 每条链路都有明确的准备状态、执行状态、证据状态和下一步动作。
+- 数据中心可以展示统一入库结果。
+- 报告可以引用页面证据、请求证据和数据库校验结果。
+- 技术实现细节只保留在开发附录，不出现在普通使用文档中。

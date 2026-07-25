@@ -1,4 +1,6 @@
 const db = require('../database/init');
+const { defaultSecretCrypto } = require('../services/secret-crypto');
+const { REDACTED, redactObject } = require('../services/sensitive-redactor');
 
 class ApiTemplateModel {
     /**
@@ -18,10 +20,10 @@ class ApiTemplateModel {
             template.method,
             template.baseUrl,
             template.templateScope || 'list',
-            JSON.stringify(template.queryParams || {}),
-            JSON.stringify(template.bodyParams || {}),
-            JSON.stringify(template.variableParams || {}),
-            JSON.stringify(template.headers || {})
+            this.protectMaterial(template.queryParams),
+            this.protectMaterial(template.bodyParams),
+            this.protectMaterial(template.variableParams),
+            this.protectMaterial(template.headers)
         );
     }
 
@@ -247,6 +249,11 @@ class ApiTemplateModel {
     static update(id, updates) {
         const fields = [];
         const values = [];
+        const stored = db.prepare('SELECT * FROM api_templates WHERE id = ?').get(id);
+        if (!stored) {
+            return { changes: 0 };
+        }
+        const existing = this.parse(stored);
 
         if (updates.name !== undefined) {
             fields.push('name = ?');
@@ -254,7 +261,10 @@ class ApiTemplateModel {
         }
         if (updates.queryParams !== undefined) {
             fields.push('query_params = ?');
-            values.push(JSON.stringify(updates.queryParams));
+            values.push(this.protectMaterial(
+                this.restoreRedactedValues(existing.queryParams, updates.queryParams),
+                stored.query_params
+            ));
         }
         if (updates.templateScope !== undefined) {
             fields.push('template_scope = ?');
@@ -262,15 +272,24 @@ class ApiTemplateModel {
         }
         if (updates.bodyParams !== undefined) {
             fields.push('body_params = ?');
-            values.push(JSON.stringify(updates.bodyParams));
+            values.push(this.protectMaterial(
+                this.restoreRedactedValues(existing.bodyParams, updates.bodyParams),
+                stored.body_params
+            ));
         }
         if (updates.variableParams !== undefined) {
             fields.push('variable_params = ?');
-            values.push(JSON.stringify(updates.variableParams));
+            values.push(this.protectMaterial(
+                this.restoreRedactedValues(existing.variableParams, updates.variableParams),
+                stored.variable_params
+            ));
         }
         if (updates.headers !== undefined) {
             fields.push('headers = ?');
-            values.push(JSON.stringify(updates.headers));
+            values.push(this.protectMaterial(
+                this.restoreRedactedValues(existing.headers, updates.headers),
+                stored.headers
+            ));
         }
 
         fields.push("updated_at = datetime('now', 'localtime')");
@@ -338,10 +357,10 @@ class ApiTemplateModel {
             method: row.method,
             baseUrl: row.base_url,
             templateScope: row.template_scope || 'list',
-            queryParams: JSON.parse(row.query_params || '{}'),
-            bodyParams: JSON.parse(row.body_params || '{}'),
-            variableParams: JSON.parse(row.variable_params || '{}'),
-            headers: JSON.parse(row.headers || '{}'),
+            queryParams: this.parseMaterial(row.query_params),
+            bodyParams: this.parseMaterial(row.body_params),
+            variableParams: this.parseMaterial(row.variable_params),
+            headers: this.parseMaterial(row.headers),
             isActive: Boolean(row.is_active),
             lastUsed: row.last_used,
             createdAt: row.created_at,
@@ -355,17 +374,28 @@ class ApiTemplateModel {
     static saveBatch(templates) {
         const insert = db.transaction((templateList) => {
             let successCount = 0;
+            let createdCount = 0;
+            let mergedCount = 0;
+            let skipCount = 0;
             
             for (const template of templateList) {
                 try {
-                    this.saveSmart(template);
-                    successCount++;
+                    const result = this.saveSmart(template);
+                    if (result.skipped) {
+                        skipCount++;
+                    } else {
+                        successCount++;
+                        if (result.created) createdCount++;
+                        if (result.merged) mergedCount++;
+                    }
                 } catch (error) {
+                    if (error.statusCode === 503) throw error;
                     console.error(`保存模板失败: ${template.name}`, error.message);
+                    skipCount++;
                 }
             }
             
-            return { successCount };
+            return { successCount, createdCount, mergedCount, skipCount };
         });
         
         return insert(templates);
@@ -383,12 +413,24 @@ class ApiTemplateModel {
 
         const identicalTemplate = existingTemplates.find(item => this.isSameTemplateSample(item, normalizedTemplate));
         if (identicalTemplate) {
-            return this.update(identicalTemplate.id, this.buildMergedTemplatePayload(identicalTemplate, normalizedTemplate));
+            return {
+                ...this.update(identicalTemplate.id, this.buildMergedTemplatePayload(identicalTemplate, normalizedTemplate)),
+                templateId: identicalTemplate.id,
+                created: false,
+                merged: true,
+                skipped: false,
+            };
         }
 
         const mergeTarget = this.findMergeTarget(existingTemplates, normalizedTemplate);
         if (mergeTarget) {
-            return this.update(mergeTarget.id, this.buildMergedTemplatePayload(mergeTarget, normalizedTemplate));
+            return {
+                ...this.update(mergeTarget.id, this.buildMergedTemplatePayload(mergeTarget, normalizedTemplate)),
+                templateId: mergeTarget.id,
+                created: false,
+                merged: true,
+                skipped: false,
+            };
         }
 
         if (existingTemplates.length >= this.getMaxSamplesPerEndpoint(normalizedTemplate)) {
@@ -397,16 +439,33 @@ class ApiTemplateModel {
                 weakestTemplate
                 && this.getTemplateCompletenessScore(normalizedTemplate) > this.getTemplateCompletenessScore(weakestTemplate)
             ) {
-                return this.update(weakestTemplate.id, this.buildMergedTemplatePayload(weakestTemplate, normalizedTemplate));
+                return {
+                    ...this.update(weakestTemplate.id, this.buildMergedTemplatePayload(weakestTemplate, normalizedTemplate)),
+                    templateId: weakestTemplate.id,
+                    created: false,
+                    merged: true,
+                    skipped: false,
+                };
             }
 
             return {
                 changes: 0,
-                lastInsertRowid: 0
+                lastInsertRowid: 0,
+                templateId: existingTemplates[0]?.id || null,
+                created: false,
+                merged: false,
+                skipped: true,
             };
         }
 
-        return this.save(normalizedTemplate);
+        const result = this.save(normalizedTemplate);
+        return {
+            ...result,
+            templateId: Number(result.lastInsertRowid),
+            created: true,
+            merged: false,
+            skipped: false,
+        };
     }
 
     /**
@@ -700,6 +759,123 @@ class ApiTemplateModel {
             return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${this.stableStringify(value[key])}`).join(',')}}`;
         }
         return JSON.stringify(value);
+    }
+
+    static protectMaterial(value = {}, existingStored = '') {
+        const normalized = value && typeof value === 'object' ? value : {};
+        const plaintext = JSON.stringify(normalized);
+        const existing = String(existingStored || '');
+        if (!defaultSecretCrypto.isConfigured() && existing) {
+            const existingPlaintext = defaultSecretCrypto.decrypt(existing);
+            if (existingPlaintext === plaintext) return existing;
+        }
+        return defaultSecretCrypto.encrypt(plaintext);
+    }
+
+    static parseMaterial(value) {
+        const stored = String(value || '');
+        if (!stored) return {};
+        try {
+            const plaintext = defaultSecretCrypto.decrypt(stored);
+            const parsed = JSON.parse(plaintext);
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        } catch (error) {
+            if (error.statusCode === 503) throw error;
+            return {};
+        }
+    }
+
+    static publicTemplate(template = {}) {
+        return {
+            ...template,
+            queryParams: redactObject(template.queryParams || {}),
+            bodyParams: redactObject(template.bodyParams || {}),
+            variableParams: redactObject(template.variableParams || {}),
+            headers: redactObject(template.headers || {}),
+            sensitiveMaterialConfigured: this.hasSensitiveSignature(template),
+            secretStorage: {
+                encryptionConfigured: defaultSecretCrypto.isConfigured()
+            }
+        };
+    }
+
+    static publicTemplates(templates = []) {
+        return (Array.isArray(templates) ? templates : []).map(template => this.publicTemplate(template));
+    }
+
+    static getMaterialStorageStatus() {
+        const columns = ['query_params', 'body_params', 'variable_params', 'headers'];
+        const rows = db.prepare(`SELECT id, ${columns.join(', ')} FROM api_templates`).all();
+        let encryptedFields = 0;
+        let legacyFields = 0;
+        for (const row of rows) {
+            for (const column of columns) {
+                if (defaultSecretCrypto.isEncrypted(row[column])) encryptedFields += 1;
+                else legacyFields += 1;
+            }
+        }
+        return {
+            templates: rows.length,
+            fields: rows.length * columns.length,
+            encryptedFields,
+            legacyFields
+        };
+    }
+
+    static migrateStoredMaterials(options = {}) {
+        const dryRun = options.dryRun !== false;
+        const status = this.getMaterialStorageStatus();
+        if (dryRun || status.legacyFields === 0) return { dryRun, migratedFields: 0, ...status };
+        if (!defaultSecretCrypto.isConfigured()) {
+            const error = new Error('SETTINGS_ENCRYPTION_KEY is required for template migration');
+            error.code = 'settings_encryption_key_required';
+            error.statusCode = 503;
+            throw error;
+        }
+
+        const columns = ['query_params', 'body_params', 'variable_params', 'headers'];
+        const rows = db.prepare(`SELECT id, ${columns.join(', ')} FROM api_templates`).all();
+        const update = db.prepare(`
+            UPDATE api_templates
+            SET query_params = ?, body_params = ?, variable_params = ?, headers = ?
+            WHERE id = ?
+        `);
+        let migratedFields = 0;
+        db.transaction(() => {
+            for (const row of rows) {
+                const values = columns.map(column => {
+                    if (defaultSecretCrypto.isEncrypted(row[column])) return row[column];
+                    let material;
+                    try {
+                        material = JSON.parse(String(row[column] || '{}'));
+                    } catch {
+                        material = {};
+                    }
+                    migratedFields += 1;
+                    return this.protectMaterial(material);
+                });
+                update.run(...values, row.id);
+            }
+        })();
+        return { dryRun: false, migratedFields, ...this.getMaterialStorageStatus() };
+    }
+
+    static restoreRedactedValues(existing, incoming) {
+        if (incoming === REDACTED) return existing;
+        if (Array.isArray(incoming)) {
+            const existingItems = Array.isArray(existing) ? existing : [];
+            return incoming.map((item, index) => this.restoreRedactedValues(existingItems[index], item));
+        }
+        if (incoming && typeof incoming === 'object') {
+            const existingObject = existing && typeof existing === 'object' && !Array.isArray(existing)
+                ? existing
+                : {};
+            return Object.fromEntries(Object.entries(incoming).map(([key, value]) => [
+                key,
+                this.restoreRedactedValues(existingObject[key], value)
+            ]));
+        }
+        return incoming;
     }
 
     static buildTemplateFingerprint(template = {}) {

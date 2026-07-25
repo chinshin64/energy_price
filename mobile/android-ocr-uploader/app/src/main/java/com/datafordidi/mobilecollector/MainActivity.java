@@ -27,6 +27,9 @@ public final class MainActivity extends Activity {
     private static final long CAPTURE_READY_TIMEOUT_MS = 15_000L;
     private static final String STATE_START_NONCE = "startNonce";
     private static final String STATE_AWAITING_READY = "awaitingReady";
+    private static final String STATE_SELECTED_PLATFORM = "selectedPlatform";
+    private static final String PREFS = "standalone_ocr_platform";
+    private static final String PREF_SELECTED_PLATFORM = "selectedPlatform";
 
     private ResultDashboardView dashboard;
     private CaptureUiState captureUiState = CaptureUiState.STOPPED;
@@ -34,6 +37,7 @@ public final class MainActivity extends Activity {
     private boolean receiverRegistered;
     private boolean captureReceiverRegistered;
     private boolean awaitingReady;
+    private String selectedPlatform = "tuanyou";
     private ManualBackfillDialog backfillDialog;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final CaptureReadyGate captureReadyGate = new CaptureReadyGate();
@@ -81,6 +85,9 @@ public final class MainActivity extends Activity {
         if (savedInstanceState != null) {
             captureReadyGate.begin(savedInstanceState.getString(STATE_START_NONCE, ""));
             awaitingReady = savedInstanceState.getBoolean(STATE_AWAITING_READY, false);
+            selectedPlatform = savedInstanceState.getString(STATE_SELECTED_PLATFORM, loadSavedPlatform());
+        } else {
+            selectedPlatform = loadSavedPlatform();
         }
         registerCaptureReceiver();
         if (awaitingReady && captureReadyGate.hasPending()) {
@@ -134,6 +141,7 @@ public final class MainActivity extends Activity {
         super.onSaveInstanceState(outState);
         outState.putString(STATE_START_NONCE, captureReadyGate.pendingNonce());
         outState.putBoolean(STATE_AWAITING_READY, awaitingReady);
+        outState.putString(STATE_SELECTED_PLATFORM, selectedPlatform);
     }
 
     @Override
@@ -154,7 +162,8 @@ public final class MainActivity extends Activity {
         Intent service = new Intent(this, OcrCaptureService.class)
                 .putExtra(OcrCaptureService.EXTRA_RESULT_CODE, resultCode)
                 .putExtra(OcrCaptureService.EXTRA_RESULT_DATA, data)
-                .putExtra(OcrCaptureService.EXTRA_START_NONCE, startNonce);
+                .putExtra(OcrCaptureService.EXTRA_START_NONCE, startNonce)
+                .putExtra(OcrCaptureService.EXTRA_SELECTED_PLATFORM, selectedPlatform);
         try {
             startForegroundService(service);
             setStatus("正在启动");
@@ -190,6 +199,11 @@ public final class MainActivity extends Activity {
             public void onEditBackfill(JSONObject row) {
                 openBackfill(ManualBackfillDraftStore.getOrCreate(MainActivity.this, row));
             }
+
+            @Override
+            public void onDeleteSelected(java.util.Set<String> stableIdentities) {
+                confirmDeleteSelected(stableIdentities);
+            }
         });
         dashboard.setCaptureState(captureUiState);
         return dashboard;
@@ -204,7 +218,41 @@ public final class MainActivity extends Activity {
             setStatus("待授权");
             return;
         }
-        requestCapturePermission();
+        showPlatformPicker();
+    }
+
+    private void showPlatformPicker() {
+        List<FuelPlatformHint.Option> options = FuelPlatformHint.options();
+        String[] labels = new String[options.size()];
+        int checked = 0;
+        for (int index = 0; index < options.size(); index++) {
+            labels[index] = options.get(index).label;
+            if (options.get(index).value.equals(selectedPlatform)) checked = index;
+        }
+        final int[] choice = {checked};
+        new AlertDialog.Builder(this)
+                .setTitle("选择采集平台")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> choice[0] = which)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("开始识别", (dialog, which) -> {
+                    selectedPlatform = options.get(choice[0]).value;
+                    savePlatform(selectedPlatform);
+                    requestCapturePermission();
+                })
+                .show();
+    }
+
+    private String loadSavedPlatform() {
+        String value = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getString(PREF_SELECTED_PLATFORM, "tuanyou");
+        return value == null || value.trim().isEmpty() ? "tuanyou" : value;
+    }
+
+    private void savePlatform(String platform) {
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit()
+                .putString(PREF_SELECTED_PLATFORM, platform)
+                .apply();
     }
 
     private void requestCapturePermission() {
@@ -259,6 +307,16 @@ public final class MainActivity extends Activity {
             public void onDiscarded() {
                 backfillDialog = null;
             }
+
+            @Override
+            public void onDeleted(ManualBackfillDraftStore.State state) {
+                backfillDialog = null;
+                if (state != null && state.stableIdentity != null) {
+                    LocalStationStore.removeStableIdentity(MainActivity.this, state.stableIdentity);
+                }
+                renderResults();
+                setStatus("已删除该记录");
+            }
         });
     }
 
@@ -270,6 +328,23 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("确认清理", (dialog, which) -> {
                     LocalStationStore.clearCompleted(this);
                     renderResults();
+                })
+                .show();
+    }
+
+    private void confirmDeleteSelected(java.util.Set<String> stableIdentities) {
+        if (stableIdentities == null || stableIdentities.isEmpty()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("删除选中记录")
+                .setMessage("删除后这些本地记录无法恢复，已回传的服务端数据不受影响。共 " + stableIdentities.size() + " 条。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确认删除", (dialog, which) -> {
+                    for (String identity : stableIdentities) {
+                        LocalStationStore.removeStableIdentity(this, identity);
+                    }
+                    dashboard.exitSelectionMode();
+                    renderResults();
+                    setStatus("已删除 " + stableIdentities.size() + " 条记录");
                 })
                 .show();
     }

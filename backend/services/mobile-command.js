@@ -5,45 +5,213 @@ const http = require('http');
 const https = require('https');
 const { spawn } = require('child_process');
 
-const CITY_LANDMARKS = {
-    上海: [
-        '上海大宁国际', '上海静安大悦城', '上海镇坪路', '上海宜山路', '上海杨浦滨江', '上海江湾体育场', '上海龙阳路', '上海前滩太古里', '上海世博源', '上海莘庄',
-        '上海人民广场', '上海南京西路', '上海静安寺', '上海陆家嘴', '上海世纪大道', '上海徐家汇', '上海中山公园', '上海虹桥站', '上海打浦桥', '上海五角场',
-        '上海淮海中路', '上海新天地', '上海豫园', '上海火车站', '上海曹家渡', '上海天山路', '上海北外滩', '上海浦东八佰伴', '上海漕河泾', '上海南站'
-    ],
-    武汉: [
-        '武汉菱角湖万达', '武汉常青花园', '武汉竹叶山', '武汉二七路', '武汉积玉桥', '武汉岳家嘴', '武汉白沙洲', '武汉光谷天地', '武汉软件园中路', '武汉汉阳造',
-        '武汉江汉路', '武汉国际广场', '武汉天地', '武汉汉口站', '武汉王家墩东', '武汉楚河汉街', '武汉中南路', '武汉街道口', '武汉光谷广场', '武汉王家湾',
-        '武汉广场', '武汉循礼门', '武汉香港路', '武汉武昌站', '武汉洪山广场', '武汉徐东', '武汉钟家村', '武汉青年路', '武汉光谷软件园', '武汉汉阳客运站'
-    ],
-    北京: [
-        '北京国贸', '北京三里屯', '北京朝阳门', '北京东直门', '北京西单', '北京金融街', '北京站', '北京大望路', '北京中关村', '北京望京SOHO',
-        '北京朝阳大悦城', '北京亮马桥', '北京双井', '北京崇文门', '北京宣武门', '北京五道口', '北京魏公村', '北京四惠', '北京牡丹园', '北京丽泽商务区'
-    ],
-    广州: [
-        '广州珠江新城', '广州体育西路', '广州天河城', '广州正佳广场', '广州岗顶', '广州石牌桥', '广州猎德', '广州花城广场', '广州广州塔', '广州琶洲',
-        '广州客村', '广州海珠广场', '广州北京路', '广州公园前', '广州越秀公园', '广州淘金', '广州区庄', '广州东山口', '广州杨箕', '广州广州东站',
-        '广州林和西', '广州五山', '广州员村', '广州车陂南', '广州黄埔大道', '广州江南西', '广州昌岗', '广州中山大学', '广州芳村', '广州白云公园'
-    ],
-    青岛: [
-        '青岛啤酒城', '青岛石老人', '青岛市北CBD', '青岛中央商务区', '青岛敦化路', '青岛南京路', '青岛鞍山路', '青岛错埠岭', '青岛河西', '青岛合肥路',
-        '青岛大拇指广场', '青岛汽车东站', '青岛青岛大学', '青岛软件园', '青岛沧口公园', '青岛维客广场', '青岛李沧万达', '青岛保利广场', '青岛市北万达', '青岛卓越大融城',
-        '青岛五四广场', '青岛市政府', '青岛万象城', '青岛台东步行街', '青岛站', '青岛海信广场', '青岛麦岛', '青岛浮山后', '青岛崂山区政府', '青岛李村',
-        '青岛香港中路', '青岛燕儿岛路', '青岛奥帆中心', '青岛中山路', '青岛北站', '青岛延吉路万达', '青岛辽阳西路', '青岛浮山所', '青岛海尔路', '青岛金狮广场'
-    ],
-    深圳: [
-        '深圳莲花村', '深圳莲花北', '深圳梅林', '深圳上梅林', '深圳下梅林', '深圳白石洲', '深圳蛇口海上世界', '深圳西丽', '深圳龙华壹方天地', '深圳龙华清湖',
-        '深圳坂田', '深圳民治', '深圳布吉', '深圳龙岗中心城', '深圳坪洲', '深圳翻身', '深圳新安', '深圳大冲', '深圳腾讯滨海大厦', '深圳红山',
-        '深圳福田中心', '深圳会展中心', '深圳车公庙', '深圳华强北', '深圳岗厦', '深圳深圳北站', '深圳南山科技园', '深圳后海', '深圳宝安中心', '深圳罗湖口岸',
-        '深圳购物公园', '深圳市民中心', '深圳香蜜湖', '深圳竹子林', '深圳深大', '深圳科苑', '深圳世界之窗', '深圳前海', '深圳海岸城', '深圳国贸'
-    ],
-    西安: [
-        '西安凤城五路', '西安凤城八路', '西安未央路', '西安辛家庙', '西安胡家庙', '西安长乐公园', '西安互助路', '西安大明宫万达', '西安曲江创意谷', '西安电视塔',
-        '西安航天城', '西安丈八北路', '西安唐延路', '西安西稍门', '西安土门',
-        '西安钟楼', '西安小寨', '西安赛格国际', '西安大雁塔', '西安高新一路', '西安高新万达', '西安北大街', '西安火车站', '西安曲江池', '西安大唐不夜城',
-        '西安南稍门', '西安体育场', '西安大悦城', '西安永宁门', '西安太乙路', '西安高新路', '西安科技路', '西安行政中心', '西安龙首原', '西安大明宫西'
-    ]
-};
+const DEFAULT_LANDMARK_CONFIG_PATH = path.join(__dirname, '../config/mobile-landmarks.json');
+const COORDINATE_PI = 3.1415926535897932384626;
+const GCJ_A = 6378245.0;
+const GCJ_EE = 0.00669342162296594323;
+
+function cleanString(value) {
+    return String(value || '').trim();
+}
+
+function normalizePlaceName(value) {
+    return cleanString(value).replace(/\s+/g, '').replace(/市/g, '');
+}
+
+function normalizeCoordinatePoint(value, label, coordinateSystem, coordinateSource) {
+    const lat = Number(value?.lat);
+    const lng = Number(value?.lng);
+    if (!isValidCoordinate(lat, lng)) {
+        throw new Error(`invalid mobile landmark coordinate: ${label}`);
+    }
+    return {
+        lat,
+        lng,
+        coordinateSystem,
+        coordinateSource,
+    };
+}
+
+function normalizeMobileLandmarkConfig(rawConfig, sourcePath = 'inline') {
+    if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
+        throw new Error('mobile landmark config must be an object');
+    }
+    const coordinateSystem = cleanString(rawConfig.coordinateSystem) || 'WGS84';
+    const coordinateSource = cleanString(rawConfig.source) || 'mobile_landmarks_config';
+    const rawCities = rawConfig.cities;
+    if (!rawCities || typeof rawCities !== 'object' || Array.isArray(rawCities)) {
+        throw new Error('mobile landmark config must define cities');
+    }
+
+    const cities = {};
+    for (const [cityKey, cityConfig] of Object.entries(rawCities)) {
+        const city = cleanString(cityKey);
+        if (!city) {
+            throw new Error(`invalid mobile landmark city in ${sourcePath}`);
+        }
+        if (!cityConfig || typeof cityConfig !== 'object' || Array.isArray(cityConfig)) {
+            throw new Error(`mobile landmark city config invalid: ${city}`);
+        }
+        if (cities[city]) {
+            throw new Error(`duplicate mobile landmark city: ${city}`);
+        }
+        const cityCoordinateSystem = cleanString(cityConfig.coordinateSystem) || coordinateSystem;
+        const center = normalizeCoordinatePoint(
+            cityConfig.center,
+            `${city} center`,
+            cityCoordinateSystem,
+            'city_center_config'
+        );
+        const rawLandmarks = cityConfig.landmarks;
+        if (!Array.isArray(rawLandmarks) || rawLandmarks.length === 0) {
+            throw new Error(`mobile landmark city has no landmarks: ${city}`);
+        }
+
+        const landmarks = [];
+        const landmarkByName = {};
+        const landmarkByNormalizedName = {};
+        rawLandmarks.forEach((item, index) => {
+            const name = cleanString(item?.name);
+            if (!name) {
+                throw new Error(`mobile landmark name required: ${city}#${index}`);
+            }
+            const normalizedName = normalizePlaceName(name);
+            if (landmarkByName[name] || landmarkByNormalizedName[normalizedName]) {
+                throw new Error(`duplicate mobile landmark name: ${name}`);
+            }
+            const point = normalizeCoordinatePoint(
+                item,
+                `${city} ${name}`,
+                cleanString(item.coordinateSystem) || cityCoordinateSystem,
+                cleanString(item.coordinateSource) || coordinateSource
+            );
+            const landmark = { name, ...point };
+            landmarks.push(landmark);
+            landmarkByName[name] = landmark;
+            landmarkByNormalizedName[normalizedName] = landmark;
+        });
+
+        cities[city] = {
+            center,
+            landmarks,
+            landmarkByName,
+            landmarkByNormalizedName,
+        };
+    }
+
+    if (Object.keys(cities).length === 0) {
+        throw new Error('mobile landmark config has no cities');
+    }
+
+    return {
+        version: Number(rawConfig.version) || 1,
+        coordinateSystem,
+        coordinateSource,
+        cities,
+    };
+}
+
+function loadMobileLandmarkConfig(filePath = DEFAULT_LANDMARK_CONFIG_PATH) {
+    const rawConfig = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return normalizeMobileLandmarkConfig(rawConfig, filePath);
+}
+
+function isValidCoordinate(lat, lng) {
+    return Number.isFinite(lat)
+        && Number.isFinite(lng)
+        && lat >= -90
+        && lat <= 90
+        && lng >= -180
+        && lng <= 180
+        && (lat !== 0 || lng !== 0);
+}
+
+function normalizeCoordinateSystem(value, fallback = 'WGS84') {
+    const normalized = cleanString(value).toUpperCase();
+    return ['WGS84', 'GCJ02', 'BD09'].includes(normalized) ? normalized : fallback;
+}
+
+function isCoordinateInChina(lat, lng) {
+    return lng >= 72.004 && lng <= 137.8347 && lat >= 0.8293 && lat <= 55.8271;
+}
+
+function transformLat(x, y) {
+    let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+    ret += (20.0 * Math.sin(6.0 * x * COORDINATE_PI) + 20.0 * Math.sin(2.0 * x * COORDINATE_PI)) * 2.0 / 3.0;
+    ret += (20.0 * Math.sin(y * COORDINATE_PI) + 40.0 * Math.sin(y / 3.0 * COORDINATE_PI)) * 2.0 / 3.0;
+    ret += (160.0 * Math.sin(y / 12.0 * COORDINATE_PI) + 320 * Math.sin(y * COORDINATE_PI / 30.0)) * 2.0 / 3.0;
+    return ret;
+}
+
+function transformLng(x, y) {
+    let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+    ret += (20.0 * Math.sin(6.0 * x * COORDINATE_PI) + 20.0 * Math.sin(2.0 * x * COORDINATE_PI)) * 2.0 / 3.0;
+    ret += (20.0 * Math.sin(x * COORDINATE_PI) + 40.0 * Math.sin(x / 3.0 * COORDINATE_PI)) * 2.0 / 3.0;
+    ret += (150.0 * Math.sin(x / 12.0 * COORDINATE_PI) + 300.0 * Math.sin(x / 30.0 * COORDINATE_PI)) * 2.0 / 3.0;
+    return ret;
+}
+
+function wgs84ToGcj02(lat, lng) {
+    if (!isCoordinateInChina(lat, lng)) {
+        return { lat, lng };
+    }
+    let dLat = transformLat(lng - 105.0, lat - 35.0);
+    let dLng = transformLng(lng - 105.0, lat - 35.0);
+    const radLat = lat / 180.0 * COORDINATE_PI;
+    let magic = Math.sin(radLat);
+    magic = 1 - GCJ_EE * magic * magic;
+    const sqrtMagic = Math.sqrt(magic);
+    dLat = (dLat * 180.0) / ((GCJ_A * (1 - GCJ_EE)) / (magic * sqrtMagic) * COORDINATE_PI);
+    dLng = (dLng * 180.0) / (GCJ_A / sqrtMagic * Math.cos(radLat) * COORDINATE_PI);
+    return { lat: lat + dLat, lng: lng + dLng };
+}
+
+function gcj02ToWgs84(lat, lng) {
+    if (!isCoordinateInChina(lat, lng)) {
+        return { lat, lng };
+    }
+    const gcj = wgs84ToGcj02(lat, lng);
+    return {
+        lat: lat * 2 - gcj.lat,
+        lng: lng * 2 - gcj.lng
+    };
+}
+
+function bd09ToGcj02(lat, lng) {
+    const x = lng - 0.0065;
+    const y = lat - 0.006;
+    const z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * COORDINATE_PI);
+    const theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * COORDINATE_PI);
+    return {
+        lat: z * Math.sin(theta),
+        lng: z * Math.cos(theta)
+    };
+}
+
+function normalizeProviderCoordinate(lat, lng, coordinateSystem) {
+    const sourceSystem = normalizeCoordinateSystem(coordinateSystem);
+    if (sourceSystem === 'BD09') {
+        const gcj = bd09ToGcj02(lat, lng);
+        return {
+            ...gcj02ToWgs84(gcj.lat, gcj.lng),
+            sourceSystem,
+            transform: 'BD09_TO_GCJ02_TO_WGS84'
+        };
+    }
+    if (sourceSystem === 'GCJ02') {
+        return {
+            ...gcj02ToWgs84(lat, lng),
+            sourceSystem,
+            transform: 'GCJ02_TO_WGS84'
+        };
+    }
+    return {
+        lat,
+        lng,
+        sourceSystem,
+        transform: 'NONE'
+    };
+}
 
 class MobileCommandService {
     constructor(options = {}) {
@@ -51,7 +219,15 @@ class MobileCommandService {
         this.statePath = path.join(this.dataDir, 'state.json');
         this.countCityStats = options.countCityStats || (() => ({ total: 0, distinct: 0 }));
         this.leaseMs = Number(options.leaseMs) || 45 * 60 * 1000;
+        const requestedOnlineTtlMs = Number(options.deviceOnlineTtlMs || process.env.MOBILE_DEVICE_ONLINE_TTL_MS);
+        this.deviceOnlineTtlMs = Number.isFinite(requestedOnlineTtlMs) && requestedOnlineTtlMs > 0
+            ? Math.max(5000, requestedOnlineTtlMs)
+            : 30000;
+        this.now = typeof options.now === 'function' ? options.now : () => Date.now();
         this.aiFeaturesEnabled = Boolean(options.aiFeaturesEnabled);
+        this.landmarkConfig = options.landmarkConfig
+            ? normalizeMobileLandmarkConfig(options.landmarkConfig, 'injected')
+            : loadMobileLandmarkConfig(options.landmarkConfigPath || DEFAULT_LANDMARK_CONFIG_PATH);
         const dccUrl = this.clean(options.dcc?.url);
         const dccCommand = this.clean(options.dcc?.command);
         const requestedDccTimeoutMs = Math.max(1000, Number(options.dcc?.timeoutMs) || 8000);
@@ -78,6 +254,8 @@ class MobileCommandService {
             'collect-landmark',
             'start-text-collection',
             'stop-collection',
+            'set-mock-location',
+            'clear-mock-location',
             'accessibility-tap-click-scroll',
             'visible-text-status'
         ];
@@ -102,7 +280,7 @@ class MobileCommandService {
 
     getInteractionConfig() {
         return {
-            supportedCities: Object.keys(CITY_LANDMARKS),
+            supportedCities: this.getSupportedCities(),
             examples: [
                 '查看手机状态',
                 '读取当前页面',
@@ -146,7 +324,7 @@ class MobileCommandService {
                 commands: this.state.commands.length,
                 pendingCommands: pendingCommands.length,
                 devices: this.state.devices.length,
-                onlineDevices: this.listDevices(100).filter(device => device.online !== false).length
+                onlineDevices: this.listDevices(100).filter(device => device.online).length
             },
             latestCommand: this.listCommands(1)[0] || null,
             latestDevice: this.listDevices(1)[0] || null
@@ -203,7 +381,28 @@ class MobileCommandService {
         return (this.state.devices || [])
             .slice()
             .sort((a, b) => String(b.lastSeenAt || b.registeredAt).localeCompare(String(a.lastSeenAt || a.registeredAt)))
+            .map(device => this.decorateDevice(device))
             .slice(0, Math.max(1, Number(limit) || 50));
+    }
+
+    decorateDevice(device = {}) {
+        const lastSeenAt = device.lastSeenAt || device.registeredAt || '';
+        const lastSeenMs = Date.parse(lastSeenAt);
+        const lastSeenAgeMs = Number.isFinite(lastSeenMs)
+            ? Math.max(0, this.now() - lastSeenMs)
+            : null;
+        const online = Boolean(
+            device.commandServiceRunning !== false
+            && lastSeenAgeMs !== null
+            && lastSeenAgeMs <= this.deviceOnlineTtlMs
+        );
+        return {
+            ...device,
+            online,
+            status: online ? 'online' : 'offline',
+            lastSeenAgeMs,
+            onlineTtlMs: this.deviceOnlineTtlMs
+        };
     }
 
     registerDevice(input = {}) {
@@ -325,12 +524,13 @@ class MobileCommandService {
         if (!type) {
             throw new Error('command type required');
         }
+        const inputPayload = input.payload && typeof input.payload === 'object' ? input.payload : {};
         const now = new Date().toISOString();
         const command = {
             id: input.id || this.newId('cmd'),
             type,
             deviceId: this.clean(input.deviceId) || '*',
-            payload: input.payload && typeof input.payload === 'object' ? input.payload : {},
+            payload: this.decorateCommandPayload(type, inputPayload),
             workflowId: input.workflowId || null,
             status: 'pending',
             attempts: 0,
@@ -641,7 +841,7 @@ class MobileCommandService {
                 continue;
             }
 
-            const landmarks = CITY_LANDMARKS[city] || [];
+            const landmarks = this.getCityLandmarkNames(city);
             const cursor = Number(workflow.landmarkCursor[city] || 0);
             if (cursor >= landmarks.length) {
                 workflow.status = 'failed';
@@ -653,6 +853,7 @@ class MobileCommandService {
             }
 
             const keyword = landmarks[cursor];
+            const landmarkTarget = this.resolveLandmarkTarget(city, keyword);
             workflow.landmarkCursor[city] = cursor + 1;
             workflow.updatedAt = new Date().toISOString();
             this.state.commands.push({
@@ -672,6 +873,10 @@ class MobileCommandService {
                 payload: {
                     city,
                     keyword,
+                    lat: landmarkTarget.lat,
+                    lng: landmarkTarget.lng,
+                    coordinateSystem: landmarkTarget.coordinateSystem,
+                    coordinateSource: landmarkTarget.coordinateSource,
                     targetRecords: workflow.targets[city],
                     baselineRecords: workflow.baselines[city]?.total || 0,
                     targetSnapshots: workflow.targets[city],
@@ -773,7 +978,7 @@ class MobileCommandService {
 
         if (/采集|查询|获取|开始|执行|切换|切到/.test(normalized)) {
             if (cities.length === 0) {
-                throw new Error(`未识别到城市。支持城市：${Object.keys(CITY_LANDMARKS).join('、')}`);
+                throw new Error(`未识别到城市。支持城市：${this.getSupportedCities().join('、')}`);
             }
 
             const keyword = this.extractLandmarkKeyword(normalized, cities);
@@ -887,7 +1092,7 @@ class MobileCommandService {
             task: 'data_for_didi_mobile_intent_parse',
             instruction,
             context: {
-                supportedCities: Object.keys(CITY_LANDMARKS),
+                supportedCities: this.getSupportedCities(),
                 supportedCommands: [
                     'status',
                     'collect_visible_text',
@@ -895,7 +1100,8 @@ class MobileCommandService {
                     'back',
                     'scroll',
                     'stop_collection',
-                    'collect_landmark'
+                    'collect_landmark',
+                    'set_mock_location'
                 ],
                 defaults: this.getInteractionConfig().defaults,
                 conversation: Array.isArray(input.conversation) ? input.conversation : [],
@@ -903,7 +1109,7 @@ class MobileCommandService {
             },
             outputSchema: {
                 action: 'workflow | command | abort-and-stop',
-                commandType: 'status | collect_visible_text | open_app | back | scroll | stop_collection | collect_landmark',
+                commandType: 'status | collect_visible_text | open_app | back | scroll | stop_collection | collect_landmark | set_mock_location',
                 reply: '用于展示给用户的简短中文回复',
                 cities: ['上海'],
                 targetIncrement: 100,
@@ -936,7 +1142,7 @@ class MobileCommandService {
             '只能输出一个 JSON 对象，不要 Markdown，不要解释。',
             'JSON 字段要求：',
             '- action: workflow | command | abort-and-stop',
-            '- commandType: status | collect_visible_text | open_app | back | scroll | stop_collection | collect_landmark',
+            '- commandType: status | collect_visible_text | open_app | back | scroll | stop_collection | collect_landmark | set_mock_location',
             '- reply: 简短中文回复，用于展示给用户',
             '- cities: workflow 或 collect_landmark 涉及的城市数组',
             '- targetIncrement: 每个城市本次新增价格/枪数快照数，默认 100',
@@ -1061,7 +1267,10 @@ class MobileCommandService {
             stop: 'stop_collection',
             stop_collection: 'stop_collection',
             collect_landmark: 'collect_landmark',
-            landmark: 'collect_landmark'
+            landmark: 'collect_landmark',
+            set_mock_location: 'set_mock_location',
+            mock_location: 'set_mock_location',
+            location: 'set_mock_location'
         };
         return aliases[normalized] || '';
     }
@@ -1250,7 +1459,7 @@ class MobileCommandService {
         if ((Array.isArray(rawCities) && rawCities.length > 0) || (typeof rawCities === 'string' && rawCities.trim())) {
             return explicit;
         }
-        const cities = Object.keys(CITY_LANDMARKS).filter(city => instruction.includes(city));
+        const cities = this.getSupportedCities().filter(city => instruction.includes(city));
         return Array.from(new Set(cities));
     }
 
@@ -1285,7 +1494,8 @@ class MobileCommandService {
 
     extractLandmarkKeyword(instruction, cities) {
         for (const city of cities) {
-            const known = (CITY_LANDMARKS[city] || []).find(keyword => instruction.includes(keyword.replace(/市/g, '')));
+            const known = this.getCityLandmarkNames(city)
+                .find(keyword => instruction.includes(keyword.replace(/市/g, '')));
             if (known) {
                 return known;
             }
@@ -1336,7 +1546,7 @@ class MobileCommandService {
                 dispatchedAt: null,
                 completedAt: null,
                 payload: {
-                    ...payload,
+                    ...this.decorateCommandPayload(command.type, payload),
                     retryCount: retryCount + 1,
                     retryOfCommandId: command.id
                 }
@@ -1353,11 +1563,113 @@ class MobileCommandService {
     normalizeCities(cities) {
         const list = Array.isArray(cities) ? cities : String(cities || '').split(/[,，\s]+/);
         const normalized = Array.from(new Set(list.map(city => this.clean(city)).filter(Boolean)));
-        const unsupported = normalized.find(city => !CITY_LANDMARKS[city]);
+        const unsupported = normalized.find(city => !this.landmarkConfig.cities[city]);
         if (unsupported) {
             throw new Error(`unsupported city for mobile workflow: ${unsupported}`);
         }
         return normalized.length > 0 ? normalized : ['上海', '北京', '广州'];
+    }
+
+    getSupportedCities() {
+        return Object.keys(this.landmarkConfig.cities);
+    }
+
+    getCityLandmarkNames(city) {
+        return (this.landmarkConfig.cities[city]?.landmarks || []).map(landmark => landmark.name);
+    }
+
+    decorateCommandPayload(type, payload = {}) {
+        if (type === 'collect_landmark') {
+            return this.decorateLandmarkPayload(payload);
+        }
+        if (type === 'set_mock_location') {
+            return this.decorateMockLocationPayload(payload);
+        }
+        return payload;
+    }
+
+    decorateMockLocationPayload(payload = {}) {
+        const lat = Number(payload.lat);
+        const lng = Number(payload.lng);
+        if (!isValidCoordinate(lat, lng)) {
+            throw new Error('set_mock_location requires valid lat/lng');
+        }
+        const providerCoordinate = normalizeProviderCoordinate(lat, lng, payload.coordinateSystem);
+        const city = this.clean(payload.city);
+        const keyword = this.clean(payload.keyword || payload.name || city || '自定义位置');
+        const accuracy = Number(payload.accuracy);
+        return {
+            ...payload,
+            city,
+            keyword,
+            lat: providerCoordinate.lat,
+            lng: providerCoordinate.lng,
+            accuracy: Number.isFinite(accuracy) && accuracy > 0 && accuracy <= 1000 ? accuracy : 20,
+            coordinateSystem: 'WGS84',
+            inputLat: lat,
+            inputLng: lng,
+            inputCoordinateSystem: providerCoordinate.sourceSystem,
+            coordinateTransform: providerCoordinate.transform,
+            coordinateSource: this.clean(payload.coordinateSource) || 'operator_app_manual'
+        };
+    }
+
+    decorateLandmarkPayload(payload = {}) {
+        const city = this.clean(payload.city);
+        const keyword = this.clean(payload.keyword) || city;
+        const explicitLat = Number(payload.lat);
+        const explicitLng = Number(payload.lng);
+        if (isValidCoordinate(explicitLat, explicitLng)) {
+            const providerCoordinate = normalizeProviderCoordinate(explicitLat, explicitLng, payload.coordinateSystem);
+            return {
+                ...payload,
+                city,
+                keyword,
+                lat: providerCoordinate.lat,
+                lng: providerCoordinate.lng,
+                coordinateSystem: 'WGS84',
+                inputLat: explicitLat,
+                inputLng: explicitLng,
+                inputCoordinateSystem: providerCoordinate.sourceSystem,
+                coordinateTransform: providerCoordinate.transform,
+                coordinateSource: this.clean(payload.coordinateSource) || 'explicit_payload',
+            };
+        }
+        const target = this.resolveLandmarkTarget(city, keyword);
+        return {
+            ...payload,
+            city,
+            keyword,
+            lat: target.lat,
+            lng: target.lng,
+            coordinateSystem: target.coordinateSystem,
+            coordinateSource: target.coordinateSource,
+        };
+    }
+
+    resolveLandmarkTarget(city, keyword) {
+        const normalizedCity = this.clean(city);
+        const normalizedKeyword = this.clean(keyword) || normalizedCity;
+        const cityConfig = this.landmarkConfig.cities[normalizedCity];
+        if (!cityConfig) {
+            throw new Error(`unsupported city for mobile landmark: ${normalizedCity || 'unknown'}`);
+        }
+        if (!normalizedKeyword || normalizePlaceName(normalizedKeyword) === normalizePlaceName(normalizedCity)) {
+            return {
+                ...cityConfig.center,
+            };
+        }
+        const landmark = cityConfig.landmarkByName[normalizedKeyword]
+            || cityConfig.landmarkByNormalizedName[normalizePlaceName(normalizedKeyword)];
+        if (landmark) {
+            return {
+                lat: landmark.lat,
+                lng: landmark.lng,
+                coordinateSystem: landmark.coordinateSystem,
+                coordinateSource: landmark.coordinateSource,
+            };
+        }
+        throw new Error(`missing configured coordinates for mobile landmark: ${normalizedCity} ${normalizedKeyword}`.trim());
     }
 
     positiveNumber(value, fallback) {
@@ -1375,3 +1687,5 @@ class MobileCommandService {
 }
 
 module.exports = MobileCommandService;
+module.exports.loadMobileLandmarkConfig = loadMobileLandmarkConfig;
+module.exports.normalizeMobileLandmarkConfig = normalizeMobileLandmarkConfig;

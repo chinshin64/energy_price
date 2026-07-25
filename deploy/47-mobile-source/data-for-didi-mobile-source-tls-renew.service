@@ -1,0 +1,16 @@
+[Unit]
+Description=Renew the private TLS leaf certificate for the 47 mobile source
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/renew-data-for-didi-mobile-source-tls
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/etc/data-for-didi-mobile-tls /xp/server/nginx/logs
+NoNewPrivileges=true

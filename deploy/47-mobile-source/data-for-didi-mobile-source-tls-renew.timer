@@ -1,0 +1,10 @@
+[Unit]
+Description=Check the 47 mobile source TLS certificate daily
+
+[Timer]
+OnCalendar=*-*-* 04:20:00 Asia/Shanghai
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

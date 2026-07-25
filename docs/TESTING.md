@@ -1,52 +1,50 @@
 # 测试与验收
 
-## 语法检查
+## 基础质量门禁
 
-```bash
-node --check backend/index.js
-node --check backend/local-preview.js
-node --check backend/services/mobile-command.js
-node --check backend/services/mobile-sync.js
-node --check frontend/public/app.js
-node --check frontend/public/crawler.js
-bash -n scripts/*.sh
-```
+- `cd backend && npm run check`：JavaScript 语法检查与隔离单元测试。
+- `cd backend && npm run audit:prod`：生产依赖漏洞门禁。
+- `cd backend && npm run check:frontend`：启动临时数据库和临时 `DATA_ROOT`，执行三档真实浏览器检查。
+- `cd backend && npm run check:all`：串行执行源码、单元和前端浏览器门禁。
+- `cd backend && npm run migrate:database`：只读检查待执行迁移；生产发布前必须先 dry-run。
+- 后端服务入口语法检查通过。
+- 前端主脚本语法检查通过。
+- Shell 脚本语法检查通过。
+- 本地预览冒烟通过。
+- 后端基础冒烟通过。
+- 数据库状态检查通过。
+- 请求材料健康检查通过。
+- 页面识别环境检查通过。
+- 定时任务冒烟通过。
 
-## 回归脚本
+前端浏览器门禁覆盖 `1440x900`、`768x1024`、`390x844`，检查五个一级入口、横向溢出、控件裁切、AI Agent 模型列表、输入状态、页面错误和 HTTP 失败。首次运行需执行 `npx playwright install chromium`；也可通过 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 指向已安装的 Chromium/Chrome。
 
-```bash
-./run-preview-smoke-test.sh
-./run-backend-smoke-test.sh
-./check-db-status.sh
-./check-template-api.sh
-./run-har-learning-smoke-test.sh
-./check-ocr-env.sh
-./check-charles-env.sh
-./run-schedule-smoke-test.sh
-```
+当前隔离测试还覆盖数据查询/OCR 复核 API 的非法 ID、查询上限、角色要求、错误码、证据响应头注入、`DATA_ROOT` 目录穿越及符号链接逃逸；控制面测试覆盖自愈禁用态失败关闭、探针单项降级、城市 JSON 校验、坐标系标记、配额校验和平台最近运行关联。
 
-## 页面模拟验证
+模板、调度与导出专项覆盖模板路由优先级、真实保存/合并计数、请求配额、cron 与时区校验、SQLite 重启恢复、`noOverlap`、立即运行、失败脱敏、1,205 条快照导出、CSV 公式注入和截断响应头。
+
+## 页面采集
 
 - 页面访问正常。
-- OCR 或文本读取可返回结构化结果。
+- 页面识别或文本读取可返回结构化结果。
 - 异常时显示权限、窗口、页面状态。
 - 识别结果可进入数据中心或证据中心。
 
-## 业务请求验证
+## 请求采集
 
-- 录包服务状态可查询。
-- HAR 可导入。
-- 模板可学习。
-- 模板可保存、查询、去重。
+- 请求记录服务状态可查询。
+- 历史请求记录可导入。
+- 请求材料可沉淀。
+- 请求材料可保存、查询、去重。
 - 请求证据可归档。
 
-## 自动化采集验证
+## 小规模访问验证
 
 - 目标位置可解析。
 - 坐标网格可生成。
 - 请求预算生效。
-- 列表模板可执行。
-- 详情模板可执行。
+- 列表请求材料可执行。
+- 详情请求材料可执行。
 - 失败原因可在结果中展示。
 
 ## 证据中心
@@ -71,3 +69,11 @@ bash -n scripts/*.sh
 - 分时价格写入价格表。
 - 统计数据与数据库查询一致。
 - CSV 可导出。
+
+## 持续安全测试报告
+
+- 每次平台安全测试结束后，必须形成一条符合 `data/platform-security-test-history.json` 数据模型的记录。
+- 记录必须包含测试时间、方案、路径、原理、环境、具体内容、请求预算、实际请求数、成功/失败位置、成功率口径、证据和复测状态。
+- 缺少请求级数字时成功率必须为 `null`，不得用数据库行数、场站数量或接口 `totalCount` 替代。
+- 使用 `node scripts/append-platform-security-test-record.js --input <record.json>` 追加记录并重新生成 HTML；重复 ID 必须失败，旧记录不得覆盖。
+- 追加后检查 `docs/platform-security-continuous-test-report.html` 可直接打开、筛选、展开和打印，并执行敏感信息扫描。

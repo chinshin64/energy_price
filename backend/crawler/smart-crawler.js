@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const OutboundClient = require('../services/outbound-client');
 const DidiSignatureProvider = require('../services/didi-signature-provider');
+const { KuaidianCredentialProvider } = require('../services/kuaidian-credential-provider');
+const { TuanyouCredentialProvider } = require('../services/tuanyou-credential-provider');
 
 /**
  * 智能爬虫 - 分析 HAR 文件并自动爬取数据
@@ -35,6 +37,10 @@ class SmartCrawler {
             ? options.outboundClient
             : new OutboundClient({ getProxySettings: () => this.getProxySettings() });
         this.didiSignatureProvider = options.didiSignatureProvider || new DidiSignatureProvider(options.didiSignatureProviderOptions || {});
+        this.kuaidianCredentialProvider = options.kuaidianCredentialProvider
+            || KuaidianCredentialProvider.fromEnvironment(options.env || process.env);
+        this.tuanyouCredentialProvider = options.tuanyouCredentialProvider
+            || TuanyouCredentialProvider.fromEnvironment(options.env || process.env);
         this.userAgentPool = [
             'Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1 MicroMessenger/8.0.55(0x18003738) NetType/WIFI Language/zh_CN',
             'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1 MicroMessenger/8.0.54(0x18003638) NetType/5G Language/zh_CN',
@@ -1843,7 +1849,7 @@ class SmartCrawler {
             body: { ...(params.body || {}) }
         };
         const normalizedHeaders = this.sanitizeOutboundHeaders({ ...(pattern.headers || {}) });
-        const signatureProviderMeta = this.preparePlatformRequest(pattern, preparedParams, normalizedHeaders, {
+        const signatureProviderMeta = await this.preparePlatformRequest(pattern, preparedParams, normalizedHeaders, {
             proxyContext,
             reason,
             signatureAttempt,
@@ -1864,6 +1870,9 @@ class SmartCrawler {
         }
 
         const contentType = String(normalizedHeaders['content-type'] || normalizedHeaders['Content-Type'] || 'application/json').toLowerCase();
+        const controlledPlatformUserAgent = ['kuaidian', 'tuanyou'].includes(pattern.platform)
+            ? String(normalizedHeaders['user-agent'] || normalizedHeaders['User-Agent'] || '')
+            : '';
         delete normalizedHeaders['Content-Type'];
         delete normalizedHeaders['content-type'];
         delete normalizedHeaders['User-Agent'];
@@ -1875,7 +1884,7 @@ class SmartCrawler {
             headers: {
                 ...normalizedHeaders,
                 'Content-Type': contentType || 'application/json',
-                'User-Agent': this.pickRandomUserAgent(pattern)
+                'User-Agent': controlledPlatformUserAgent || this.pickRandomUserAgent(pattern)
             },
             timeout: 10000
         };
@@ -1894,10 +1903,8 @@ class SmartCrawler {
             config.params = preparedParams.query;
         }
 
-        const useConfiguredProxy = this.shouldUseConfiguredProxyForRequest(pattern, reason);
-        const proxyMatch = useConfiguredProxy
-            ? await this.outboundClient.resolveProxyMatch(proxyContext)
-            : { type: 'direct', label: '直连', proxyUrl: '' };
+        const useConfiguredProxy = true;
+        const proxyMatch = await this.outboundClient.resolveProxyMatch(proxyContext);
         if (logger && proxyMatch) {
             logger(`代理出口: ${this.describeProxyMatch(proxyMatch)}${reason ? ` (${reason})` : ''}`);
         }
@@ -1985,7 +1992,7 @@ class SmartCrawler {
         }
     }
 
-    preparePlatformRequest(pattern, params, headers, context = {}) {
+    async preparePlatformRequest(pattern, params, headers, context = {}) {
         if (pattern.platform === 'didi-charging') {
             return this.applyDidiSignatureProvider(pattern, params, headers, context);
         }
@@ -1996,36 +2003,39 @@ class SmartCrawler {
         }
 
         if (pattern.platform === 'kuaidian') {
-            this.applyKuaidianSignature(pattern, params);
+            this.applyKuaidianSignature(pattern, params, headers);
             return null;
         }
 
         if (pattern.platform === 'tuanyou') {
-            this.applyTuanyouSignature(pattern, params);
+            this.applyTuanyouSignature(pattern, params, headers);
         }
 
         return null;
     }
 
-    applyDidiSignatureProvider(pattern, params, headers, context = {}) {
+    async applyDidiSignatureProvider(pattern, params, headers, context = {}) {
         if (!this.didiSignatureProvider) {
             return null;
         }
+        let providerMeta = null;
         if (this.isDidiSignedListPattern(pattern) && typeof this.didiSignatureProvider.applyListSample === 'function') {
-            return this.didiSignatureProvider.applyListSample(pattern, params, headers, context.proxyContext || null, {
+            providerMeta = this.didiSignatureProvider.applyListSample(pattern, params, headers, context.proxyContext || null, {
                 signatureAttempt: context.signatureAttempt || 0
             });
-        }
-        if (
+        } else if (
             pattern?.platform === 'didi-charging'
             && this.isDidiDetailPath(this.safePathname(pattern.baseUrl))
             && typeof this.didiSignatureProvider.applyDetailSample === 'function'
         ) {
-            return this.didiSignatureProvider.applyDetailSample(pattern, params, headers, context.proxyContext || null, {
+            providerMeta = this.didiSignatureProvider.applyDetailSample(pattern, params, headers, context.proxyContext || null, {
                 signatureAttempt: context.signatureAttempt || 0
             });
         }
-        return null;
+        if (typeof this.didiSignatureProvider.refreshBrowserSignature === 'function') {
+            return this.didiSignatureProvider.refreshBrowserSignature(pattern, params, headers, providerMeta);
+        }
+        return providerMeta;
     }
 
     applyStarChargeSignature(pattern, params, headers) {
@@ -2080,7 +2090,8 @@ class SmartCrawler {
         }
     }
 
-    applyKuaidianSignature(pattern, params) {
+    applyKuaidianSignature(pattern, params, headers = {}) {
+        const credentials = this.kuaidianCredentialProvider.assertRequestUrl(pattern?.baseUrl);
         const container = String(pattern.method || 'GET').toUpperCase() === 'GET'
             ? params.query
             : params.body;
@@ -2090,18 +2101,34 @@ class SmartCrawler {
         const appTerminalKey = this.findExistingKey(container, 'app_terminal') || 'app_terminal';
 
         container[timestampKey] = String(Date.now());
-        if (container[appKeyKey] === undefined || container[appKeyKey] === null || container[appKeyKey] === '') {
-            container[appKeyKey] = 'kd_prod_mp';
+        container[appKeyKey] = credentials.appKey;
+        container[appTerminalKey] = credentials.appTerminal;
+        container[this.findExistingKey(container, 'token') || 'token'] = credentials.token;
+        container[this.findExistingKey(container, 'sensor_id') || 'sensor_id'] = credentials.sensorId;
+        container[this.findExistingKey(container, 'device_id') || 'device_id'] = credentials.deviceId;
+        container[this.findExistingKey(container, 'sa_distinct_id') || 'sa_distinct_id'] = credentials.saDistinctId;
+        container[this.findExistingKey(container, 'sa_anonymous_id') || 'sa_anonymous_id'] = credentials.saAnonymousId;
+        container[this.findExistingKey(container, 'app_name') || 'app_name'] = credentials.appName;
+        container[this.findExistingKey(container, 'C_TERMINNAL_TYPE') || 'C_TERMINNAL_TYPE'] = credentials.terminalType;
+        container[this.findExistingKey(container, 'platformType') || 'platformType'] = credentials.platformType;
+        if (credentials.saAnonymousId) {
+            container[this.findExistingKey(container, 'ticket') || 'ticket'] = credentials.saAnonymousId;
         }
-        if (container[appTerminalKey] === undefined || container[appTerminalKey] === null || container[appTerminalKey] === '') {
-            container[appTerminalKey] = 'mp';
-        }
-
         this.normalizeEmptyStringFields(container);
-        container[signKey] = this.createWrappedMd5Signature(container, signKey, '15cdf1eaf2110a3009bf2be5d3e53c3c');
+        container[signKey] = this.createWrappedMd5Signature(
+            container,
+            signKey,
+            credentials.appSecret
+        );
+
+        const userAgentKey = this.findExistingHeaderKey(headers, 'user-agent') || 'User-Agent';
+        const refererKey = this.findExistingHeaderKey(headers, 'referer') || 'Referer';
+        headers[userAgentKey] = credentials.userAgent;
+        headers[refererKey] = credentials.referer;
     }
 
-    applyTuanyouSignature(pattern, params) {
+    applyTuanyouSignature(pattern, params, headers = {}) {
+        const credentials = this.tuanyouCredentialProvider.assertRequestUrl(pattern?.baseUrl);
         const container = String(pattern.method || 'GET').toUpperCase() === 'GET'
             ? params.query
             : params.body;
@@ -2114,24 +2141,22 @@ class SmartCrawler {
         const mpVersionKey = this.findExistingKey(container, 'mp_version') || 'mp_version';
 
         container[timestampKey] = String(Date.now());
-        if (container[appKeyKey] === undefined || container[appKeyKey] === null || container[appKeyKey] === '') {
-            container[appKeyKey] = 'mp1.0';
-        }
-        if (container[tokenKey] === undefined || container[tokenKey] === null) {
-            container[tokenKey] = '';
-        }
-        if (container[shumeiKey] === undefined || container[shumeiKey] === null) {
-            container[shumeiKey] = '';
-        }
-        if (container[fromScanCodeKey] === undefined || container[fromScanCodeKey] === null) {
-            container[fromScanCodeKey] = '';
-        }
-        if (container[mpVersionKey] === undefined || container[mpVersionKey] === null || container[mpVersionKey] === '') {
-            container[mpVersionKey] = '10.2.1';
-        }
-
+        container[appKeyKey] = credentials.appKey;
+        container[tokenKey] = credentials.token;
+        container[shumeiKey] = credentials.shumeiID;
+        container[fromScanCodeKey] = credentials.fromScanCode;
+        container[mpVersionKey] = credentials.mpVersion;
         this.normalizeEmptyStringFields(container);
-        container[signKey] = this.createWrappedMd5Signature(container, signKey, 'aff7f768de81bb5f4e7c9bfba518c');
+        container[signKey] = this.createWrappedMd5Signature(
+            container,
+            signKey,
+            credentials.appSecret
+        );
+
+        const userAgentKey = this.findExistingHeaderKey(headers, 'user-agent') || 'User-Agent';
+        const refererKey = this.findExistingHeaderKey(headers, 'referer') || 'Referer';
+        headers[userAgentKey] = credentials.userAgent;
+        headers[refererKey] = credentials.referer;
     }
 
     createWrappedMd5Signature(payload = {}, signKey = 'sign', secret = '') {

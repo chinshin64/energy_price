@@ -1,84 +1,25 @@
-window.CHINA_CITY_PRESETS = [
-    { name: '北京', province: '北京', city: '北京', lat: 39.9042, lng: 116.4074, aliases: ['北京市'] },
-    { name: '上海', province: '上海', city: '上海', lat: 31.2304, lng: 121.4737, aliases: ['上海市'] },
-    { name: '上海虹桥站', province: '上海', city: '上海', district: '闵行区', lat: 31.1942, lng: 121.3184, aliases: ['虹桥火车站', '虹桥站'] },
-    { name: '北京国贸', province: '北京', city: '北京', district: '朝阳区', lat: 39.9097, lng: 116.4619, aliases: ['国贸', '北京国际贸易中心'] },
-    { name: '广州', province: '广东', city: '广州', lat: 23.1291, lng: 113.2644, aliases: ['广州市'] },
-    { name: '广州塔', province: '广东', city: '广州', district: '海珠区', lat: 23.1067, lng: 113.3245, aliases: ['广州广州塔', '小蛮腰'] },
-    { name: '深圳', province: '广东', city: '深圳', lat: 22.5431, lng: 114.0579, aliases: ['深圳市'] },
-    { name: '深圳北站', province: '广东', city: '深圳', district: '龙华区', lat: 22.6099, lng: 114.0294, aliases: ['深圳深圳北站'] },
-    { name: '杭州', province: '浙江', city: '杭州', lat: 30.2741, lng: 120.1551, aliases: ['杭州市'] },
-    { name: '天津', province: '天津', city: '天津', lat: 39.3434, lng: 117.3616 },
-    { name: '重庆', province: '重庆', city: '重庆', lat: 29.5630, lng: 106.5516 },
-    { name: '成都', province: '四川', city: '成都', lat: 30.5728, lng: 104.0668 },
-    { name: '武汉', province: '湖北', city: '武汉', lat: 30.5928, lng: 114.3055 },
-    { name: '武汉江汉路', province: '湖北', city: '武汉', district: '江汉区', lat: 30.5844, lng: 114.2922, aliases: ['江汉路'] },
-    { name: '南京', province: '江苏', city: '南京', lat: 32.0603, lng: 118.7969 },
-    { name: '苏州', province: '江苏', city: '苏州', lat: 31.2989, lng: 120.5853 },
-    { name: '无锡', province: '江苏', city: '无锡', lat: 31.4912, lng: 120.3119 },
-    { name: '常州', province: '江苏', city: '常州', lat: 31.8112, lng: 119.9741 },
-    { name: '南通', province: '江苏', city: '南通', lat: 31.9802, lng: 120.8943 },
-    { name: '扬州', province: '江苏', city: '扬州', lat: 32.3942, lng: 119.4127 },
-    { name: '徐州', province: '江苏', city: '徐州', lat: 34.2044, lng: 117.2841 },
-    { name: '宁波', province: '浙江', city: '宁波', lat: 29.8683, lng: 121.5440 },
-    { name: '温州', province: '浙江', city: '温州', lat: 27.9938, lng: 120.6994 },
-    { name: '嘉兴', province: '浙江', city: '嘉兴', lat: 30.7461, lng: 120.7555 },
-    { name: '绍兴', province: '浙江', city: '绍兴', lat: 30.0303, lng: 120.5802 },
-    { name: '金华', province: '浙江', city: '金华', lat: 29.0791, lng: 119.6474 },
-    { name: '台州', province: '浙江', city: '台州', lat: 28.6564, lng: 121.4208 },
-    { name: '合肥', province: '安徽', city: '合肥', lat: 31.8206, lng: 117.2272 },
-    { name: '芜湖', province: '安徽', city: '芜湖', lat: 31.3525, lng: 118.4331 },
-    { name: '福州', province: '福建', city: '福州', lat: 26.0745, lng: 119.2965 },
-    { name: '厦门', province: '福建', city: '厦门', lat: 24.4798, lng: 118.0894 },
-    { name: '泉州', province: '福建', city: '泉州', lat: 24.8741, lng: 118.6759 },
-    { name: '济南', province: '山东', city: '济南', lat: 36.6512, lng: 117.1201 },
-    { name: '青岛', province: '山东', city: '青岛', lat: 36.0671, lng: 120.3826 },
-    { name: '青岛五四广场', province: '山东', city: '青岛', district: '市南区', lat: 36.0621, lng: 120.3826, aliases: ['五四广场'] },
-    { name: '烟台', province: '山东', city: '烟台', lat: 37.4638, lng: 121.4479 },
-    { name: '潍坊', province: '山东', city: '潍坊', lat: 36.7068, lng: 119.1618 },
-    { name: '临沂', province: '山东', city: '临沂', lat: 35.1047, lng: 118.3564 },
-    { name: '郑州', province: '河南', city: '郑州', lat: 34.7466, lng: 113.6254 },
-    { name: '洛阳', province: '河南', city: '洛阳', lat: 34.6197, lng: 112.4540 },
-    { name: '长沙', province: '湖南', city: '长沙', lat: 28.2282, lng: 112.9388 },
-    { name: '株洲', province: '湖南', city: '株洲', lat: 27.8274, lng: 113.1339 },
-    { name: '南昌', province: '江西', city: '南昌', lat: 28.6820, lng: 115.8579 },
-    { name: '赣州', province: '江西', city: '赣州', lat: 25.8311, lng: 114.9348 },
-    { name: '佛山', province: '广东', city: '佛山', lat: 23.0218, lng: 113.1214 },
-    { name: '东莞', province: '广东', city: '东莞', lat: 23.0207, lng: 113.7518 },
-    { name: '珠海', province: '广东', city: '珠海', lat: 22.2716, lng: 113.5767 },
-    { name: '中山', province: '广东', city: '中山', lat: 22.5176, lng: 113.3928 },
-    { name: '惠州', province: '广东', city: '惠州', lat: 23.1115, lng: 114.4168 },
-    { name: '汕头', province: '广东', city: '汕头', lat: 23.3541, lng: 116.6819 },
-    { name: '南宁', province: '广西', city: '南宁', lat: 22.8170, lng: 108.3669 },
-    { name: '柳州', province: '广西', city: '柳州', lat: 24.3264, lng: 109.4286 },
-    { name: '桂林', province: '广西', city: '桂林', lat: 25.2736, lng: 110.2900 },
-    { name: '海口', province: '海南', city: '海口', lat: 20.0440, lng: 110.1999 },
-    { name: '三亚', province: '海南', city: '三亚', lat: 18.2528, lng: 109.5119 },
-    { name: '昆明', province: '云南', city: '昆明', lat: 24.8801, lng: 102.8329 },
-    { name: '大理', province: '云南', city: '大理', lat: 25.6065, lng: 100.2676 },
-    { name: '贵阳', province: '贵州', city: '贵阳', lat: 26.6470, lng: 106.6302 },
-    { name: '遵义', province: '贵州', city: '遵义', lat: 27.7257, lng: 106.9274 },
-    { name: '西安', province: '陕西', city: '西安', lat: 34.3416, lng: 108.9398 },
-    { name: '西安钟楼', province: '陕西', city: '西安', district: '莲湖区', lat: 34.2610, lng: 108.9425, aliases: ['钟楼'] },
-    { name: '咸阳', province: '陕西', city: '咸阳', lat: 34.3293, lng: 108.7088 },
-    { name: '太原', province: '山西', city: '太原', lat: 37.8706, lng: 112.5489 },
-    { name: '大同', province: '山西', city: '大同', lat: 40.0768, lng: 113.3001 },
-    { name: '石家庄', province: '河北', city: '石家庄', lat: 38.0428, lng: 114.5149 },
-    { name: '唐山', province: '河北', city: '唐山', lat: 39.6309, lng: 118.1802 },
-    { name: '保定', province: '河北', city: '保定', lat: 38.8739, lng: 115.4646 },
-    { name: '沈阳', province: '辽宁', city: '沈阳', lat: 41.8057, lng: 123.4315 },
-    { name: '大连', province: '辽宁', city: '大连', lat: 38.9140, lng: 121.6147 },
-    { name: '长春', province: '吉林', city: '长春', lat: 43.8171, lng: 125.3235 },
-    { name: '吉林', province: '吉林', city: '吉林', lat: 43.8378, lng: 126.5494 },
-    { name: '哈尔滨', province: '黑龙江', city: '哈尔滨', lat: 45.8038, lng: 126.5349 },
-    { name: '大庆', province: '黑龙江', city: '大庆', lat: 46.5876, lng: 125.1038 },
-    { name: '呼和浩特', province: '内蒙古', city: '呼和浩特', lat: 40.8414, lng: 111.7510 },
-    { name: '包头', province: '内蒙古', city: '包头', lat: 40.6574, lng: 109.8404 },
-    { name: '银川', province: '宁夏', city: '银川', lat: 38.4872, lng: 106.2309 },
-    { name: '兰州', province: '甘肃', city: '兰州', lat: 36.0611, lng: 103.8343 },
-    { name: '西宁', province: '青海', city: '西宁', lat: 36.6171, lng: 101.7782 },
-    { name: '乌鲁木齐', province: '新疆', city: '乌鲁木齐', lat: 43.8256, lng: 87.6168 },
-    { name: '拉萨', province: '西藏', city: '拉萨', lat: 29.6520, lng: 91.1721 },
-    { name: '香港', province: '香港', city: '香港', lat: 22.3193, lng: 114.1694 },
-    { name: '澳门', province: '澳门', city: '澳门', lat: 22.1987, lng: 113.5439 }
-];
+(function loadChinaCityPresets() {
+    const presets = [];
+    window.CHINA_CITY_PRESETS = presets;
+    window.CHINA_CITY_PRESETS_READY = fetch('./china-city-presets.json', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`city presets request failed: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!Array.isArray(data)) {
+                throw new Error('city presets response must be an array');
+            }
+            presets.splice(0, presets.length, ...data);
+            return presets;
+        })
+        .catch(error => {
+            console.error('Failed to load city presets:', error);
+            return presets;
+        });
+})();

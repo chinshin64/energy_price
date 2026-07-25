@@ -6,6 +6,13 @@ const { redactObject } = require('./sensitive-redactor');
 const DEFAULT_TIMEOUT_MS = 60000;
 const DEFAULT_ANTHROPIC_VERSION = '2023-06-01';
 const SUPPORTED_TYPES = new Set(['openai_compatible', 'anthropic_native']);
+const AI_AGENT_MODEL_PRESETS = [
+    { id: 'deepseek-v4-pro-external', label: 'DeepSeek V4 Pro', type: 'openai_compatible', contextWindow: 'provider_default' },
+    { id: 'glm-5.1', label: 'GLM 5.1', type: 'openai_compatible', contextWindow: 'provider_default' },
+    { id: 'glm-5.2', label: 'GLM 5.2', type: 'openai_compatible', contextWindow: 'provider_default' },
+    { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash', type: 'openai_compatible', contextWindow: 'provider_default' },
+    { id: 'deepseek-ve-pro', label: 'DeepSeek VE Pro', type: 'openai_compatible', contextWindow: 'provider_default' },
+];
 
 function normalizeMode(value) {
     const mode = String(value || 'disabled').trim().toLowerCase();
@@ -58,6 +65,8 @@ function publicConfig(config = {}) {
         baseUrl: config.baseUrl ? config.baseUrl.replace(/\/[^/]*$/, '/***') : '',
         modelId: config.modelId || '',
         timeoutMs: config.timeoutMs,
+        maxTokens: config.maxTokens,
+        contextWindow: 'provider_default',
         applyLowRiskPatches: Boolean(config.applyLowRiskPatches),
         saveEvents: Boolean(config.saveEvents),
         configured: Boolean(config.baseUrl && config.apiKey && config.modelId),
@@ -142,12 +151,12 @@ function buildFailureAnalysisPrompt() {
     return [
         'You are the request failure diagnosis agent for a blue-team testing system.',
         'Analyze why a request or chain failed and return only safe operational advice.',
-        'Never suggest bypassing login, authorization, signatures, captcha, or risk control.',
-        'Never suggest forging sign, signature, token, cookie, wsgsig, or credentials.',
+        'Never suggest bypassing login, authorization, request-material validation, captcha, or risk control.',
+        'Never suggest forging credentials, request materials, signatures, or authorization state.',
         'Never suggest increasing maxPages, maxRequestCount, maxQps, or collection radius.',
         'Distinguish HTTP status 501 from business response code=501.',
-        'Return JSON only. Do not return Markdown or explanatory prose.',
-        'JSON schema: {"success":boolean,"diagnosis":{"category":string,"confidence":number,"reason":string,"evidence":string[]},"strategyPatch":{"patchType":string,"riskLevel":"low|medium|high","applyMode":"auto|manual_review","changes":object},"nextAction":{"action":string,"reason":string}}'
+        'Return a structured object only. Do not return Markdown or explanatory prose.',
+        'Schema: {"success":boolean,"diagnosis":{"category":string,"confidence":number,"reason":string,"evidence":string[]},"strategyPatch":{"patchType":string,"riskLevel":"low|medium|high","applyMode":"auto|manual_review","changes":object},"nextAction":{"action":string,"reason":string}}'
     ].join('\n');
 }
 
@@ -319,6 +328,7 @@ class AiAgentClient {
 module.exports = {
     AiAgentClient,
     buildAiAgentConfig,
+    AI_AGENT_MODEL_PRESETS,
     publicConfig,
     validateAgentAnalysis,
     extractJsonFromModelContent,

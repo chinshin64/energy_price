@@ -23,6 +23,10 @@ final class ManualBackfillDialog {
         void onSaved(ManualBackfillRepository.SaveResult result);
 
         void onDiscarded();
+
+        /** 用户在编辑回填对话框点「删除该记录」时回调，默认不做（兼容现有实现）。 */
+        default void onDeleted(ManualBackfillDraftStore.State state) {
+        }
     }
 
     private final Activity activity;
@@ -69,10 +73,15 @@ final class ManualBackfillDialog {
                 .setTitle("编辑回填")
                 .setView(buildForm())
                 .setNegativeButton("取消", (value, which) -> discard())
+                .setNeutralButton("删除该记录", null)
                 .setPositiveButton("保存并回传", null)
                 .create();
-        dialog.setOnShowListener(value -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(view -> save()));
+        dialog.setOnShowListener(value -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                    .setOnClickListener(view -> save());
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+                    .setOnClickListener(view -> confirmDelete());
+        });
         dialog.show();
     }
 
@@ -353,6 +362,19 @@ final class ManualBackfillDialog {
     private void discard() {
         ManualBackfillDraftStore.close(activity, state.stableIdentity, true);
         listener.onDiscarded();
+    }
+
+    private void confirmDelete() {
+        new AlertDialog.Builder(activity)
+                .setTitle("删除该记录")
+                .setMessage("删除后该本地记录无法恢复，已回传的服务端数据不受影响。是否删除？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确认删除", (d, w) -> {
+                    ManualBackfillDraftStore.close(activity, state.stableIdentity, true);
+                    if (dialog != null) dialog.dismiss();
+                    listener.onDeleted(state);
+                })
+                .show();
     }
 
     private static TextView label(Context context, String text, int size) {

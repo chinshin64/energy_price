@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -17,8 +19,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT / "data" / "stations.db"
-TOKEN = ""  # 访问鉴权已关闭，不再需要 MOBILE_SYNC_TOKEN
+TOKEN = os.environ.get("MOBILE_SYNC_TOKEN", "").strip()
+ACCESS_TOKEN = os.environ.get("BLUE_TEAM_ACCESS_TOKEN", "").strip()
 SERVER_URL = os.environ.get("MOBILE_SYNC_SERVER_URL", "http://localhost:3000").strip()
+ADB_SERIAL = os.environ.get("MOBILE_ADB_SERIAL", "").strip() or os.environ.get("ANDROID_SERIAL", "").strip()
 PKG = "com.datafordidi.mobilecollector"
 RECEIVER = f"{PKG}/.AutomationCommandReceiver"
 IME = f"{PKG}/.AdbTextInputService"
@@ -63,12 +67,40 @@ CITY_LANDMARKS = {
     ],
 }
 
+CITY_COORDINATES = {
+    "上海": (31.2304, 121.4737),
+    "武汉": (30.5928, 114.3055),
+    "北京": (39.9042, 116.4074),
+    "广州": (23.1291, 113.2644),
+    "青岛": (36.0671, 120.3826),
+    "深圳": (22.5431, 114.0579),
+    "西安": (34.3416, 108.9398),
+}
+
+CITY_MISMATCH_TOKENS = {
+    "上海": ["杭州", "余杭", "仓前", "浙江", "西安", "北京", "武汉", "深圳", "青岛", "广州"],
+    "武汉": ["杭州", "余杭", "仓前", "浙江", "西安", "北京", "深圳", "青岛", "广州", "上海"],
+    "北京": ["杭州", "余杭", "仓前", "浙江", "西安", "武汉", "深圳", "青岛", "广州", "上海"],
+    "广州": ["杭州", "余杭", "仓前", "浙江", "西安", "北京", "武汉", "深圳", "青岛", "上海"],
+    "青岛": ["杭州", "余杭", "仓前", "浙江", "西安", "北京", "武汉", "深圳", "广州", "上海"],
+    "深圳": ["杭州", "余杭", "仓前", "浙江", "西安", "北京", "武汉", "青岛", "广州", "上海"],
+    "西安": ["杭州", "余杭", "仓前", "浙江", "北京", "武汉", "深圳", "青岛", "广州", "上海"],
+}
+
 DEBUG_CAPTURE_DIR = ROOT / "data" / "debug-captures"
+
+
+def adb_command(*args: str) -> list[str]:
+    command = ["adb"]
+    if ADB_SERIAL and (not args or args[0] != "devices"):
+        command.extend(["-s", ADB_SERIAL])
+    command.extend(args)
+    return command
 
 
 def run_adb(*args: str, check: bool = True, timeout: int = 30) -> str:
     result = subprocess.run(
-        ["adb", *args],
+        adb_command(*args),
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -91,10 +123,10 @@ def capture_debug(label: str) -> tuple[Path, Path]:
     png_path = DEBUG_CAPTURE_DIR / f"{safe_label}-{timestamp}.png"
     xml_path = DEBUG_CAPTURE_DIR / f"{safe_label}-{timestamp}.xml"
     with png_path.open("wb") as output:
-        subprocess.run(["adb", "exec-out", "screencap", "-p"], cwd=ROOT, stdout=output, check=False, timeout=20)
+        subprocess.run(adb_command("exec-out", "screencap", "-p"), cwd=ROOT, stdout=output, check=False, timeout=20)
     shell("uiautomator", "dump", "/sdcard/data_for_didi_current.xml", check=False, timeout=20)
     subprocess.run(
-        ["adb", "pull", "/sdcard/data_for_didi_current.xml", str(xml_path)],
+        adb_command("pull", "/sdcard/data_for_didi_current.xml", str(xml_path)),
         cwd=ROOT,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -103,6 +135,42 @@ def capture_debug(label: str) -> tuple[Path, Path]:
     )
     print(f"[debug] captured {png_path} {xml_path}", flush=True)
     return png_path, xml_path
+
+
+def ocr_current_screen_text(label: str) -> str:
+    tesseract = shutil.which("tesseract")
+    if not tesseract:
+        return ""
+    DEBUG_CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
+    safe_label = "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in label)[:80]
+    png_path = DEBUG_CAPTURE_DIR / f"ocr-check-{safe_label}-{time.strftime('%Y%m%d-%H%M%S')}.png"
+    with png_path.open("wb") as output:
+        subprocess.run(adb_command("exec-out", "screencap", "-p"), cwd=ROOT, stdout=output, check=False, timeout=20)
+    result = subprocess.run(
+        [tesseract, str(png_path), "stdout", "-l", "chi_sim+eng", "--psm", "6"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+        timeout=12,
+    )
+    return result.stdout or ""
+
+
+def assert_target_city_screen(city: str, keyword: str) -> None:
+    text = ocr_current_screen_text(f"{city}-{keyword}")
+    if not text.strip():
+        print("[switch] tesseract unavailable or no text recognized; skip city OCR guard", flush=True)
+        return
+    compact = "".join(text.split())
+    mismatch_tokens = CITY_MISMATCH_TOKENS.get(city, [])
+    hits = [token for token in mismatch_tokens if token and token in compact]
+    if hits:
+        raise RuntimeError(
+            f"city mismatch after switch: target={city}, keyword={keyword}, "
+            f"screen contains {hits[:5]}"
+        )
 
 
 def focus_info() -> str:
@@ -118,9 +186,158 @@ def raw_tap(x: int, y: int) -> None:
     time.sleep(0.8)
 
 
+def screen_size() -> tuple[int, int]:
+    output = shell("wm", "size", check=False)
+    for line in output.splitlines():
+        if "Physical size:" not in line:
+            continue
+        size = line.split(":", 1)[1].strip()
+        if "x" in size:
+            width, height = size.split("x", 1)
+            return (int(width), int(height))
+    return (1080, 2460)
+
+
+def current_screenshot_image():
+    try:
+        from PIL import Image
+    except Exception:
+        return None
+
+    result = subprocess.run(
+        adb_command("exec-out", "screencap", "-p"),
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+        timeout=20,
+    )
+    if result.returncode != 0 or not result.stdout:
+        return None
+    try:
+        return Image.open(io.BytesIO(result.stdout)).convert("RGB")
+    except Exception:
+        return None
+
+
+def raw_tap_ratio(x_ratio: float, y_ratio: float) -> None:
+    width, height = screen_size()
+    raw_tap(int(width * x_ratio), int(height * y_ratio))
+
+
+def crop_ratio(image, left: float, top: float, right: float, bottom: float):
+    width, height = image.size
+    return image.crop((
+        int(width * left),
+        int(height * top),
+        int(width * right),
+        int(height * bottom),
+    ))
+
+
+def looks_like_guest_login_page() -> bool:
+    image = current_screenshot_image()
+    if image is None:
+        return False
+
+    width, height = image.size
+    center = image.crop((int(width * 0.1), int(height * 0.42), int(width * 0.9), int(height * 0.82)))
+    center_pixels = list(center.getdata())
+    if not center_pixels:
+        return False
+    whiteish = sum(1 for r, g, b in center_pixels if r > 232 and g > 232 and b > 232) / len(center_pixels)
+
+    button = image.crop((int(width * 0.1), int(height * 0.54), int(width * 0.9), int(height * 0.61)))
+    button_pixels = list(button.getdata())
+    grayish = 0
+    for r, g, b in button_pixels:
+        channels_close = max(r, g, b) - min(r, g, b) < 16
+        if channels_close and 145 <= r <= 205:
+            grayish += 1
+    grayish_ratio = grayish / max(1, len(button_pixels))
+    return whiteish > 0.76 and grayish_ratio > 0.45
+
+
+def looks_like_marketing_popup() -> bool:
+    image = current_screenshot_image()
+    if image is None:
+        return False
+    width, height = image.size
+    background = crop_ratio(image, 0.0, 0.20, 1.0, 0.86)
+    background_pixels = list(background.getdata())
+    if not background_pixels:
+        return False
+    dark_ratio = sum(1 for r, g, b in background_pixels if r < 95 and g < 95 and b < 95) / len(background_pixels)
+
+    card = crop_ratio(image, 0.14, 0.42, 0.86, 0.76)
+    card_pixels = list(card.getdata())
+    white_or_orange = 0
+    for r, g, b in card_pixels:
+        if (r > 235 and g > 235 and b > 235) or (r > 220 and 60 < g < 150 and b < 80):
+            white_or_orange += 1
+    card_ratio = white_or_orange / max(1, len(card_pixels))
+    return dark_ratio > 0.35 and card_ratio > 0.30
+
+
+def dismiss_marketing_popup_if_present() -> bool:
+    if not looks_like_marketing_popup():
+        return False
+    raw_tap_ratio(0.50, 0.72)
+    time.sleep(1.0)
+    return True
+
+
+def looks_like_empty_search_result() -> bool:
+    image = current_screenshot_image()
+    if image is None:
+        return False
+    content = crop_ratio(image, 0.04, 0.22, 0.96, 0.78)
+    pixels = list(content.getdata())
+    if not pixels:
+        return False
+    whiteish = sum(1 for r, g, b in pixels if r > 235 and g > 235 and b > 235) / len(pixels)
+    orange = sum(1 for r, g, b in pixels if r > 220 and 55 <= g <= 150 and b < 80) / len(pixels)
+    gray_center = crop_ratio(image, 0.34, 0.43, 0.66, 0.58)
+    center_pixels = list(gray_center.getdata())
+    grayish = 0
+    for r, g, b in center_pixels:
+        if max(r, g, b) - min(r, g, b) < 26 and 155 <= r <= 230:
+            grayish += 1
+    gray_ratio = grayish / max(1, len(center_pixels))
+    return (whiteish > 0.94 and orange < 0.005) or (whiteish > 0.88 and orange < 0.005 and gray_ratio > 0.08)
+
+
+def choose_guest_login_if_present(allow_coordinate_fallback: bool = False) -> bool:
+    if click_text("暂不登录/注册", contains=True) or click_text("暂不登录", contains=True):
+        time.sleep(2.0)
+        return True
+    if allow_coordinate_fallback and looks_like_guest_login_page():
+        # WeChat mini-program WebViews on MIUI often do not expose the login
+        # page text to accessibility. The screenshot guard above keeps this
+        # fallback from firing on normal list/map pages.
+        raw_tap_ratio(0.5, 0.638)
+        time.sleep(2.0)
+        return True
+    return False
+
+
+def wait_guest_login_and_recover(timeout_seconds: float = 4.0) -> bool:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        if choose_guest_login_if_present(allow_coordinate_fallback=True):
+            return True
+        time.sleep(0.6)
+    return False
+
+
 def dismiss_known_prompts() -> bool:
     """Dismiss blocking prompts without blind taps during collection."""
+    if dismiss_marketing_popup_if_present():
+        capture_debug("dismissed-marketing-popup")
+        return True
     prompt_buttons = [
+        ("暂不登录/注册", True),
+        ("暂不登录", True),
         ("拒绝", False),
         ("否", False),
         ("不允许", True),
@@ -135,8 +352,8 @@ def dismiss_known_prompts() -> bool:
     return False
 
 
-def broadcast(action: str, *extras: str, check: bool = True) -> str:
-    return shell("am", "broadcast", "-n", RECEIVER, "-a", action, *extras, check=check)
+def broadcast(action: str, *extras: str, check: bool = True, timeout: int = 30) -> str:
+    return shell("am", "broadcast", "-n", RECEIVER, "-a", action, *extras, check=check, timeout=timeout)
 
 
 def tap(x: float, y: float) -> None:
@@ -162,6 +379,7 @@ def click_text(text: str, contains: bool = True) -> bool:
         "contains",
         "true" if contains else "false",
         check=False,
+        timeout=5,
     )
     time.sleep(0.8)
     return "result=0" in output or "code=0" in output
@@ -174,6 +392,7 @@ def set_text(text: str) -> bool:
         "text",
         text,
         check=False,
+        timeout=8,
     )
     time.sleep(1.0)
     return "result=0" in output or "code=0" in output
@@ -182,13 +401,14 @@ def set_text(text: str) -> bool:
 def enqueue_mobile_command(command_type: str, payload: dict | None = None) -> dict:
     url = SERVER_URL.rstrip("/") + "/api/mobile-control/commands"
     body = json.dumps({"type": command_type, "payload": payload or {}}, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if ACCESS_TOKEN:
+        headers["Authorization"] = f"Bearer {ACCESS_TOKEN}"
     request = urllib.request.Request(
         url,
         data=body,
         method="POST",
-        headers={
-            "Content-Type": "application/json",
-        },
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
@@ -250,9 +470,34 @@ def ensure_didi_miniprogram() -> None:
 def recover_to_base_page() -> None:
     """Keep the mini-program active before using the list search bar."""
     dismiss_known_prompts()
+    choose_guest_login_if_present(allow_coordinate_fallback=True)
     state = focus_info()
     if "com.tencent.mm" not in state or "AppBrandUI" not in state:
         open_didi_from_wechat()
+        choose_guest_login_if_present(allow_coordinate_fallback=True)
+
+
+def set_android_mock_location(city: str) -> None:
+    if city not in CITY_COORDINATES:
+        return
+    script = ROOT / "scripts" / "android-real-phone-mock-provider.sh"
+    if not script.exists():
+        raise RuntimeError(f"missing android mock location helper: {script}")
+    env = os.environ.copy()
+    if ADB_SERIAL:
+        env["MOBILE_ADB_SERIAL"] = ADB_SERIAL
+    result = subprocess.run(
+        [str(script), "set-location", city],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=45,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"failed to set Android mock location for {city}: {result.stdout.strip()}")
+    print(f"[location] Android mock location set for {city}: {result.stdout.strip()}", flush=True)
 
 
 def save_settings(
@@ -262,11 +507,14 @@ def save_settings(
     max_interval: int,
     detail_enrichment_enabled: bool,
 ) -> None:
-    broadcast(
-        "com.datafordidi.mobilecollector.AUTOMATION_SAVE_SETTINGS",
+    extras = [
         "--es",
         "serverUrl",
         SERVER_URL,
+    ]
+    if TOKEN:
+        extras.extend(["--es", "token", TOKEN])
+    extras.extend([
         "--es",
         "platform",
         "didi-charging",
@@ -291,35 +539,90 @@ def save_settings(
         "--ez",
         "testEvidenceEnabled",
         "true",
+    ])
+    broadcast(
+        "com.datafordidi.mobilecollector.AUTOMATION_SAVE_SETTINGS",
+        *extras,
     )
 
 
-def switch_landmark(keyword: str) -> None:
+def landmark_query(city: str, keyword: str) -> str:
+    query = str(keyword or "").strip()
+    city_name = str(city or "").strip()
+    if city_name and query.startswith(city_name):
+        query = query[len(city_name):].strip()
+    if city_name.endswith("市") and query.startswith(city_name[:-1]):
+        query = query[len(city_name[:-1]):].strip()
+    return query or keyword
+
+
+def select_city_on_search_page(city: str) -> None:
+    raw_tap_ratio(0.16, 0.122)
+    time.sleep(1.0)
+    raw_tap_ratio(0.45, 0.12)
+    time.sleep(0.3)
+    if not set_text(city):
+        raise RuntimeError(f"failed to input city selector keyword: {city}")
+    time.sleep(1.1)
+    raw_tap_ratio(0.16, 0.295)
+    time.sleep(1.5)
+
+
+def switch_landmark(city: str, keyword: str) -> None:
     ensure_didi_miniprogram()
     recover_to_base_page()
     ensure_didi_miniprogram()
     dismiss_known_prompts()
     capture_debug(f"before-switch-{keyword}")
     # Didi mini-program search bar is sticky at the top of the list page.
-    for attempt in range(3):
+    search_submitted = False
+    query = landmark_query(city, keyword)
+    max_attempts = max(1, int(os.environ.get("MOBILE_SWITCH_ATTEMPTS", "2") or "2"))
+    for attempt in range(max_attempts):
+        recover_to_base_page()
         raw_tap(550, 300)
         time.sleep(0.8)
+        if wait_guest_login_and_recover(2.5):
+            ensure_didi_miniprogram()
+            continue
         # Focus the search input on the search page.
+        try:
+            select_city_on_search_page(city)
+        except Exception as exc:
+            print(f"[switch] select city failed attempt={attempt + 1} city={city}: {exc}", flush=True)
         raw_tap(550, 300)
-        if set_text(keyword):
+        if wait_guest_login_and_recover(2.5):
+            ensure_didi_miniprogram()
+            continue
+        if set_text(query):
+            if wait_guest_login_and_recover(2.5):
+                ensure_didi_miniprogram()
+                continue
+            time.sleep(0.8)
+            # Trigger search through the in-page orange Search button. Use a
+            # screen-ratio tap so the physical 1080x2460 phone and nearby
+            # Android screens keep the tap inside the mini-program page.
+            raw_tap_ratio(0.913, 0.122)
+            time.sleep(2.0)
+            if looks_like_empty_search_result():
+                raise RuntimeError(f"empty search result after selecting city={city}, keyword={keyword}, query={query}")
+            if wait_guest_login_and_recover(2.5):
+                ensure_didi_miniprogram()
+                continue
+            time.sleep(1.0)
+            search_submitted = True
             break
         dismiss_known_prompts()
         shell("input", "keyevent", "BACK", check=False)
         time.sleep(1.2)
         ensure_didi_miniprogram()
-        if attempt == 2:
-            capture_debug(f"failed-input-{keyword}")
-            raise RuntimeError(f"failed to input landmark: {keyword}")
-    time.sleep(0.8)
-    # Trigger search, then open the first "查找附近场站" result.
-    raw_tap(985, 300)
-    time.sleep(2.5)
+    if not search_submitted:
+        capture_debug(f"failed-input-{keyword}")
+        raise RuntimeError(f"failed to input landmark: {keyword}")
+    # Open the first "查找附近场站" result when the mini-program exposes one.
     capture_debug(f"after-search-{keyword}")
+    if looks_like_empty_search_result():
+        raise RuntimeError(f"empty search result after selecting city={city}, keyword={keyword}, query={query}")
     clicked_nearby = (
         click_text("查找附近场站", contains=True)
         or click_text("附近场站", contains=True)
@@ -336,6 +639,9 @@ def switch_landmark(keyword: str) -> None:
         print(f"[switch] nearby entry not found after search; continue without blind tap: {keyword}", flush=True)
         time.sleep(1.5)
     capture_debug(f"after-nearby-{keyword}")
+    if looks_like_empty_search_result():
+        raise RuntimeError(f"empty station page after city={city}, keyword={keyword}, query={query}")
+    assert_target_city_screen(city, keyword)
     ensure_didi_miniprogram()
 
 
@@ -539,10 +845,14 @@ def run_city(
     no_growth_seconds: int,
     detail_enrichment_enabled: bool,
     collector_mode: str,
+    mock_location_enabled: bool,
 ) -> None:
     landmarks = CITY_LANDMARKS[city]
     started_at = time.strftime("%Y-%m-%d %H:%M:%S")
     baseline_total, baseline_distinct = city_count(city)
+    if mock_location_enabled:
+        set_android_mock_location(city)
+        time.sleep(2.0)
     if target_increment is not None:
         target = baseline_distinct + target_increment
     refresh_target = max(1, target_refresh_increment or 0)
@@ -560,7 +870,7 @@ def run_city(
         if target_refresh_increment is None and distinct >= target:
             return
         print(f"[{city}] switch landmark: {keyword}", flush=True)
-        switch_landmark(keyword)
+        switch_landmark(city, keyword)
         save_settings(city, pages_per_landmark, min_interval, max_interval, detail_enrichment_enabled)
         start_ocr_collection(collector_mode)
         timeout_seconds = max(no_growth_seconds + 60, pages_per_landmark * (max_interval / 1000 + 4))
@@ -597,15 +907,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--detail-enrichment", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--collector-mode", choices=["auto", "capture", "text"], default="auto")
     parser.add_argument("--server-url", default=SERVER_URL)
-    parser.add_argument("--sync-token", default="", help="已废弃：访问鉴权关闭后不再需要")
+    parser.add_argument("--sync-token", default=TOKEN, help="Mobile device credential when authentication is enabled.")
+    parser.add_argument("--access-token", default=ACCESS_TOKEN, help="Operator access token for mobile-control APIs.")
+    parser.add_argument("--mock-location", action=argparse.BooleanOptionalAction, default=False, help="Use Android cmd location mock providers before each city.")
+    parser.add_argument("--adb-serial", default=ADB_SERIAL, help="Target ADB serial. Defaults to MOBILE_ADB_SERIAL or ANDROID_SERIAL.")
     return parser.parse_args()
 
 
 def main() -> int:
-    global SERVER_URL, TOKEN
+    global SERVER_URL, TOKEN, ACCESS_TOKEN, ADB_SERIAL
     args = parse_args()
     SERVER_URL = str(args.server_url or "").strip()
-    TOKEN = ""
+    TOKEN = str(args.sync_token or "").strip()
+    ACCESS_TOKEN = str(args.access_token or "").strip()
+    ADB_SERIAL = str(args.adb_serial or "").strip()
     if not SERVER_URL:
         raise RuntimeError("server url required; pass --server-url or MOBILE_SYNC_SERVER_URL")
     ensure_ready()
@@ -623,6 +938,7 @@ def main() -> int:
             args.no_growth_seconds,
             args.detail_enrichment,
             args.collector_mode,
+            args.mock_location,
         )
     return 0
 

@@ -27,7 +27,7 @@ function buildCrawlerTargetLocation(centerLat, centerLng) {
 
 function getScopeBadge(scope) {
     const value = scope === 'detail' ? 'detail' : 'list';
-    const label = value === 'detail' ? '详情模板' : '列表模板';
+    const label = value === 'detail' ? '详情材料' : '列表材料';
     return `<span class="scope-badge ${value}">${label}</span>`;
 }
 
@@ -51,7 +51,7 @@ function setupCrawlerListeners() {
     document.getElementById('generateGridBtn').addEventListener('click', generateGridCoordinates);
     document.getElementById('startCrawlBtn').addEventListener('click', startCrawling);
     
-    // 默认加载已有模板
+    // 默认加载已有请求材料
     loadTemplates();
 }
 
@@ -69,22 +69,22 @@ function handleCrawlerHarSelect(event) {
 
 async function learnApiPatterns() {
     if (!crawlerHarFile) {
-        alert('请先选择 HAR 文件');
+        alert('请先选择历史请求记录文件');
         return;
     }
     
     const learnBtn = document.getElementById('learnApiBtn');
     learnBtn.disabled = true;
-    learnBtn.textContent = '🧠 学习中...';
+    learnBtn.textContent = '识别中...';
     
-    addCrawlerLog(`开始分析 ${crawlerHarFile.name}...`, 'info');
+    addCrawlerLog(`开始分析历史请求记录：${crawlerHarFile.name}`, 'info');
     
     try {
         // 读取文件内容
         const content = await readFileAsText(crawlerHarFile);
         
-        // 发送到后端学习
-        const res = await fetch(`${API_BASE}/crawler/learn-upload`, {
+        // 发送到后端识别请求材料
+        const res = await fetch(`${SERVICE_BASE}/crawler/learn-upload`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -99,21 +99,21 @@ async function learnApiPatterns() {
         
         if (result.success) {
             learnedPatterns = result.patterns;
-            addCrawlerLog(`✅ 学习成功！识别到 ${learnedPatterns.length} 个接口模板`, 'success');
+            addCrawlerLog(`识别成功，沉淀 ${learnedPatterns.length} 份请求材料`, 'success');
             
-            // 显示 API 列表
+            // 显示请求材料列表
             renderApiPatterns(learnedPatterns);
             document.getElementById('apiPatternSection').style.display = 'block';
             // 显示保存按钮
             document.getElementById('saveAllTemplatesBtn').style.display = 'inline-block';
         } else {
-            addCrawlerLog(`❌ 学习失败，请检查文件格式`, 'error');
+            addCrawlerLog(`识别失败，请检查文件格式`, 'error');
         }
     } catch (error) {
-        addCrawlerLog(`❌ 学习失败，请重试`, 'error');
+        addCrawlerLog(`识别失败，请重试`, 'error');
     } finally {
         learnBtn.disabled = false;
-        learnBtn.textContent = '🧠 开始学习';
+        learnBtn.textContent = '开始识别';
     }
 }
 
@@ -121,7 +121,7 @@ function renderApiPatterns(patterns) {
     const container = document.getElementById('apiPatternList');
     
     if (patterns.length === 0) {
-        container.innerHTML = '<p style="color: #999;">未找到可爬取的 API</p>';
+        container.innerHTML = '<p style="color: #999;">未找到可用于访问验证的请求材料</p>';
         return;
     }
     
@@ -137,15 +137,15 @@ function renderApiPatterns(patterns) {
         return `
         <div class="api-pattern-card" data-index="${index}">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
-                <h4 style="margin:0;">${p.platform.toUpperCase()} API</h4>
+                <h4 style="margin:0;">${p.platform.toUpperCase()} 请求材料</h4>
                 ${getScopeBadge(p.templateScope)}
             </div>
-            <p><strong>方法:</strong> ${p.method}</p>
-            <p><strong>接口:</strong> 接口 #${index + 1}</p>
-            <p><strong>可变参数:</strong> ${hasVariableParams ? variableParamKeys.join(', ') : '<span style="color: #ff9800;">无自动识别</span>'}</p>
+            <p><strong>访问方式:</strong> ${p.method}</p>
+            <p><strong>业务请求:</strong> 请求材料 #${index + 1}</p>
+            <p><strong>可调整参数:</strong> ${hasVariableParams ? variableParamKeys.join(', ') : '<span style="color: #ff9800;">无自动识别</span>'}</p>
             <p style="font-size: 12px; color: #666;">
                 <strong>参数统计:</strong> 请求参数 ${bodyParamCount + queryParamCount} 个
-                ${!hasVariableParams && totalParams > 0 ? ' | <span style="color: #ff9800;">⚠️ 点击查看所有参数</span>' : ''}
+                ${!hasVariableParams && totalParams > 0 ? ' | <span style="color: #ff9800;">点击查看所有参数</span>' : ''}
             </p>
         </div>
     `}).join('');
@@ -161,7 +161,7 @@ function renderApiPatterns(patterns) {
             const index = parseInt(card.dataset.index);
             selectedPattern = patterns[index];
             
-            addCrawlerLog(`已选择: ${selectedPattern.platform} API`, 'info');
+            addCrawlerLog(`已选择 ${selectedPattern.platform} 请求材料`, 'info');
             
             // 显示参数详情
             showPatternDetails(selectedPattern);
@@ -178,12 +178,12 @@ function showPatternDetails(pattern) {
     const queryParams = pattern.queryParams || {};
     
     let detailsHtml = '<div style="margin-top: 15px; padding: 15px; background: #f8f9ff; border-radius: 8px; border: 1px solid #e0e0e0;">';
-    detailsHtml += '<h4 style="margin-bottom: 10px;">📋 API 参数详情</h4>';
-    detailsHtml += `<div style="margin-bottom: 12px;">模板类型: ${getScopeBadge(pattern.templateScope)}</div>`;
+    detailsHtml += '<h4 style="margin-bottom: 10px;">请求材料参数详情</h4>';
+    detailsHtml += `<div style="margin-bottom: 12px;">材料类型: ${getScopeBadge(pattern.templateScope)}</div>`;
     
     // 显示可变参数
     if (Object.keys(variableParams).length > 0) {
-        detailsHtml += '<div style="margin-bottom: 10px;"><strong>✅ 已识别的可变参数:</strong></div>';
+        detailsHtml += '<div style="margin-bottom: 10px;"><strong>已识别的可调整参数:</strong></div>';
         detailsHtml += '<table style="width: 100%; font-size: 12px; margin-bottom: 15px;">';
         detailsHtml += '<tr style="background: #667eea; color: white;"><th style="padding: 5px;">参数名</th><th>参数位置</th><th>值类型</th><th>示例值</th></tr>';
         
@@ -197,10 +197,10 @@ function showPatternDetails(pattern) {
         }
         detailsHtml += '</table>';
     } else {
-        detailsHtml += '<div style="color: #ff9800; margin-bottom: 10px;">⚠️ <strong>未自动识别到可变参数</strong></div>';
+        detailsHtml += '<div style="color: #ff9800; margin-bottom: 10px;"><strong>未自动识别到可调整参数</strong></div>';
         detailsHtml += '<p style="font-size: 12px; color: #666; margin-bottom: 10px;">这可能意味着：</p>';
         detailsHtml += '<ul style="font-size: 12px; color: #666; margin-left: 20px; margin-bottom: 10px;">';
-        detailsHtml += '<li>此 API 不适合批量爬取（如配置、静态数据类 API）</li>';
+        detailsHtml += '<li>该业务请求不适合批量访问验证（如配置、静态数据类请求）</li>';
         detailsHtml += '<li>参数名不常见，未被识别规则匹配</li>';
         detailsHtml += '<li>需要手动配置参数</li>';
         detailsHtml += '</ul>';
@@ -208,7 +208,7 @@ function showPatternDetails(pattern) {
     
     // 显示所有 Body 参数
     if (Object.keys(bodyParams).length > 0) {
-        detailsHtml += '<div style="margin-bottom: 10px;"><strong>📦 请求体参数:</strong></div>';
+        detailsHtml += '<div style="margin-bottom: 10px;"><strong>请求体参数:</strong></div>';
         detailsHtml += '<div style="background: white; padding: 10px; border-radius: 5px; font-size: 12px;">';
         detailsHtml += Object.keys(bodyParams).join(', ') || '无';
         detailsHtml += '</div>';
@@ -216,7 +216,7 @@ function showPatternDetails(pattern) {
     
     // 显示所有 Query 参数
     if (Object.keys(queryParams).length > 0) {
-        detailsHtml += '<div style="margin-top: 10px; margin-bottom: 10px;"><strong>🔗 查询参数:</strong></div>';
+        detailsHtml += '<div style="margin-top: 10px; margin-bottom: 10px;"><strong>查询参数:</strong></div>';
         detailsHtml += '<div style="background: white; padding: 10px; border-radius: 5px; font-size: 12px;">';
         detailsHtml += Object.keys(queryParams).join(', ') || '无';
         detailsHtml += '</div>';
@@ -254,7 +254,7 @@ async function generateGridCoordinates() {
     addCrawlerLog(`生成网格坐标: 中心 (${centerLat}, ${centerLng}), 半径 ${radius}km, 网格 ${gridSize}km`, 'info');
     
     try {
-        const res = await fetch(`${API_BASE}/crawler/generate-grid`, {
+        const res = await fetch(`${SERVICE_BASE}/crawler/generate-grid`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -271,19 +271,19 @@ async function generateGridCoordinates() {
         
         if (result.success) {
             generatedCoordinates = result.coordinates;
-            document.getElementById('gridInfo').textContent = `✅ 已生成 ${result.count} 个坐标点`;
-            addCrawlerLog(`✅ 生成 ${result.count} 个网格坐标`, 'success');
+            document.getElementById('gridInfo').textContent = `已生成 ${result.count} 个坐标点`;
+            addCrawlerLog(`生成 ${result.count} 个网格坐标`, 'success');
         } else {
-            addCrawlerLog(`❌ 生成失败，请检查参数`, 'error');
+            addCrawlerLog(`生成失败，请检查参数`, 'error');
         }
     } catch (error) {
-        addCrawlerLog(`❌ 生成失败，请重试`, 'error');
+        addCrawlerLog(`生成失败，请重试`, 'error');
     }
 }
 
 async function startCrawling() {
     if (!selectedPattern) {
-        alert('请先选择 API 模式');
+        alert('请先选择请求材料');
         return;
     }
     
@@ -306,9 +306,9 @@ async function startCrawling() {
     
     const startBtn = document.getElementById('startCrawlBtn');
     startBtn.disabled = true;
-    startBtn.textContent = '⏳ 爬取中...';
+    startBtn.textContent = '验证中...';
     
-    addCrawlerLog(`开始爬取: ${selectedPattern.platform}`, 'info');
+    addCrawlerLog(`开始访问验证：${selectedPattern.platform}`, 'info');
     addCrawlerLog(`已生成 ${generatedCoordinates.length} 个坐标点`, 'info');
     
     try {
@@ -317,7 +317,7 @@ async function startCrawling() {
         if (crawlMode !== 'list' || (selectedPattern.templateScope || 'list') === 'detail') {
             addCrawlerLog(`切换为平台级检索，使用 ${crawlMode} 模式执行 ${selectedPattern.platform}`, 'info');
 
-            const res = await fetch(`${API_BASE}/crawler/crawl-platforms-with-coordinates`, {
+            const res = await fetch(`${SERVICE_BASE}/crawler/crawl-platforms-with-coordinates`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -339,7 +339,7 @@ async function startCrawling() {
 
             result = await res.json();
         } else {
-            const res = await fetch(`${API_BASE}/crawler/crawl`, {
+            const res = await fetch(`${SERVICE_BASE}/crawler/crawl`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -360,12 +360,12 @@ async function startCrawling() {
         
         if (result.success) {
             if (Array.isArray(result.summary)) {
-                addCrawlerLog(`✅ 平台级爬取完成，总解析 ${result.totalStations} 个场站`, 'success');
+                addCrawlerLog(`平台级访问验证完成，总解析 ${result.totalStations} 个场站`, 'success');
                 result.summary.forEach(item => {
                     if (!item.success) {
                         const reasonMap = {
                             'run_request_limit_exceeded': '当次请求已达上限',
-                            'signature_expired': '签名已过期',
+                            'signature_expired': '请求材料已过期',
                             'rate_limited': '请求过于频繁',
                             'network_error': '网络异常',
                             'auth_failed': '鉴权失败',
@@ -385,7 +385,7 @@ async function startCrawling() {
                     }
                 });
             } else {
-                addCrawlerLog(`✅ 爬取完成！获取 ${result.stationCount} 个场站`, 'success');
+                addCrawlerLog(`访问验证完成，获取 ${result.stationCount} 个场站`, 'success');
                 if (result.requestBudget) {
                     addCrawlerLog(formatCrawlerRequestBudget(result.requestBudget), result.requestBudget.exhausted ? 'info' : 'success');
                 }
@@ -393,14 +393,14 @@ async function startCrawling() {
             addCrawlerLog(`数据已保存到数据库`, 'success');
             if (result.quotaStats) {
                 addCrawlerLog(
-                    `今日统计请求 ${result.quotaStats.totalRequests}，成功 ${result.quotaStats.successRequests}，签名验证失败 ${result.quotaStats.fail501Requests}`,
+                    `今日统计请求 ${result.quotaStats.totalRequests}，成功 ${result.quotaStats.successRequests}，材料校验失败 ${result.quotaStats.fail501Requests}`,
                     'info'
                 );
             }
             if (result.runQuota) {
                 const limitText = result.runQuota.unlimited || result.runQuota.limit === null ? '无上限' : result.runQuota.limit;
                 addCrawlerLog(
-                    `当次请求 ${result.runQuota.used}/${limitText}，成功 ${result.runQuota.success}，签名验证失败 ${result.runQuota.fail501}`,
+                    `当次请求 ${result.runQuota.used}/${limitText}，成功 ${result.runQuota.success}，材料校验失败 ${result.runQuota.fail501}`,
                     result.runQuota.exhausted ? 'warn' : 'info'
                 );
             }
@@ -409,29 +409,29 @@ async function startCrawling() {
             loadStats();
             loadData();
         } else {
-            addCrawlerLog(`❌ 采集失败，请检查网络配置`, 'error');
+            addCrawlerLog(`访问验证失败，请检查网络出口配置`, 'error');
             if (result.quotaStats) {
                 addCrawlerLog(
-                    `今日统计请求 ${result.quotaStats.totalRequests}，成功 ${result.quotaStats.successRequests}，签名验证失败 ${result.quotaStats.fail501Requests}`,
+                    `今日统计请求 ${result.quotaStats.totalRequests}，成功 ${result.quotaStats.successRequests}，材料校验失败 ${result.quotaStats.fail501Requests}`,
                     'info'
                 );
             }
             if (result.runQuota) {
                 const limitText = result.runQuota.unlimited || result.runQuota.limit === null ? '无上限' : result.runQuota.limit;
                 addCrawlerLog(
-                    `当次请求 ${result.runQuota.used}/${limitText}，成功 ${result.runQuota.success}，签名验证失败 ${result.runQuota.fail501}`,
+                    `当次请求 ${result.runQuota.used}/${limitText}，成功 ${result.runQuota.success}，材料校验失败 ${result.runQuota.fail501}`,
                     result.runQuota.exhausted ? 'warn' : 'info'
                 );
             }
         }
     } catch (error) {
-        addCrawlerLog(`❌ 采集失败，请重试`, 'error');
+        addCrawlerLog(`访问验证失败，请重试`, 'error');
     } finally {
         if (typeof loadCrawlerRunQuota === 'function') {
             loadCrawlerRunQuota();
         }
         startBtn.disabled = false;
-        startBtn.textContent = '🚀 开始爬取';
+        startBtn.textContent = '开始访问验证';
     }
 }
 
@@ -451,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupCrawlerListeners();
 });
 
-// ============ 模板管理功能 ============
+// ============ 请求材料管理功能 ============
 
 function showLearnArea() {
     document.getElementById('learnArea').style.display = 'block';
@@ -474,38 +474,38 @@ function showTemplatesArea() {
 }
 
 async function loadTemplates() {
-    addCrawlerLog('加载已保存的模板...', 'info');
+    addCrawlerLog('加载已保存的请求材料...', 'info');
     
     try {
-        const res = await fetch(`${API_BASE}/templates`);
+        const res = await fetch(`${SERVICE_BASE}/templates`);
         const result = await res.json();
         
         if (result.success) {
             renderTemplates(result.data);
-            addCrawlerLog(`加载了 ${result.data.length} 个模板`, 'success');
+            addCrawlerLog(`加载了 ${result.data.length} 份请求材料`, 'success');
         } else {
-            addCrawlerLog(`加载模板失败，请刷新页面重试`, 'error');
+            addCrawlerLog(`加载请求材料失败，请刷新页面重试`, 'error');
         }
     } catch (error) {
-        addCrawlerLog(`加载模板失败，请检查网络连接`, 'error');
+        addCrawlerLog(`加载请求材料失败，请检查网络连接`, 'error');
     }
 }
 
 async function deduplicateTemplates() {
-    if (!confirm('确认清理重复模板？系统会保留重复组里最新入库的一条，删除更早的重复样本。')) {
+    if (!confirm('确认清理重复请求材料？系统会保留重复组里最新入库的一条，删除更早的重复样本。')) {
         return;
     }
 
     const btn = document.getElementById('dedupeTemplatesBtn');
     if (btn) {
         btn.disabled = true;
-        btn.textContent = '🧹 清理中...';
+        btn.textContent = '清理中...';
     }
 
-    addCrawlerLog('开始清理重复模板（保留最新样本）...', 'info');
+    addCrawlerLog('开始清理重复请求材料（保留最新样本）...', 'info');
 
     try {
-        const res = await fetch(`${API_BASE}/templates/deduplicate`, {
+        const res = await fetch(`${SERVICE_BASE}/templates/deduplicate`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -515,23 +515,23 @@ async function deduplicateTemplates() {
         const result = await res.json();
 
         if (!result.success) {
-            addCrawlerLog(`❌ 清理失败，请稍后重试`, 'error');
+            addCrawlerLog(`清理失败，请稍后重试`, 'error');
             return;
         }
 
         const data = result.data || {};
         addCrawlerLog(
-            `✅ 清理完成：删除 ${data.removedCount || 0} 条，重复组 ${data.duplicateGroupCount || 0} 个，当前模板 ${data.uniqueTemplates || 0} 条`,
+            `清理完成：删除 ${data.removedCount || 0} 条，重复组 ${data.duplicateGroupCount || 0} 个，当前请求材料 ${data.uniqueTemplates || 0} 条`,
             'success'
         );
 
         await loadTemplates();
     } catch (error) {
-        addCrawlerLog(`❌ 清理失败，请检查网络连接`, 'error');
+        addCrawlerLog(`清理失败，请检查网络连接`, 'error');
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '🧹 清理重复模板';
+            btn.textContent = '清理重复请求材料';
         }
     }
 }
@@ -540,7 +540,7 @@ function renderTemplates(templates) {
     const container = document.getElementById('templateList');
     
     if (templates.length === 0) {
-        container.innerHTML = '<p style="color: #999;">暂无保存的模板，请先学习 HAR 文件</p>';
+        container.innerHTML = '<p style="color: #999;">暂无保存的请求材料，请先导入历史请求记录</p>';
         return;
     }
     
@@ -558,8 +558,8 @@ function renderTemplates(templates) {
                         ${getScopeBadge(t.templateScope)}
                     </div>
                     <p><strong>平台:</strong> ${t.platform.toUpperCase()}</p>
-                    <p><strong>方法:</strong> 接口模板 #${index + 1}</p>
-                    <p><strong>可变参数:</strong> ${hasVariableParams ? variableParamKeys.join(', ') : '<span style="color: #ff9800;">无</span>'}</p>
+                    <p><strong>材料编号:</strong> 请求材料 #${index + 1}</p>
+                    <p><strong>可调整参数:</strong> ${hasVariableParams ? variableParamKeys.join(', ') : '<span style="color: #ff9800;">无</span>'}</p>
                     <p style="font-size: 12px; color: #999;">最后使用: ${lastUsed}</p>
                 </div>
                 <div style="display: flex; gap: 5px;">
@@ -584,7 +584,7 @@ function renderTemplates(templates) {
 function useTemplate(template) {
     selectedPattern = template;
     
-    addCrawlerLog(`已选择模板: ${template.name}`, 'success');
+    addCrawlerLog(`已选择请求材料：${template.name}`, 'success');
     
     // 显示参数详情
     showPatternDetails(template);
@@ -598,18 +598,18 @@ function useTemplate(template) {
 
 async function saveAllTemplates() {
     if (learnedPatterns.length === 0) {
-        alert('没有可保存的模板');
+        alert('没有可保存的请求材料');
         return;
     }
     
     const saveBtn = document.getElementById('saveAllTemplatesBtn');
     saveBtn.disabled = true;
-    saveBtn.textContent = '💾 保存中...';
+    saveBtn.textContent = '保存中...';
     
-    addCrawlerLog(`开始保存 ${learnedPatterns.length} 个模板...`, 'info');
+    addCrawlerLog(`开始保存 ${learnedPatterns.length} 份请求材料...`, 'info');
     
     try {
-        const res = await fetch(`${API_BASE}/templates/batch`, {
+        const res = await fetch(`${SERVICE_BASE}/templates/batch`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -622,43 +622,43 @@ async function saveAllTemplates() {
         const result = await res.json();
         
         if (result.success) {
-            addCrawlerLog(`✅ 成功保存 ${result.count} 个模板！`, 'success');
-            addCrawlerLog(`提示: 下次可以直接使用已有模板，无需重新学习`, 'info');
+            addCrawlerLog(`成功保存 ${result.count} 份请求材料`, 'success');
+            addCrawlerLog(`提示：下次可以直接使用已有请求材料，无需重新导入历史记录`, 'info');
             
-            // 刷新模板列表
+            // 刷新请求材料列表
             loadTemplates();
         } else {
-            addCrawlerLog(`❌ 保存失败，请稍后重试`, 'error');
+            addCrawlerLog(`保存失败，请稍后重试`, 'error');
         }
     } catch (error) {
-        addCrawlerLog(`❌ 保存失败，请检查网络连接`, 'error');
+        addCrawlerLog(`保存失败，请检查网络连接`, 'error');
     } finally {
         saveBtn.disabled = false;
-        saveBtn.textContent = '💾 保存所有为模板';
+        saveBtn.textContent = '保存所有请求材料';
     }
 }
 
 async function deleteTemplate(templateId) {
-    if (!confirm('确定要删除这个模板吗？')) {
+    if (!confirm('确定要删除这份请求材料吗？')) {
         return;
     }
     
-    addCrawlerLog(`正在删除模板...`, 'info');
+    addCrawlerLog(`正在删除请求材料...`, 'info');
     
     try {
-        const res = await fetch(`${API_BASE}/templates/${templateId}`, {
+        const res = await fetch(`${SERVICE_BASE}/templates/${templateId}`, {
             method: 'DELETE'
         });
         
         const result = await res.json();
         
         if (result.success) {
-            addCrawlerLog(`✅ 模板已删除`, 'success');
+            addCrawlerLog(`请求材料已删除`, 'success');
             loadTemplates();
         } else {
-            addCrawlerLog(`❌ 删除失败，请稍后重试`, 'error');
+            addCrawlerLog(`删除失败，请稍后重试`, 'error');
         }
     } catch (error) {
-        addCrawlerLog(`❌ 删除失败，请检查网络连接`, 'error');
+        addCrawlerLog(`删除失败，请检查网络连接`, 'error');
     }
 }

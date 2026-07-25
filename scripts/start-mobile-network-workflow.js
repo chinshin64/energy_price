@@ -33,6 +33,7 @@ function parseArgs(argv) {
         || DEFAULT_SERVER_URL;
     const options = {
         serverUrl: defaultServerUrl,
+        accessToken: process.env.BLUE_TEAM_ACCESS_TOKEN || env.BLUE_TEAM_ACCESS_TOKEN || '',
         cities: ['上海', '北京', '广州'],
         targetIncrement: 100,
         pagesPerLandmark: 90,
@@ -51,8 +52,8 @@ function parseArgs(argv) {
         if (arg === '--server-url') {
             options.serverUrl = next;
             i += 1;
-        } else if (arg === '--token') {
-            // 已废弃：访问鉴权关闭后不再需要 token，保留参数兼容旧脚本。
+        } else if (arg === '--token' || arg === '--access-token') {
+            options.accessToken = String(next || '');
             i += 1;
         } else if (arg === '--cities') {
             options.cities = String(next || '').split(/[,，\s]+/).filter(Boolean);
@@ -104,7 +105,8 @@ Starts a server-driven mobile collection workflow. The phone must have
 
 Options:
   --server-url URL           Default: http://localhost:3000
-  --token TOKEN              已废弃：访问鉴权关闭后不再需要
+  --access-token TOKEN       Operator access token for production mobile-control APIs
+  --token TOKEN              Compatibility alias for --access-token
   --cities "上海 北京 广州"    Default: 上海 北京 广州
   --target-increment N       Default: 100 new price/gun snapshots per city
   --pages-per-landmark N     Default: 90
@@ -117,11 +119,14 @@ Options:
 `);
 }
 
-function requestJson(method, urlString, body) {
+function requestJson(method, urlString, body, token = '') {
     const url = new URL(urlString);
     const transport = url.protocol === 'https:' ? https : http;
     const textBody = body ? JSON.stringify(body) : null;
     const headers = {};
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
     if (textBody) {
         headers['Content-Type'] = 'application/json';
         headers['Content-Length'] = Buffer.byteLength(textBody);
@@ -191,15 +196,16 @@ async function main() {
     const started = await requestJson(
         'POST',
         `${options.serverUrl}/api/mobile-control/workflows/city-increment/start`,
-        workflowPayload
+        workflowPayload,
+        options.accessToken
     );
     const workflowId = started.data.id;
     console.log(`workflow started: ${workflowId}`);
 
     while (true) {
         const [workflowsResp, commandsResp] = await Promise.all([
-            requestJson('GET', `${options.serverUrl}/api/mobile-control/workflows`),
-            requestJson('GET', `${options.serverUrl}/api/mobile-control/commands?limit=8`)
+            requestJson('GET', `${options.serverUrl}/api/mobile-control/workflows`, null, options.accessToken),
+            requestJson('GET', `${options.serverUrl}/api/mobile-control/commands?limit=8`, null, options.accessToken)
         ]);
         const workflow = (workflowsResp.data || []).find(item => item.id === workflowId);
         if (!workflow) {

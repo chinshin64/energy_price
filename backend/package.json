@@ -6,7 +6,17 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "init-db": "node database/init.js"
+    "init-db": "node database/init.js",
+    "test": "node --test test/*.test.js",
+    "check": "node scripts/check-source.js && npm test",
+    "check:frontend": "node scripts/check-frontend.js",
+    "check:all": "npm run check && npm run check:frontend",
+    "audit:prod": "npm audit --omit=dev --audit-level=moderate",
+    "validate:browser-signer": "node scripts/validate-browser-signer.js",
+    "migrate:database": "node scripts/migrate-database.js",
+    "migrate:secrets": "node scripts/migrate-secrets.js",
+    "migrate:mobile-source-mysql": "node scripts/migrate-mobile-source-mysql.js",
+    "start:mobile-source": "node scripts/start-mobile-source-node.js"
   },
   "keywords": [
     "wechat",
@@ -17,20 +27,28 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.6.5",
+    "axios": "^1.18.1",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
+    "express": "^4.22.2",
     "http-proxy-agent": "^7.0.2",
     "https-proxy-agent": "^7.0.5",
-    "morgan": "^1.10.0",
+    "morgan": "^1.11.0",
     "multer": "^2.2.0",
+    "mysql2": "^3.23.1",
     "node-cron": "^4.2.1",
+    "puppeteer-core": "^25.3.0",
+    "sm-crypto": "^0.4.0",
     "socks-proxy-agent": "^8.0.5",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.0.2",
+    "playwright": "^1.61.1"
+  },
+  "overrides": {
+    "body-parser": "1.20.6"
   }
 }

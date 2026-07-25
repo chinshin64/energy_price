@@ -140,21 +140,31 @@ class CaptureRecorderService {
             '--set', `data_for_didi_allow_url_keywords=${trafficPolicy.allowUrlKeywords.join(',')}`
         ];
 
-        // Location override: if city/lat/lng provided, load the location override addon
+        // Location override: request-level override for target mini-program APIs.
         const overrideCity = String(input.overrideCity || input.city || '').trim();
         const overrideLat = Number(input.overrideLat || input.lat || 0);
         const overrideLng = Number(input.overrideLng || input.lng || 0);
+        const hasCoordinateOverride = Number.isFinite(overrideLat)
+            && Number.isFinite(overrideLng)
+            && overrideLat !== 0
+            && overrideLng !== 0;
+        const hasLocationOverride = Boolean(overrideCity || hasCoordinateOverride);
         const locationOverrideScript = path.join(this.projectRoot, 'scripts/mitm-location-override.py');
-        if (overrideCity && fs.existsSync(locationOverrideScript)) {
+        if (hasLocationOverride && fs.existsSync(locationOverrideScript)) {
+            const overrideLabel = overrideCity || 'custom';
             args.push('-s', locationOverrideScript);
-            args.push('--set', `data_for_didi_override_city=${overrideCity}`);
-            if (overrideLat && overrideLng) {
+            args.push('--set', `data_for_didi_override_city=${overrideLabel}`);
+            if (hasCoordinateOverride) {
                 args.push('--set', `data_for_didi_override_lat=${overrideLat}`);
                 args.push('--set', `data_for_didi_override_lng=${overrideLng}`);
             }
-            session.locationOverride = { city: overrideCity, lat: overrideLat, lng: overrideLng };
-        if (upstreamProxy) session.upstreamProxy = upstreamProxy;
+            session.locationOverride = {
+                city: overrideLabel,
+                lat: hasCoordinateOverride ? overrideLat : 0,
+                lng: hasCoordinateOverride ? overrideLng : 0
+            };
         }
+        if (upstreamProxy) session.upstreamProxy = upstreamProxy;
         const child = spawn(binary, args, {
             cwd: this.projectRoot,
             env: { ...process.env },

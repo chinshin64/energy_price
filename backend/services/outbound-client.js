@@ -4,11 +4,12 @@ const axios = require('axios');
 const { HttpProxyAgent } = require('http-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const { SocksProxyAgent } = require('socks-proxy-agent');
+const { UNIFIED_OUTBOUND_PROXY_URL } = require('../config/unified-proxy');
 
 const DEFAULT_PROXY_SETTINGS = {
-    enabled: false,
-    defaultProxyUrl: '',
-    proxyUrl: '',
+    enabled: Boolean(UNIFIED_OUTBOUND_PROXY_URL),
+    defaultProxyUrl: UNIFIED_OUTBOUND_PROXY_URL,
+    proxyUrl: UNIFIED_OUTBOUND_PROXY_URL,
     autoCityProxyEnabled: false,
     cityProxyPool: [],
     providerProxy: {
@@ -62,12 +63,13 @@ class OutboundClient {
         let proxyMatch = options.proxyMatch || null;
         let response = null;
         try {
-            if (options.skipProxy === true) {
+            if (options.skipProxy === true || options.useConfiguredProxy === false) {
+                if (process.env.ALLOW_DIRECT_OUTBOUND !== '1') {
+                    throw this.outboundPolicyError();
+                }
                 proxyMatch = { type: 'direct', label: '直连', proxyUrl: '' };
             } else if (!proxyMatch) {
-                proxyMatch = options.useConfiguredProxy === true
-                    ? await this.resolveProxyMatch(options.proxyContext || null)
-                    : { type: 'direct', label: '直连', proxyUrl: '' };
+                proxyMatch = await this.resolveProxyMatch(options.proxyContext || null);
             }
             this.applyProxyMatch(requestConfig, proxyMatch);
 
@@ -113,7 +115,7 @@ class OutboundClient {
     async resolveProxyMatch(proxyContext = null) {
         const settings = this.normalizeProxySettings(this.getProxySettings() || {});
         if (!settings.enabled) {
-            return { type: 'direct', label: '直连', proxyUrl: '' };
+            return this.getFallbackProxyMatch();
         }
 
         if (settings.autoCityProxyEnabled) {
@@ -142,12 +144,44 @@ class OutboundClient {
         if (settings.defaultProxyUrl) {
             return {
                 type: 'default',
-                label: '默认代理',
+                label: this.isUnifiedProxy(settings.defaultProxyUrl) ? '部署默认出口' : '默认代理',
                 proxyUrl: settings.defaultProxyUrl
             };
         }
 
-        return { type: 'direct', label: '直连', proxyUrl: '' };
+        return this.getFallbackProxyMatch();
+    }
+
+    getUnifiedProxyMatch() {
+        if (!UNIFIED_OUTBOUND_PROXY_URL) {
+            return null;
+        }
+        return {
+            type: 'deployment_default',
+            label: '部署默认出口',
+            proxyUrl: UNIFIED_OUTBOUND_PROXY_URL
+        };
+    }
+
+    getFallbackProxyMatch() {
+        const deploymentProxy = this.getUnifiedProxyMatch();
+        if (deploymentProxy) return deploymentProxy;
+        if (process.env.ALLOW_DIRECT_OUTBOUND === '1') {
+            return { type: 'direct', label: '直连', proxyUrl: '' };
+        }
+        throw this.outboundPolicyError();
+    }
+
+    outboundPolicyError() {
+        const error = new Error('No outbound proxy is configured and direct outbound is disabled');
+        error.code = 'outbound_proxy_required';
+        error.statusCode = 503;
+        return error;
+    }
+
+    isUnifiedProxy(proxyUrl = '') {
+        return Boolean(UNIFIED_OUTBOUND_PROXY_URL)
+            && String(proxyUrl || '').trim() === UNIFIED_OUTBOUND_PROXY_URL;
     }
 
     applyProxyMatch(config, proxyMatch = {}) {
@@ -214,6 +248,13 @@ class OutboundClient {
         }
 
         try {
+            const bootstrapProxy = this.getUnifiedProxyMatch()
+                || (process.env.ALLOW_DIRECT_OUTBOUND === '1'
+                    ? { type: 'direct', label: '直连', proxyUrl: '' }
+                    : null);
+            if (!bootstrapProxy) {
+                return null;
+            }
             const url = this.buildProviderProxyUrl(provider.apiUrl, context);
             const headers = {};
             if (provider.authHeader && provider.authToken) {
@@ -231,7 +272,7 @@ class OutboundClient {
                 chain: 'outbound-proxy',
                 evidenceType: 'proxy-provider',
                 proxyContext: context,
-                skipProxy: true
+                proxyMatch: bootstrapProxy
             });
             const proxyUrl = this.extractProviderProxyUrl(response.data);
             if (!proxyUrl) {
@@ -332,9 +373,9 @@ class OutboundClient {
             ? settings.providerProxy
             : {};
         return {
-            enabled: Boolean(settings.enabled),
-            defaultProxyUrl: String(settings.defaultProxyUrl || settings.proxyUrl || '').trim(),
-            proxyUrl: String(settings.defaultProxyUrl || settings.proxyUrl || '').trim(),
+            enabled: settings.enabled !== false,
+            defaultProxyUrl: String(settings.defaultProxyUrl || settings.proxyUrl || UNIFIED_OUTBOUND_PROXY_URL).trim(),
+            proxyUrl: String(settings.defaultProxyUrl || settings.proxyUrl || UNIFIED_OUTBOUND_PROXY_URL).trim(),
             autoCityProxyEnabled: Boolean(settings.autoCityProxyEnabled),
             cityProxyPool: Array.isArray(settings.cityProxyPool) ? settings.cityProxyPool : [],
             providerProxy: {

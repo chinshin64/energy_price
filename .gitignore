@@ -102,3 +102,6 @@ config/sync-nodes.json
 .codex_tmp/
 __pycache__/
 *.pyc
+
+# Stray APK build artifacts at repo root
+/*.apk

@@ -6,24 +6,24 @@ const path = require('path');
 const CHAIN_META = {
     method1: {
         id: 'method1',
-        label: '页面自动化识别',
+        label: '页面采集',
         method: 'page-automation',
         evidenceType: 'method1-result',
-        recommendedAction: '打开电脑端微信和目标小程序，确认截图、OCR、下滑权限可用。'
+        recommendedAction: '打开电脑端微信和目标小程序，确认截图、页面识别和下滑权限可用。'
     },
     method2: {
         id: 'method2',
-        label: '后台自动化识别',
+        label: '请求采集',
         method: 'background-automation',
         evidenceType: 'method2-result',
-        recommendedAction: '启动请求记录服务，按提示配置代理并触发目标小程序请求。'
+        recommendedAction: '启动请求记录服务，按提示配置网络出口并触发目标小程序请求。'
     },
     method3: {
         id: 'method3',
-        label: '流量自动化识别',
+        label: '小规模访问验证',
         method: 'traffic-template',
         evidenceType: 'method3-result',
-        recommendedAction: '确认模板、签名语料和目标城市坐标匹配后再执行小规模请求。'
+        recommendedAction: '确认请求材料和目标城市坐标匹配后再执行小规模访问验证。'
     }
 };
 
@@ -89,7 +89,10 @@ class TestChainOrchestrator {
     }
 
     async run(input = {}) {
-        const target = this.normalizeTarget(input.target || input);
+        const nestedTarget = input.target && typeof input.target === 'object' && !Array.isArray(input.target)
+            ? input.target
+            : null;
+        const target = this.normalizeTarget(nestedTarget ? { ...input, ...nestedTarget } : input);
         const requestedChain = String(input.chain || input.method || 'best').trim();
         const dryRun = input.dryRun === true || input.mode === 'dry_run';
         const status = await this.getStatus({ target });
@@ -216,15 +219,17 @@ class TestChainOrchestrator {
     }
 
     normalizeTarget(input = {}) {
+        const coordinateSystem = String(input.coordinateSystem || '').trim().toUpperCase();
         return {
             platform: String(input.platform || input.platformId || 'didi-charging').trim() || 'didi-charging',
             city: String(input.city || input.targetCity || '上海').trim() || '上海',
             lat: Number.isFinite(Number(input.lat)) ? Number(input.lat) : 31.2304,
             lng: Number.isFinite(Number(input.lng)) ? Number(input.lng) : 121.4737,
+            coordinateSystem: ['WGS84', 'GCJ02'].includes(coordinateSystem) ? coordinateSystem : null,
             radiusKm: Math.max(1, Math.min(50, Number(input.radiusKm || input.radius || input.maxDistanceKm || 20))),
             maxPages: Math.max(1, Math.min(1, Number(input.maxPages || 1))),
-            maxRequestCount: Math.max(1, Math.min(5, Number(input.maxRequestCount || 5))),
-            maxQps: Math.max(1, Math.min(1, Number(input.maxQps || 1)))
+            maxRequestCount: Math.trunc(Math.max(1, Math.min(5, Number(input.maxRequestCount || 5)))),
+            maxQps: Math.max(0.1, Math.min(1, Number(input.maxQps || 1)))
         };
     }
 
@@ -268,6 +273,21 @@ class TestChainOrchestrator {
             available: Boolean(chains[chain]?.available),
             target,
             action: chain === 'method2' ? 'start_capture_then_stop_and_analyze' : 'run_basic_check',
+            description: chain === 'method2'
+                ? '请求采集需要分阶段执行：开始记录 -> 用户在目标小程序内操作并触发业务请求 -> 停止记录并生成摘要。'
+                : '执行链路基础检查并固化结果。',
+            manualActionRequired: chain === 'method2',
+            userOperationWindowRequired: chain === 'method2',
+            dryRunNote: chain === 'method2'
+                ? '预演只生成分阶段计划，不代表已经开始记录或捕获到请求。'
+                : 'dry_run 只生成计划，不代表已经执行链路动作。',
+            phases: chain === 'method2'
+                ? [
+                    { id: 'start_recording', title: '开始记录', actor: 'system', status: chains[chain]?.available ? 'available' : 'blocked' },
+                    { id: 'user_operation_window', title: '用户操作目标小程序触发请求', actor: 'user', status: 'manual_required' },
+                    { id: 'stop_and_analyze', title: '停止记录并生成摘要', actor: 'system', status: 'pending_user_operation' }
+                ]
+                : [],
             expectedEvidence: CHAIN_META[chain]?.evidenceType || `${chain}-result`
         }));
     }
@@ -290,6 +310,7 @@ class TestChainOrchestrator {
                 city: target.city,
                 lat: target.lat,
                 lng: target.lng,
+                coordinateSystem: target.coordinateSystem,
                 radiusKm: target.radiusKm,
                 maxPages: target.maxPages,
                 maxRequestCount: target.maxRequestCount,
@@ -330,11 +351,16 @@ class TestChainOrchestrator {
             filterHosts: input.filterHosts || ''
         });
         if (!start.success) return start;
-        await sleep(Math.max(0, Math.min(30000, Number(input.captureWindowMs || 3000))));
+        const captureWindowMs = Math.max(0, Math.min(30000, Number(input.captureWindowMs || 3000)));
+        await sleep(captureWindowMs);
         const analyzed = await this.method2Service.stopAndAnalyze({});
         return {
             ...analyzed,
-            start
+            start,
+            manualActionRequired: true,
+            userOperationWindowRequired: true,
+            captureWindowMs,
+            workflowMessage: '请求采集按“开始记录 -> 用户操作 -> 停止分析”执行；结果只代表记录窗口内实际捕获到的请求。'
         };
     }
 
@@ -361,7 +387,10 @@ class TestChainOrchestrator {
             return {
                 totalRequests: result.summary?.totalRequests || 0,
                 targetRequests: result.summary?.targetRequests || 0,
-                reason: result.reason
+                reason: result.reason,
+                manualActionRequired: true,
+                userOperationWindowRequired: true,
+                captureWindowMs: result.captureWindowMs || null
             };
         }
         if (chain === 'method3') {
@@ -407,16 +436,16 @@ class TestChainOrchestrator {
             wechat_not_running: '未检测到电脑端微信。',
             target_window_missing: '未找到目标小程序窗口。',
             screenshot_failed: '截图能力不可用。',
-            ocr_unavailable: 'OCR 或页面识别不可用。',
-            mitmdump_missing: '未检测到 mitmdump/mitmproxy。',
-            no_request_captured: '本次录包没有捕获请求。',
-            no_target_request_detected: '录包里没有目标业务请求。',
-            template_missing: '缺少可用 API 模板。',
-            signature_corpus_missing: '签名语料缺失或为空。',
-            signature_corpus_expired: '签名语料已过期。',
-            signed_template_target_mismatch: '模板或签名语料与目标城市/坐标不匹配。',
-            proxy_not_configured: '网络出口代理未配置。',
-            request_failed: '目标接口请求失败。'
+            ocr_unavailable: '页面识别不可用。',
+            mitmdump_missing: '未检测到请求记录组件。',
+            no_request_captured: '本次记录没有捕获请求。',
+            no_target_request_detected: '记录中没有目标业务请求。',
+            template_missing: '缺少可用请求材料。',
+            signature_corpus_missing: '请求材料库缺失或为空。',
+            signature_corpus_expired: '请求材料已过期。',
+            signed_template_target_mismatch: '请求材料与目标城市或坐标不匹配。',
+            proxy_not_configured: '网络出口未配置。',
+            request_failed: '目标业务请求失败。'
         };
         return map[reason] || '链路未通过，需要查看诊断详情。';
     }
@@ -426,16 +455,16 @@ class TestChainOrchestrator {
             wechat_not_running: '先打开电脑端微信，再进入目标小程序页面。',
             target_window_missing: '在微信中打开目标小程序，并保持窗口可见。',
             screenshot_failed: '检查系统屏幕录制权限和截图脚本可执行性。',
-            ocr_unavailable: '检查 OCR 依赖或改用请求验证链路。',
-            mitmdump_missing: '安装 mitmproxy，或设置 CAPTURE_RECORDER_BIN。',
-            no_request_captured: '确认代理配置生效，然后重新操作小程序触发请求。',
+            ocr_unavailable: '检查页面识别依赖或改用请求采集链路。',
+            mitmdump_missing: '请联系运维补齐请求记录组件。',
+            no_request_captured: '确认网络出口配置生效，然后重新操作小程序触发请求。',
             no_target_request_detected: '确认目标页面发生业务请求，必要时扩大 host 过滤范围。',
-            template_missing: '先导入 HAR 学习模板，或通过请求验证链路补充材料。',
-            signature_corpus_missing: '通过方式二采集当前目标请求材料，再合并签名语料。',
-            signature_corpus_expired: '刷新当前城市签名语料后重试。',
+            template_missing: '先补充请求材料，或通过请求采集链路沉淀材料。',
+            signature_corpus_missing: '通过请求采集沉淀当前目标请求材料。',
+            signature_corpus_expired: '刷新当前城市请求材料后重试。',
             signed_template_target_mismatch: '为当前城市/坐标重新采集请求材料，避免跨城复用签名。',
-            proxy_not_configured: '配置 METHOD3_UPSTREAM_PROXY，或先使用方式一/二验证。',
-            request_failed: '查看响应状态和 AI 诊断，优先检查签名、代理和目标范围。'
+            proxy_not_configured: '配置网络出口，或先使用页面采集、请求采集验证。',
+            request_failed: '查看响应状态和智能诊断，优先检查请求材料、网络出口和目标范围。'
         };
         return map[reason] || CHAIN_META[chain]?.recommendedAction || '查看链路检查项并按阻断原因处理。';
     }
@@ -482,7 +511,7 @@ class TestChainOrchestrator {
                     assets: run.chainList
                 },
                 scope: `${run.target.city} / ${run.target.radiusKm}km`,
-                executor: { name: input.executorName || 'Global AI Agent' },
+                executor: { name: input.executorName || '全局智能助手' },
                 methods: run.chainList.map(chain => ({
                     id: CHAIN_META[chain]?.method || chain,
                     name: CHAIN_META[chain]?.label || chain,

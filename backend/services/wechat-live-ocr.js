@@ -42,8 +42,14 @@ class WechatLiveOCRService {
 
         const meta = {
             source: 'page-ocr',
+            sourceType: options.sourceType || 'page-ocr',
+            sourceStage: options.sourceStage || options.stage || 'page-capture',
             platform,
             stage: options.stage || null,
+            runId: options.runId || null,
+            city: options.city || null,
+            landmark: options.landmark || null,
+            operator: options.operator || null,
             capturedAt: new Date(timestamp).toISOString(),
             screenshotPath: screenshot.screenshotPath,
             capture: screenshot.capture,
@@ -331,6 +337,18 @@ class WechatLiveOCRService {
             selectionScore += 120;
             if (selectionReason === 'fallback') {
                 selectionReason = 'large_window';
+            }
+        }
+
+        const phoneLikeWindow = width >= 320
+            && width <= 520
+            && height >= 600
+            && height <= 940
+            && height > width * 1.25;
+        if (phoneLikeWindow) {
+            selectionScore += 650;
+            if (['fallback', 'wechat_owner', 'large_window'].includes(selectionReason)) {
+                selectionReason = 'phone_sized_window';
             }
         }
 

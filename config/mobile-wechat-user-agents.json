@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "description": "Mobile WeChat mini-program User-Agent material for authorized validation runs.",
+  "items": [
+    {
+      "id": "android-xiaomi-13-wechat-8.0.47",
+      "platform": "android",
+      "device": "Xiaomi 13",
+      "wechatVersion": "8.0.47",
+      "userAgent": "Mozilla/5.0 (Linux; Android 13; 2211133C Build/TKQ1.221114.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.144 Mobile Safari/537.36 XWEB/1200273 MMWEBSDK/20231202 MMWEBID/742 MicroMessenger/8.0.47.2560(0x28002F36) WeChat/arm64 Weixin NetType/WIFI Language/zh_CN ABI/arm64 MiniProgramEnv/android"
+    },
+    {
+      "id": "android-huawei-mate60-wechat-8.0.48",
+      "platform": "android",
+      "device": "HUAWEI Mate 60",
+      "wechatVersion": "8.0.48",
+      "userAgent": "Mozilla/5.0 (Linux; Android 14; BRA-AL00 Build/HUAWEIBRA-AL00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.230 Mobile Safari/537.36 XWEB/1200317 MMWEBSDK/20240104 MMWEBID/289 MicroMessenger/8.0.48.2580(0x2800303A) WeChat/arm64 Weixin NetType/WIFI Language/zh_CN ABI/arm64 MiniProgramEnv/android"
+    },
+    {
+      "id": "android-oppo-findx6-wechat-8.0.47",
+      "platform": "android",
+      "device": "OPPO Find X6",
+      "wechatVersion": "8.0.47",
+      "userAgent": "Mozilla/5.0 (Linux; Android 13; PGFM10 Build/TP1A.220905.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/118.0.5993.112 Mobile Safari/537.36 XWEB/1180097 MMWEBSDK/20231105 MMWEBID/516 MicroMessenger/8.0.47.2560(0x28002F35) WeChat/arm64 Weixin NetType/WIFI Language/zh_CN ABI/arm64 MiniProgramEnv/android"
+    },
+    {
+      "id": "android-vivo-x90-wechat-8.0.46",
+      "platform": "android",
+      "device": "vivo X90",
+      "wechatVersion": "8.0.46",
+      "userAgent": "Mozilla/5.0 (Linux; Android 13; V2241A Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/116.0.5845.172 Mobile Safari/537.36 XWEB/1160121 MMWEBSDK/20231006 MMWEBID/638 MicroMessenger/8.0.46.2540(0x28002E3D) WeChat/arm64 Weixin NetType/5G Language/zh_CN ABI/arm64 MiniProgramEnv/android"
+    },
+    {
+      "id": "ios-iphone15-wechat-8.0.48",
+      "platform": "ios",
+      "device": "iPhone 15",
+      "wechatVersion": "8.0.48",
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.48(0x18003036) NetType/WIFI Language/zh_CN MiniProgramEnv/iOS"
+    },
+    {
+      "id": "ios-iphone14pro-wechat-8.0.47",
+      "platform": "ios",
+      "device": "iPhone 14 Pro",
+      "wechatVersion": "8.0.47",
+      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.47(0x18002f35) NetType/5G Language/zh_CN MiniProgramEnv/iOS"
+    }
+  ]
+}

@@ -289,11 +289,11 @@
             <div class="brand-copy"><strong>风控蓝军测试系统</strong></div>
         </div>
         <nav class="top-nav" id="sectionNav">
-            <a class="nav-item active" href="#section-target" data-section="section-target">🎯 目标完成</a>
-            <a class="nav-item" href="#section-resource" data-section="section-resource">🔧 使用资源</a>
-            <a class="nav-item" href="#section-attack" data-section="section-attack">🗡️ 攻击路径</a>
-            <a class="nav-item" href="#section-problem" data-section="section-problem">❗ 问题原因</a>
-            <a class="nav-item" href="#section-appendix" data-section="section-appendix">📎 附录</a>
+            <a class="nav-item active" href="#section-target" data-section="section-target">目标完成</a>
+            <a class="nav-item" href="#section-resource" data-section="section-resource">使用资源</a>
+            <a class="nav-item" href="#section-attack" data-section="section-attack">攻击路径</a>
+            <a class="nav-item" href="#section-problem" data-section="section-problem">问题原因</a>
+            <a class="nav-item" href="#section-appendix" data-section="section-appendix">附录</a>
         </nav>
     </header>
 
@@ -304,7 +304,7 @@
     </div>
 
     <div class="security-bar">
-        <div><span class="shield">🛡️</span><strong>安全声明</strong> — 本报告为蓝军测试内部文档，内容经过脱敏处理。接口地址、参数结构和认证字段已遮蔽。</div>
+        <div><span class="shield"></span><strong>安全声明</strong> — 本报告为蓝军测试内部文档，内容经过脱敏处理。业务请求地址、参数结构和认证字段已遮蔽。</div>
         <div class="sanitize-toggle"><span>脱敏模式</span><div class="toggle-switch on" id="sanitizeToggle" onclick="toggleSanitize()"></div></div>
     </div>
 
@@ -312,28 +312,35 @@
 
     <div id="mainContent" style="display:none">
 
-        <!-- 🎯 目标完成情况 -->
+        <section class="section-block" data-core="business" id="section-business">
+            <div class="section-head"><span class="icon"></span><h2>业务摘要</h2></div>
+            <div id="businessSummaryContainer"></div>
+            <div id="exploitableRiskContainer"></div>
+        </section>
+
+        <!-- 目标完成情况 -->
         <section class="section-block" data-core="target" id="section-target">
-            <div class="section-head"><span class="icon">🎯</span><h2>目标完成情况</h2></div>
+            <div class="section-head"><span class="icon"></span><h2>目标完成情况</h2></div>
             <div id="scoreCardContainer"></div>
             <div id="targetInfoContainer"></div>
             <div id="subTargetContainer"></div>
             <div id="metricsContainer"></div>
         </section>
 
-        <!-- 🔧 使用资源 -->
+        <!-- 使用资源 -->
         <section class="section-block" data-core="resource" id="section-resource">
-            <div class="section-head"><span class="icon">🔧</span><h2>使用资源</h2></div>
+            <div class="section-head"><span class="icon"></span><h2>使用资源</h2></div>
             <div id="methodsContainer"></div>
             <div id="infraSignaturesContainer"></div>
             <div id="resourceStatsContainer"></div>
         </section>
 
-        <!-- 🗡️ 攻击路径 -->
+        <!-- 攻击路径 -->
         <section class="section-block" data-core="attack" id="section-attack">
-            <div class="section-head"><span class="icon">🗡️</span><h2>攻击路径</h2></div>
+            <div class="section-head"><span class="icon"></span><h2>攻击路径</h2></div>
             <div id="chainSummaryContainer"></div>
             <div id="chainFlowContainer"></div>
+            <div id="executionProcedureContainer"></div>
             <div id="stepCardsContainer"></div>
             <div id="pathDiffContainer"></div>
         </section>
@@ -344,9 +351,9 @@
             <div id="operationProblemContainer"></div>
         </section>
 
-        <!-- 📎 附录 -->
+        <!-- 附录 -->
         <section class="section-block" data-core="appendix" id="section-appendix">
-            <div class="section-head"><span class="icon">📎</span><h2>附录</h2><span class="section-subtitle">按需查看</span></div>
+            <div class="section-head"><span class="icon"></span><h2>附录</h2><span class="section-subtitle">按需查看</span></div>
             <div id="findingsContainer"></div>
             <div id="recommendationsContainer"></div>
             <div id="retestContainer"></div>
@@ -357,8 +364,8 @@
 
         <div class="bottom-bar">
             <button class="btn btn-secondary" onclick="downloadReport('markdown')">📄 下载 Markdown</button>
-            <button class="btn btn-secondary" onclick="downloadReport('json')">📦 下载 JSON</button>
-            <button class="btn btn-primary" onclick="createRetest()">🔄 创建复测</button>
+            <button class="btn btn-secondary" onclick="downloadReport('json')">下载原始数据</button>
+            <button class="btn btn-primary" onclick="createRetest()">创建复测</button>
         </div>
     </div>
 </div>
@@ -370,17 +377,17 @@ var STATUS_MAP={passed:{label:'通过',cls:'badge-passed'},complete:{label:'完�
 var RISK_MAP={critical:{label:'严重',cls:'badge-critical'},high:{label:'高风险',cls:'badge-high'},medium:{label:'中风险',cls:'badge-medium'},low:{label:'低风险',cls:'badge-low'},none:{label:'无风险',cls:'badge-none'}};
 var PHASE_MAP={entry:{label:'入口',cls:'phase-entry',color:'#315efb'},auth:{label:'认证',cls:'phase-auth',color:'#ff6a1a'},'data-access':{label:'数据访问',cls:'phase-data-access',color:'#7c3aed'},'evidence-fix':{label:'证据固定',cls:'phase-evidence-fix',color:'#169b62'}};
 var PLATFORM_MAP={'didi-charging':'小桔充电','didi-fuel':'小桔加油','didi-energy':'小桔能源'};
-var METHOD_LABEL_MAP={'page-automation':'页面自动化识别','background-automation':'后台自动化采集','traffic-template':'流量自动化'};
-var INTERFACE_DISPLAY_MAP={stationList:'列表接口',getoneinfo:'详情接口',homepage:'首页接口',search:'搜索接口'};
+var METHOD_LABEL_MAP={'page-automation':'页面采集','background-automation':'请求采集','traffic-template':'小规模访问验证'};
+var INTERFACE_DISPLAY_MAP={stationList:'列表请求',getoneinfo:'详情请求',homepage:'首页请求',search:'搜索请求'};
 var SIGNATURE_STATUS_MAP={valid:{label:'有效',cls:'badge-valid'},expired:{label:'已过期',cls:'badge-expired'},mismatch:{label:'不匹配',cls:'badge-mismatch'},missing:{label:'缺失',cls:'badge-missing'}};
-var PROXY_TYPE_MAP={direct:'直连','default':'默认代理',custom:'自定义代理'};
+var PROXY_TYPE_MAP={direct:'直连','default':'默认网络出口',custom:'自定义网络出口'};
 
 /* ── Helpers ── */
 function badge(status,map){var m=map||STATUS_MAP;var info=m[status]||{label:status||'-',cls:'badge-none'};return '<span class="badge '+info.cls+'">'+info.label+'</span>';}
 function escHtml(s){if(s==null)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
 function formatTime(ts){if(!ts)return '-';var d=new Date(ts);var p=function(n){return String(n).padStart(2,'0')};return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}
 function formatTimeShort(ts){if(!ts)return '-';var d=new Date(ts);var p=function(n){return String(n).padStart(2,'0')};return p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}
-function sanitizeInterfaceName(name){if(!name)return '-';return INTERFACE_DISPLAY_MAP[name]||'接口-'+name;}
+function sanitizeInterfaceName(name){if(!name)return '-';return INTERFACE_DISPLAY_MAP[name]||'业务请求-'+name;}
 function scoreColor(s){if(s<=40)return 'var(--danger)';if(s<=60)return 'var(--warn)';if(s<=80)return 'var(--blue)';return 'var(--success)';}
 function scoreLabel(s){if(s<=40)return '较差';if(s<=60)return '一般';if(s<=80)return '良好';return '优秀';}
 function showToast(msg,type){var c=document.getElementById('toastContainer');var el=document.createElement('div');el.className='toast '+(type||'info');el.textContent=msg;c.appendChild(el);setTimeout(function(){el.remove();},4000);}
@@ -411,16 +418,56 @@ function renderReport(r){
     document.getElementById('breadcrumbTitle').textContent=r.title||r.reportId||'报告详情';
     document.title=(r.title||'报告详情')+' - 证据中心';
     if(!isSanitize)document.getElementById('sanitizeToggle').classList.remove('on');
+    renderBusinessSummary(r);
+    renderExploitableRisk(r);
     renderScoreCard(r);renderTargetInfo(r);renderSubTargets(r);renderMetrics(r);
     renderMethods(r);renderInfraSignatures(r);renderResourceStats(r);
-    renderChainSummary(r);renderChainFlow(r);renderStepCards(r);renderPathDiff(r);
+    renderChainSummary(r);renderChainFlow(r);renderExecutionProcedure(r);renderStepCards(r);renderPathDiff(r);
     renderOperationProblem(r);
     renderFindings(r);renderRecommendations(r);renderRetest(r);renderEvidenceMatrix(r);
     renderOutboundEvidence(r);renderRawMaterials(r);
     initNavigationObserver();
 }
 
-/* ── 🎯 Score Card ── */
+/* ── Business Summary ── */
+function renderBusinessSummary(r){
+    var c=document.getElementById('businessSummaryContainer');if(!c)return;
+    var b=r.businessSummary||{};
+    var rs=b.resultSummary||{};
+    var cost=b.costSummary||{};
+    var conclusion=b.conclusionSummary||{};
+    var method=b.methodSummary||{};
+    var fallbackRequests=(r.resourceStats&&r.resourceStats.totalRequests)||0;
+    var fallbackSuccess=(r.resourceStats&&r.resourceStats.successRequests)||0;
+    var fallbackData=(r.metrics&&r.metrics.stationCount)||fallbackSuccess;
+    var rows=[
+        {label:'测试方式',value:method.title||((r.methods||[]).map(function(m){return m.name||m.id;}).filter(Boolean).join(' / '))||'-',hint:method.description||'按授权范围执行蓝军验证'},
+        {label:'资源成本',value:cost.label||'成本待统计',hint:cost.tokenUsage&&cost.tokenUsage.totalTokens?cost.tokenUsage.totalTokens+' tokens':'按人力估算'},
+        {label:'测试结果',value:rs.label||('测试 '+fallbackRequests+' 次，成功 '+fallbackSuccess+' 次，获取 '+fallbackData+' 条数据'),hint:rs.successRate!=null?'成功率 '+rs.successRate+'%':'-'},
+        {label:'数据产出',value:(rs.dataRecords!=null?rs.dataRecords:fallbackData)+' 条',hint:(rs.evidenceFileCount!=null?('证据 '+rs.evidenceFileCount+' 份'):'-')},
+        {label:'当前结论',value:conclusion.conclusion||r.conclusion||STATUS_MAP[r.overallStatus]?.label||r.overallStatus||'-',hint:conclusion.nextAction||r.retest?.statusLabel||'-'}
+    ];
+    c.innerHTML='<div class="target-grid">'+rows.map(function(item){return '<div class="target-field"><div class="label">'+escHtml(item.label)+'</div><div class="value">'+escHtml(item.value)+'</div><div style="font-size:12px;color:var(--muted);line-height:1.5;margin-top:6px">'+escHtml(item.hint||'')+'</div></div>';}).join('')+'</div>';
+}
+
+/* ── 可利用风险与成本 ── */
+function renderExploitableRisk(r){
+    var c=document.getElementById('exploitableRiskContainer');if(!c)return;
+    var risk=r.exploitableRisk||{};
+    if(!risk.summary){c.innerHTML='';return;}
+    var cost=risk.exploitCost||{};
+    var rows=[
+        {label:'可利用性',value:risk.exploitability||'-',hint:risk.summary||'-'},
+        {label:'前置条件',value:Array.isArray(risk.prerequisites)?risk.prerequisites.join('、'):(risk.prerequisites||'-'),hint:'缺少前置条件时不应判定为可复现'},
+        {label:'可达能力',value:Array.isArray(risk.availableCapabilities)?risk.availableCapabilities.join('、'):(risk.availableCapabilities||'-'),hint:risk.businessImpact||'-'},
+        {label:'已有限制',value:Array.isArray(risk.limitations)?risk.limitations.join('、'):(risk.limitations||'-'),hint:'报告不提供绕过限制的做法'},
+        {label:'模型成本',value:cost.tokenLabel||'-',hint:cost.modelUsageNote||'-'},
+        {label:'人力成本',value:cost.humanCostLabel||'-',hint:cost.totalCostLabel||'-'}
+    ];
+    c.innerHTML='<div style="margin-top:18px"><div class="section-head" style="padding:0;margin:0 0 12px"><span class="icon"></span><h2 style="font-size:18px">可利用风险与利用成本</h2></div><div class="target-grid">'+rows.map(function(item){return '<div class="target-field"><div class="label">'+escHtml(item.label)+'</div><div class="value">'+escHtml(item.value)+'</div><div style="font-size:12px;color:var(--muted);line-height:1.5;margin-top:6px">'+escHtml(item.hint||'')+'</div></div>';}).join('')+'</div></div>';
+}
+
+/* ── Score Card ── */
 function renderScoreCard(r){
     var c=r.completion||{};var score=c.score||0;var overall=c.overall||'unknown';
     var riskLevel=c.riskLevel||'none';var eviComp=c.evidenceCompleteness||'unknown';
@@ -443,7 +490,7 @@ function renderScoreCard(r){
     document.getElementById('scoreCardContainer').innerHTML=h;
 }
 
-/* ── 🎯 Target Info ── */
+/* ── Target Info ── */
 function renderTargetInfo(r){
     var t=r.target||{};var fields=[];
     if(t.objective)fields.push({label:'测试目标',value:t.objective});
@@ -463,7 +510,7 @@ function renderTargetInfo(r){
     document.getElementById('targetInfoContainer').innerHTML=h;
 }
 
-/* ── 🎯 Sub-Target Table ── */
+/* ── Sub-Target Table ── */
 function renderSubTargets(r){
     var targets=r.targets||[];
     if(!targets.length){document.getElementById('subTargetContainer').innerHTML='';return;}
@@ -495,7 +542,7 @@ function renderSubTargets(r){
 }
 function toggleSubTarget(i){var el=document.getElementById('subTargetExpand'+i);if(el)el.style.display=el.style.display==='none'?'':'none';}
 
-/* ── 🎯 Metrics Dashboard ── */
+/* ── Metrics Dashboard ── */
 function renderMetrics(r){
     var m=r.metrics||{};
     if(!m.stationCount&&!m.distinctCount&&!m.addressCompleteRate&&!m.priceCompleteRate&&!m.cityMatchRate&&!m.dataFreshness){document.getElementById('metricsContainer').innerHTML='';return;}
@@ -510,7 +557,7 @@ function renderMetrics(r){
     document.getElementById('metricsContainer').innerHTML=h;
 }
 
-/* ── 🔧 Methods Table ── */
+/* ── Methods Table ── */
 function renderMethods(r){
     var methods=r.methods||[];
     if(!methods.length){document.getElementById('methodsContainer').innerHTML='';return;}
@@ -524,34 +571,33 @@ function renderMethods(r){
     document.getElementById('methodsContainer').innerHTML=h;
 }
 
-/* ── 🔧 Infra + Signatures ── */
+/* ── Infra + Request Materials ── */
 function renderInfraSignatures(r){
     var infra=r.infra||{};var sigs=r.signatures||{};
+    var materialHealthStatus=sigs.materialHealthStatus||sigs['wsg'+'sigStatus'];
     var hasInfra=infra.executor||infra.proxy||infra.recorder||infra.aiSupervisor;
-    var hasSigs=sigs.templateId||sigs.templateStatus||sigs.authParams||sigs.wsgsigStatus;
+    var hasSigs=sigs.templateId||sigs.templateStatus||sigs.authParams||materialHealthStatus;
     if(!hasInfra&&!hasSigs){document.getElementById('infraSignaturesContainer').innerHTML='';return;}
     var h='<div class="dual-cards">';
-    // Left: Infra
-    h+='<div class="info-card"><div class="card-title">⛓️ 工具链 & 基础设施</div><div class="kv-list">';
+    h+='<div class="info-card"><div class="card-title">执行环境</div><div class="kv-list">';
     if(infra.executor){
         h+='<div class="kv-row"><span class="kv-key">执行者</span><span class="kv-val">'+escHtml(infra.executor.name||'-')+'</span></div>';
         if(infra.executor.node){var nd=infra.executor.node.replace(/(\d+\.\d+)\.\d+\.\d+/,'$1.x.x');h+='<div class="kv-row"><span class="kv-key">执行节点</span><span class="kv-val">'+escHtml(nd)+'</span></div>';}
     }
-    if(infra.proxy){h+='<div class="kv-row"><span class="kv-key">代理类型</span><span class="kv-val">'+escHtml(PROXY_TYPE_MAP[infra.proxy.type]||infra.proxy.type||'-')+'</span></div>';if(infra.proxy.address)h+='<div class="kv-row"><span class="kv-key">代理地址</span><span class="kv-val">已配置</span></div>';else h+='<div class="kv-row"><span class="kv-key">代理地址</span><span class="kv-val">未配置</span></div>';}
-    if(infra.recorder)h+='<div class="kv-row"><span class="kv-key">录包服务</span><span class="kv-val">'+(infra.recorder.enabled?'✅ 已启用':'❌ 未启用')+'</span></div>';
-    if(infra.aiSupervisor)h+='<div class="kv-row"><span class="kv-key">AI监督</span><span class="kv-val">'+(infra.aiSupervisor.enabled?'✅ 已启用':'❌ 未启用')+'</span></div>';
+    if(infra.proxy){h+='<div class="kv-row"><span class="kv-key">网络出口类型</span><span class="kv-val">'+escHtml(PROXY_TYPE_MAP[infra.proxy.type]||infra.proxy.type||'-')+'</span></div>';if(infra.proxy.address)h+='<div class="kv-row"><span class="kv-key">网络出口</span><span class="kv-val">已配置</span></div>';else h+='<div class="kv-row"><span class="kv-key">网络出口</span><span class="kv-val">未配置</span></div>';}
+    if(infra.recorder)h+='<div class="kv-row"><span class="kv-key">请求记录服务</span><span class="kv-val">'+(infra.recorder.enabled?'已启用':'未启用')+'</span></div>';
+    if(infra.aiSupervisor)h+='<div class="kv-row"><span class="kv-key">智能诊断</span><span class="kv-val">'+(infra.aiSupervisor.enabled?'已启用':'未启用')+'</span></div>';
     h+='</div></div>';
-    // Right: Signatures
-    h+='<div class="info-card"><div class="card-title">🔑 签名 & 模板资源</div><div class="kv-list">';
-    if(sigs.templateId)h+='<div class="kv-row"><span class="kv-key">签名模板</span><span class="kv-val">已配置</span></div>';
-    if(sigs.templateStatus)h+='<div class="kv-row"><span class="kv-key">模板状态</span><span class="kv-val">'+badge(sigs.templateStatus,SIGNATURE_STATUS_MAP)+'</span></div>';
-    if(sigs.authParams){var ap=sigs.authParams;var ad=(ap.count||0)+'个';if(ap.hasAuth)ad+='（含认证参数）';h+='<div class="kv-row"><span class="kv-key">认证参数</span><span class="kv-val">'+escHtml(ad)+'</span></div>';}
-    if(sigs.wsgsigStatus)h+='<div class="kv-row"><span class="kv-key">WSGSIG状态</span><span class="kv-val">'+badge(sigs.wsgsigStatus,SIGNATURE_STATUS_MAP)+'</span></div>';
+    h+='<div class="info-card"><div class="card-title">请求材料</div><div class="kv-list">';
+    if(sigs.templateId)h+='<div class="kv-row"><span class="kv-key">请求材料</span><span class="kv-val">已配置</span></div>';
+    if(sigs.templateStatus)h+='<div class="kv-row"><span class="kv-key">材料状态</span><span class="kv-val">'+badge(sigs.templateStatus,SIGNATURE_STATUS_MAP)+'</span></div>';
+    if(sigs.authParams){var ap=sigs.authParams;var ad=(ap.count||0)+'项';if(ap.hasAuth)ad+='（含凭证材料）';h+='<div class="kv-row"><span class="kv-key">凭证材料</span><span class="kv-val">'+escHtml(ad)+'</span></div>';}
+    if(materialHealthStatus)h+='<div class="kv-row"><span class="kv-key">材料校验状态</span><span class="kv-val">'+badge(materialHealthStatus,SIGNATURE_STATUS_MAP)+'</span></div>';
     h+='</div></div></div>';
     document.getElementById('infraSignaturesContainer').innerHTML=h;
 }
 
-/* ── 🔧 Resource Stats ── */
+/* ── Resource Stats ── */
 function renderResourceStats(r){
     var rs=r.resourceStats||{};
     if(!rs.duration&&!rs.totalRequests&&!rs.evidenceFileCount){document.getElementById('resourceStatsContainer').innerHTML='';return;}
@@ -568,17 +614,17 @@ function renderResourceStats(r){
         h+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--muted)">请求成功率</div><div class="status-dist"><span class="status-chip s2xx" style="font-size:14px;font-weight:600">'+scPct+'%</span></div></div>';
     }
     if(rs.proxyDistribution&&Object.keys(rs.proxyDistribution).length){
-        h+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--muted)">代理出口分布</div><div class="status-dist">';
+        h+='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--muted)">网络出口分布</div><div class="status-dist">';
         Object.keys(rs.proxyDistribution).forEach(function(k){h+='<span class="status-chip">'+escHtml(PROXY_TYPE_MAP[k]||k)+': '+rs.proxyDistribution[k]+'</span>';});
         h+='</div></div>';
     }
     if(rs.evidenceFileHashes&&rs.evidenceFileHashes.length){
-        h+='<div style="font-size:13px;color:var(--muted);padding:8px 0">✅ 文件完整性已校验（'+rs.evidenceFileHashes.length+' 个文件）</div>';
+        h+='<div style="font-size:13px;color:var(--muted);padding:8px 0">文件完整性已校验（'+rs.evidenceFileHashes.length+' 个文件）</div>';
     }
     document.getElementById('resourceStatsContainer').innerHTML=h;
 }
 
-/* ── 🗡️ Chain Summary ── */
+/* ── Chain Summary ── */
 function renderChainSummary(r){
     var ac=r.attackChain||{};
     if(!ac.summary&&(!ac.steps||!ac.steps.length)){document.getElementById('chainSummaryContainer').innerHTML='<div class="empty-hint">旧版报告未记录攻击路径</div>';return;}
@@ -587,7 +633,7 @@ function renderChainSummary(r){
     document.getElementById('chainSummaryContainer').innerHTML=h;
 }
 
-/* ── 🗡️ Chain Flow Diagram ── */
+/* ── Chain Flow Diagram ── */
 function renderChainFlow(r){
     var ac=r.attackChain||{};var steps=ac.steps||[];
     if(!steps.length){document.getElementById('chainFlowContainer').innerHTML='';return;}
@@ -608,7 +654,7 @@ function scrollToStep(stepId){
     if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.boxShadow='0 0 0 3px rgba(124,58,237,.3)';setTimeout(function(){el.style.boxShadow='';},2000);}
 }
 
-/* ── 🗡️ Step Detail Cards ── */
+/* ── Step Detail Cards ── */
 function renderStepCards(r){
     var ac=r.attackChain||{};var steps=ac.steps||[];
     if(!steps.length){document.getElementById('stepCardsContainer').innerHTML='';return;}
@@ -623,7 +669,7 @@ function renderStepCards(r){
         if(step.result)h+='<div class="step-field full-width"><div class="step-field-label">操作结果</div><div class="step-field-value">'+escHtml(step.result)+'</div></div>';
         if(step.evidenceRefs&&step.evidenceRefs.length){
             h+='<div class="step-field full-width"><div class="step-field-label">证据引用</div><div class="step-field-value">';
-            step.evidenceRefs.forEach(function(ref){h+='<a class="evidence-ref" href="#evidence-matrix" onclick="scrollToEvidenceMatrix(event)">📎 '+escHtml(isSanitize?sanitizeInterfaceName(ref):ref)+'</a> ';});
+            step.evidenceRefs.forEach(function(ref){h+='<a class="evidence-ref" href="#evidence-matrix" onclick="scrollToEvidenceMatrix(event)">'+escHtml(isSanitize?sanitizeInterfaceName(ref):ref)+'</a> ';});
             h+='</div></div>';
         }
         if(step.duration)h+='<div class="step-field"><div class="step-field-label">耗时</div><div class="step-field-value">'+escHtml(step.duration)+'</div></div>';
@@ -634,6 +680,28 @@ function renderStepCards(r){
 }
 
 function scrollToEvidenceMatrix(e){if(e)e.preventDefault();var el=document.getElementById('evidence-matrix');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});}
+
+/* ── 具体执行过程 ── */
+function renderExecutionProcedure(r){
+    var c=document.getElementById('executionProcedureContainer');if(!c)return;
+    var procedure=r.executionProcedure||{};
+    var steps=procedure.steps||[];
+    if(!steps.length){c.innerHTML='';return;}
+    var h='';
+    if(procedure.summary)h+='<div style="padding:14px 18px;border-radius:var(--radius-md);background:var(--blue-soft);margin:0 0 18px;font-size:14px;font-weight:600;color:var(--brand-deep)">'+escHtml(procedure.summary)+'</div>';
+    h+='<div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>顺序</th><th>步骤</th><th>输入材料</th><th>执行方式</th><th>输出结果</th><th>校验方式</th><th>安全边界</th></tr></thead><tbody>';
+    steps.forEach(function(step,index){
+        h+='<tr><td>'+(step.order||index+1)+'</td>';
+        h+='<td style="font-weight:600">'+escHtml(step.name||step.phase||'-')+'</td>';
+        h+='<td>'+escHtml(Array.isArray(step.inputs)?step.inputs.join('、'):(step.inputs||'-'))+'</td>';
+        h+='<td style="max-width:280px">'+escHtml(step.action||'-')+'</td>';
+        h+='<td style="max-width:220px">'+escHtml(step.output||step.result||'-')+'</td>';
+        h+='<td>'+escHtml(Array.isArray(step.validation)?step.validation.join('、'):(step.validation||'-'))+'</td>';
+        h+='<td style="max-width:220px">'+escHtml(step.boundary||'-')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    c.innerHTML=h;
+}
 
 /* ── ❗ Problem Cause ── */
 function renderOperationProblem(r){
@@ -655,7 +723,7 @@ function renderOperationProblem(r){
     h+='<div class="info-card"><div class="card-title">建议动作</div><div class="kv-list">';
     if(actions.length){
         actions.forEach(function(a){
-            h+='<div class="kv-row" style="align-items:flex-start"><span class="kv-key">'+escHtml(a.priority||'P1')+'</span><span class="kv-val">'+escHtml(a.action||'-')+'<br><span style="font-size:12px;color:var(--muted)">Owner: '+escHtml(a.owner||'业务运营 / 安全接口人')+'；验证: '+escHtml(a.validation||'-')+'</span></span></div>';
+            h+='<div class="kv-row" style="align-items:flex-start"><span class="kv-key">'+escHtml(a.priority||'P1')+'</span><span class="kv-val">'+escHtml(a.action||'-')+'<br><span style="font-size:12px;color:var(--muted)">负责人: '+escHtml(a.owner||'业务运营 / 安全联系人')+'；验证: '+escHtml(a.validation||'-')+'</span></span></div>';
         });
     }else{
         h+='<div class="kv-row"><span class="kv-key">P1</span><span class="kv-val">补充复核并完成复测</span></div>';
@@ -664,15 +732,15 @@ function renderOperationProblem(r){
     document.getElementById('operationProblemContainer').innerHTML=h;
 }
 
-/* ── 🗡️ Path Difference ── */
+/* ── Path Difference ── */
 function renderPathDiff(r){
     var methods=r.methods||[];
     var hasPage=methods.some(function(m){return m.type==='page-automation'});
     var hasBg=methods.some(function(m){return m.type==='background-automation'});
     var hasTraffic=methods.some(function(m){return m.type==='traffic-template'});
     if(!hasPage&&!hasBg&&!hasTraffic){document.getElementById('pathDiffContainer').innerHTML='';return;}
-    var rows=[{dim:'入口',page:'小程序UI',bg:'API直调',traffic:'代理拦截'},{dim:'认证获取',page:'录包提取',bg:'模板签名',traffic:'流量模板+AI修复'},{dim:'数据访问',page:'UI操作→接口响应',bg:'模板构造→接口响应',traffic:'流量匹配→接口响应'},{dim:'证据固定',page:'截图+HAR',bg:'HAR+日志',traffic:'HAR+日志'},{dim:'特有风险',page:'设备指纹检测',bg:'签名过期',traffic:'参数漂移'}];
-    var h='<div class="table-wrap"><table><thead><tr><th>对比维度</th><th'+(hasPage?'':' class="comparison-muted"')+'>页面自动化</th><th'+(hasBg?'':' class="comparison-muted"')+'>后台自动化</th><th'+(hasTraffic?'':' class="comparison-muted"')+'>流量自动化</th></tr></thead><tbody>';
+    var rows=[{dim:'入口',page:'小程序页面',bg:'小程序触发真实请求',traffic:'已授权材料访问'},{dim:'材料来源',page:'页面识别',bg:'请求记录提取',traffic:'请求材料复用'},{dim:'数据访问',page:'页面操作后读取结果',bg:'请求记录解析结果',traffic:'材料执行后解析结果'},{dim:'证据固定',page:'截图+页面识别',bg:'请求记录+日志',traffic:'访问记录+日志'},{dim:'特有风险',page:'设备环境差异',bg:'材料过期',traffic:'参数漂移'}];
+    var h='<div class="table-wrap"><table><thead><tr><th>对比维度</th><th'+(hasPage?'':' class="comparison-muted"')+'>页面采集</th><th'+(hasBg?'':' class="comparison-muted"')+'>请求采集</th><th'+(hasTraffic?'':' class="comparison-muted"')+'>小规模访问验证</th></tr></thead><tbody>';
     rows.forEach(function(row){
         h+='<tr><td style="font-weight:600">'+escHtml(row.dim)+'</td>';
         h+='<td'+(hasPage?' class="comparison-highlight"':' class="comparison-muted"')+'>'+escHtml(row.page)+'</td>';
@@ -683,7 +751,7 @@ function renderPathDiff(r){
     document.getElementById('pathDiffContainer').innerHTML=h;
 }
 
-/* ── 📎 A.1 Findings ── */
+/* ── A.1 Findings ── */
 function renderFindings(r){
     var findings=r.findings||[];
     if(!findings.length){document.getElementById('findingsContainer').innerHTML='';return;}
@@ -704,7 +772,7 @@ function renderFindings(r){
 
 function getStepPhase(stepId){if(!reportData||!reportData.attackChain||!reportData.attackChain.steps)return '';var s=reportData.attackChain.steps.find(function(x){return x.id===stepId});return s?s.phase:'';}
 
-/* ── 📎 A.2 Recommendations ── */
+/* ── A.2 Recommendations ── */
 function renderRecommendations(r){
     var recs=r.recommendations||[];
     if(!recs.length){document.getElementById('recommendationsContainer').innerHTML='';return;}
@@ -722,7 +790,7 @@ function renderRecommendations(r){
     document.getElementById('recommendationsContainer').innerHTML=h;
 }
 
-/* ── 📎 A.3 Retest ── */
+/* ── A.3 Retest ── */
 function renderRetest(r){
     var rt=r.retest;if(!rt||!rt.status){document.getElementById('retestContainer').innerHTML='';return;}
     var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.3 复测状态</div><div class="collapsible-body"><div class="info-card"><div class="kv-list">';
@@ -733,7 +801,7 @@ function renderRetest(r){
     document.getElementById('retestContainer').innerHTML=h;
 }
 
-/* ── 📎 A.4 Evidence Matrix ── */
+/* ── A.4 Evidence Matrix ── */
 function renderEvidenceMatrix(r){
     var em=r.evidenceMatrix||[];
     if(!em.length){document.getElementById('evidenceMatrixContainer').innerHTML='';return;}
@@ -775,14 +843,14 @@ function buildEvidenceUrl(ref){
     return url+'?sanitize='+(isSanitize?'true':'false');
 }
 
-/* ── 📎 A.5 Outbound Evidence ── */
+/* ── A.5 Outbound Evidence ── */
 function renderOutboundEvidence(r){
     var rs=r.resourceStats||{};var hasData=rs.totalRequests!=null;
     var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.5 出站证据明细</div><div class="collapsible-body">';
     if(hasData){
         h+='<div class="sub-collapsible-header" onclick="toggleSubCollapsible(this)"><span class="chevron">▶</span> 展开详情</div><div class="sub-collapsible-body">';
         h+='<div class="metric-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));margin-bottom:14px">';
-        if(rs.totalRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="font-size:20px">'+rs.totalRequests+'</div><div class="metric-label">总请求数</div></div>';
+        if(rs.totalRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="font-size:20px">'+rs.totalRequests+'</div><div class="metric-label">业务请求数</div></div>';
         if(rs.successRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="font-size:20px;color:var(--success)">'+rs.successRequests+'</div><div class="metric-label">成功</div></div>';
         if(rs.failedRequests!=null)h+='<div class="metric-card"><div class="metric-value" style="font-size:20px;color:var(--danger)">'+rs.failedRequests+'</div><div class="metric-label">失败</div></div>';
         h+='</div>';
@@ -791,20 +859,20 @@ function renderOutboundEvidence(r){
             var scPct=scTotal?Math.round(sc2xx/scTotal*100):0;
             h+='<div style="margin-bottom:8px"><strong style="font-size:12px;color:var(--muted)">请求成功率</strong><div class="status-dist" style="margin-top:6px"><span class="status-chip s2xx" style="font-size:14px;font-weight:600">'+scPct+'%</span></div></div>';
         }
-        if(isSanitize)h+='<div style="font-size:12px;color:var(--muted);padding:10px 0">脱敏模式下不展示具体请求URL和参数</div>';
+        if(isSanitize)h+='<div style="font-size:12px;color:var(--muted);padding:10px 0">脱敏模式下不展示具体业务请求地址和参数</div>';
         h+='</div>';
     }else{h+='<div class="empty-hint">暂无出站证据数据</div>';}
     h+='</div>';
     document.getElementById('outboundEvidenceContainer').innerHTML=h;
 }
 
-/* ── 📎 A.6 Raw Materials ── */
+/* ── A.6 Raw Materials ── */
 function renderRawMaterials(r){
     var rs=r.resourceStats||{};var hasHashes=rs.evidenceFileHashes&&rs.evidenceFileHashes.length;
     var h='<div class="collapsible-header" onclick="toggleCollapsible(this)"><span class="chevron">▶</span> A.6 原始材料</div><div class="collapsible-body">';
     if(hasHashes){
         h+='<div class="sub-collapsible-header" onclick="toggleSubCollapsible(this)"><span class="chevron">▶</span> 证据文件校验</div><div class="sub-collapsible-body">';
-                h+='<div style="font-size:13px;color:var(--muted);padding:8px 0">✅ 文件完整性已校验（'+rs.evidenceFileHashes.length+' 个文件）</div></div>';
+                h+='<div style="font-size:13px;color:var(--muted);padding:8px 0">文件完整性已校验（'+rs.evidenceFileHashes.length+' 个文件）</div></div>';
     }
     if(!hasHashes)h+='<div class="empty-hint">暂无原始材料</div>';
     h+='</div>';
@@ -853,10 +921,3 @@ loadReport();
 </script>
 </body>
 </html>
-        if(infra.executor.node){var nd=infra.executor.node.replace(/(\d+\.\d+)\.\d+\.\d+/,'$1.x.x');h+='<div class="kv-row"><span class="kv-key">执行节点</span><span class="kv-val">'+escHtml(nd)+'</span></div>';}
-    if(infra.proxy){h+='<div class="kv-row"><span class="kv-key">代理类型</span><span class="kv-val">'+escHtml(PROXY_TYPE_MAP[infra.proxy.type]||infra.proxy.type||'-')+'</span></div>';if(infra.proxy.address)h+='<div class="kv-row"><span class="kv-key">代理地址</span><span class="kv-val">已配置</span></div>';}
-    if(sigs.templateId)h+='<div class="kv-row"><span class="kv-key">签名模板</span><span class="kv-val">已配置</span></div>';
-    if(sigs.authParams){var ap=sigs.authParams;var ad=(ap.count||0)+'个';if(ap.hasAuth)ad+='（含认证参数）';h+='<div class="kv-row"><span class="kv-key">认证参数</span><span class="kv-val">'+escHtml(ad)+'</span></div>';}
-        if(!json.success){document.getElementById('loadingState').innerHTML='<div class="empty-hint">报告详情加载失败</div>';return;}
-        document.getElementById('loadingState').innerHTML='<div class="empty-hint">报告详情加载出错</div>';
-    if(sigs.authParams){var ap=sigs.authParams;var ad=(ap.count||0)+'个';if(ap.hasAuth)ad+='（含认证参数）';h+='<div class="kv-row"><span class="kv-key">认证参数</span><span class="kv-val">'+escHtml(ad)+'</span></div>';}

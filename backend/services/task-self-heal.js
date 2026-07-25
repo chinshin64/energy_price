@@ -1,7 +1,7 @@
 const CHAIN_LABELS = {
-    api: '流量自动化识别',
-    har: '后台自动化识别',
-    page: '页面自动化识别'
+    api: '小规模访问验证',
+    har: '请求采集',
+    page: '页面采集'
 };
 
 const DEFAULT_CHAIN_PRIORITY = ['api', 'har', 'page'];
@@ -29,26 +29,26 @@ const DEFAULT_SETTINGS = {
 const SCENARIO_MAP = {
     api_501_burst: {
         code: 'api_501_blocked',
-        title: '流量自动化识别当前能力异常',
-        message: '短时间内出现连续 501，优先检查模板样本、参数改写、UA、代理和解析器是否与当前请求匹配。',
+        title: '小规模访问验证当前能力异常',
+        message: '短时间内出现连续异常返回，优先检查请求材料、参数、请求身份、网络出口和解析器是否与当前目标匹配。',
         severity: 'high'
     },
     api_empty_payload: {
         code: 'api_empty_payload',
-        title: '流量自动化识别返回空数据',
-        message: '接口已响应但无有效场站，优先检查响应体、分页参数、模板范围和解析器命中情况。',
+        title: '小规模访问验证返回空数据',
+        message: '请求已响应但无有效场站，优先检查响应内容、分页参数、材料范围和解析器命中情况。',
         severity: 'medium'
     },
     har_not_recording: {
         code: 'capture_recorder_not_recording',
-        title: '内置录包服务未正常录制',
-        message: '录制状态异常或导出链路中断，需要检查内置录包进程、代理监听、证书信任、目标域名过滤和 HAR 文件增长情况。',
+        title: '请求记录服务未正常记录',
+        message: '记录状态异常或导出链路中断，需要检查请求记录进程、网络监听、证书信任、目标域名过滤和记录文件增长情况。',
         severity: 'high'
     },
     page_no_station_found: {
         code: 'page_no_station_found',
         title: '页面识别未找到场站',
-        message: '当前页面识别不到列表或详情卡片，需要检查微信窗口、截图、OCR、滚动脚本和页面状态识别。',
+        message: '当前页面识别不到列表或详情卡片，需要检查微信窗口、截图、页面识别、滚动脚本和页面状态识别。',
         severity: 'medium'
     },
     session_stalled: {
@@ -59,14 +59,14 @@ const SCENARIO_MAP = {
     },
     template_missing: {
         code: 'template_missing',
-        title: '平台缺少可用模板',
-        message: '当前平台没有可直接执行的模板，需要检查模板库存、启用状态、列表/详情覆盖和最近学习结果。',
+        title: '平台缺少可用请求材料',
+        message: '当前平台没有可直接执行的请求材料，需要检查材料库存、启用状态、列表/详情覆盖和最近学习结果。',
         severity: 'high'
     },
     proxy_blocked: {
         code: 'proxy_blocked',
-        title: '代理链路不可用',
-        message: '代理出口异常或质量下降，需要检查代理格式、连通性、城市出口和请求侧代理注入是否生效。',
+        title: '网络出口不可用',
+        message: '网络出口异常或质量下降，需要检查出口格式、连通性、城市出口和请求侧出口配置是否生效。',
         severity: 'high'
     },
     wechat_window_lost: {
@@ -228,10 +228,10 @@ class TaskSelfHealService {
 
         checks.push({
             status: networkSettings.enabled ? 'pass' : 'warn',
-            label: '代理出口',
+            label: '网络出口',
             message: networkSettings.enabled
-                ? '代理能力已配置，API 异常时会先检查代理是否真实生效'
-                : '当前未启用代理，API 异常时会优先检查模板、参数、UA 和解析器'
+                ? '网络出口能力已配置，业务请求异常时会先检查出口是否真实生效'
+                : '当前未启用网络出口，业务请求异常时会优先检查请求材料、参数和解析器'
         });
 
         if (payload.previewMode) {
@@ -282,10 +282,10 @@ class TaskSelfHealService {
 
             add(
                 scenario === 'template_missing' || activeTemplateCount === 0 ? 'fail' : 'pass',
-                'API 模板库存',
+                '请求材料库存',
                 activeTemplateCount === 0
                     ? '当前平台没有启用中的列表或详情模板。'
-                    : '检查当前平台是否存在启用模板、列表/详情覆盖和最近学习样本。',
+                    : '检查当前平台是否存在启用材料、列表/详情覆盖和最近学习样本。',
                 'validate_template_inventory'
             );
             add(
@@ -293,7 +293,7 @@ class TaskSelfHealService {
                 '签名与请求参数',
                 paramsMissing.length > 0
                     ? `缺少或疑似失效参数：${paramsMissing.join('、')}。`
-                    : '校验经纬度、分页、站点 ID、wsgsig/secdd 等动态参数是否与当前请求一致。',
+                    : '校验经纬度、分页、站点 ID 和时间类参数是否与当前请求一致。',
                 'validate_signed_params'
             );
             add(
@@ -301,7 +301,7 @@ class TaskSelfHealService {
                 '返回码健康度',
                 status501Count
                     ? `连续 501 次数 ${status501Count}，已达到或接近阈值。`
-                    : '统计当前模板最近请求的 501、304、空 JSON 和超时占比。',
+                    : '统计当前请求材料最近请求的异常返回、空响应和超时占比。',
                 'inspect_status_distribution'
             );
             add(
@@ -322,10 +322,10 @@ class TaskSelfHealService {
             );
             add(
                 networkSettings.enabled ? 'pass' : 'warn',
-                'UA 与代理注入',
+                '请求身份与网络出口',
                 networkSettings.enabled
-                    ? '检查真实 UA 轮换和代理出口是否实际进入 API 请求。'
-                    : '未配置代理时，仅检查 UA 轮换和请求头一致性。',
+                    ? '检查请求身份和网络出口是否实际生效。'
+                    : '未配置网络出口时，仅检查请求身份和请求头一致性。',
                 'validate_identity_layer'
             );
             return diagnostics;
@@ -334,20 +334,20 @@ class TaskSelfHealService {
         if (currentChain === 'har') {
             add(
                 scenario === 'har_not_recording' ? 'fail' : 'pass',
-                '内置录包状态',
-                '检查系统录包进程、代理监听、证书信任和目标域名过滤是否正常。',
+                '请求记录状态',
+                '检查系统请求记录进程、网络监听、证书信任和目标域名过滤是否正常。',
                 'check_har_recording'
             );
             add(
                 scenario === 'har_not_recording' ? 'warn' : 'pass',
-                'HAR 文件增长',
-                '确认最新 HAR 文件存在、非空、持续增长且没有被截断。',
+                '请求记录文件增长',
+                '确认最新请求记录文件存在、非空、持续增长且没有被截断。',
                 'validate_har_growth'
             );
             add(
                 'pass',
-                'HAR 解析器',
-                '复测最新 HAR 是否能识别平台、接口、场站、枪型、价格和闲忙字段。',
+                '请求记录解析',
+                '复测最新请求记录是否能识别平台、场站、枪型、价格和闲忙字段。',
                 'validate_har_parser'
             );
             return diagnostics;
@@ -391,15 +391,15 @@ class TaskSelfHealService {
 
         switch (scenario) {
         case 'api_501_burst':
-            add('validate_signed_params', '校验动态签名与请求参数', '检查当前模板里的 wsgsig/secdd、经纬度、分页、站点 ID 和时间类参数是否与当前请求匹配。');
+            add('validate_signed_params', '校验请求材料参数', '检查当前请求材料里的经纬度、分页、站点 ID 和时间类参数是否与当前请求匹配。');
             if (settings.autoTemplateSwitch) {
-                add('validate_template_candidate', '校验候选模板', '优先在 API 能力内校验同平台候选模板，不切换到其他采集链路。');
+                add('validate_template_candidate', '校验候选请求材料', '优先在当前能力内校验同平台候选材料，不切换到其他采集链路。');
             }
             if (settings.autoUaRotate) {
-                add('rotate_user_agent', '轮换真实 UA', '自动改用另一条真实可信的 UA 组合后重试请求。');
+                add('rotate_user_agent', '切换请求身份组合', '自动改用另一条可信请求身份组合后重试。');
             }
             if (settings.autoProxyRotate && networkSettings.enabled) {
-                add('validate_or_rotate_proxy', '检测代理出口', '验证当前请求是否走代理；若代理不可用，再更换同类代理出口重试。');
+                add('validate_or_rotate_proxy', '检测网络出口', '验证当前请求是否命中网络出口；若出口不可用，再更换同类出口重试。');
             }
             if (settings.autoRefreshLearning) {
                 add('refresh_learning', '补学习最新样本', '触发短时样本学习，刷新模板池里的最新请求样本。');
@@ -409,14 +409,14 @@ class TaskSelfHealService {
             add('validate_latest_request', '校验当前目标请求', '按当前目标位置重新发起模板请求，确认是否为分页、城市范围或参数改写问题。');
             add('validate_parser_mapping', '校验解析字段映射', '检查列表页和详情页的场站名、地址、枪型、闲忙枪数和分时价格字段是否命中。');
             if (settings.autoTemplateSwitch) {
-                add('validate_template_candidate', '校验空响应模板', '在 API 模板池内复测候选样本，确认是否为分页、城市范围或参数改写问题。');
+                add('validate_template_candidate', '校验空响应材料', '在请求材料池内复测候选样本，确认是否为分页、城市范围或参数改写问题。');
             }
             break;
         case 'har_not_recording':
-            add('check_har_recording', '检查内置录包', '确认系统录包进程、代理监听、证书信任和目标域名过滤是否正常。');
-            add('restart_har_recording', '重置内置录包', '自动停止并重新开启录制，同时重绑新的 HAR 会话文件。');
-            add('clear_temp_export', '清理损坏导出文件', '剔除空 HAR、截断文件或无法解析的临时导出。');
-            add('validate_har_parser', '复测 HAR 解析器', '使用最新非空 HAR 复测平台、接口、枪型、价格和闲忙字段解析。');
+            add('check_har_recording', '检查请求记录', '确认系统请求记录进程、网络监听、证书信任和目标域名过滤是否正常。');
+            add('restart_har_recording', '重置请求记录', '自动停止并重新开启记录，同时绑定新的记录会话。');
+            add('clear_temp_export', '清理损坏导出文件', '剔除空文件、截断文件或无法解析的临时导出。');
+            add('validate_har_parser', '复测请求记录解析', '使用最新非空请求记录复测平台、枪型、价格和闲忙字段解析。');
             break;
         case 'page_no_station_found':
             add('check_wechat_window', '确认微信窗口', '检查小程序窗口是否置前、未丢失焦点，并仍在目标列表或详情页。');
@@ -432,15 +432,15 @@ class TaskSelfHealService {
             break;
         case 'template_missing':
             if (settings.autoRefreshLearning) {
-                add('learn_template', '自动补学习模板', '优先从最新系统 HAR 中补入可用模板。');
+                add('learn_template', '自动补学习请求材料', '优先从最新系统请求记录中补入可用材料。');
             }
-            add('validate_template_scope', '校验模板范围', '检查平台、列表页、详情页、城市坐标和启用状态，避免可用模板被误判为缺失。');
+            add('validate_template_scope', '校验请求材料范围', '检查平台、列表页、详情页、城市坐标和启用状态，避免可用材料被误判为缺失。');
             break;
         case 'proxy_blocked':
             if (settings.autoProxyRotate) {
-                add('validate_or_rotate_proxy', '检测代理节点', '先确认当前请求是否真实走代理；代理不可用时再更换同类出口。');
+                add('validate_or_rotate_proxy', '检测网络出口', '先确认当前请求是否真实命中网络出口；出口不可用时再更换同类出口。');
             }
-            add('recheck_network', '复测网络链路', '对新代理或直连链路做一次轻量连通性验证。');
+            add('recheck_network', '复测网络链路', '对新出口或直连链路做一次轻量连通性验证。');
             break;
         case 'wechat_window_lost':
             add('focus_wechat', '重新激活微信窗口', '将微信置前并回到目标小程序，恢复后续自动化动作。');

@@ -1,87 +1,125 @@
-# 核心接口速查
+# 服务能力速查
 
-## 基础
+本文面向产品、运营和安全验证同学，用于快速理解系统具备哪些能力。具体服务路径、调用参数和内部字段属于开发附录，不在普通使用文档中展示。
 
-| 接口 | 方法 | 说明 |
-| --- | --- | --- |
-| `/api/config` | GET | 当前运行模式、平台、基础配置 |
-| `/api/stations/recent` | GET | 最近场站 |
-| `/api/stations/range` | GET | 按时间范围查询场站 |
-| `/api/stations/deduplicate` | POST | 执行统一去重 |
-| `/api/export/csv` | GET | 导出 CSV |
+## 数据中心
+
+数据中心负责统一展示、去重和导出场站数据。
+
+主要能力：
+
+- 查看最近采集到的场站。
+- 按时间范围查询历史快照。
+- 执行统一去重。
+- 导出脱敏后的数据文件。
+- 查看不同平台的字段完整性和数据更新时间。
 
 ## 手机同步与控制
 
-这些接口已取消 `MOBILE_SYNC_TOKEN` 校验，访问权限由部署网络边界控制。
+手机同步与控制用于把移动端页面状态、识别文本和执行结果回传到主端。
 
-| 接口 | 方法 | 说明 |
-| --- | --- | --- |
-| `/api/mobile-sync/config` | GET | 手机端同步配置 |
-| `/api/mobile-sync/devices/register` | POST | 手机注册控制会话 |
-| `/api/mobile-sync/commands/poll` | GET | 手机轮询待执行命令 |
-| `/api/mobile-sync/commands/:id/result` | POST | 手机回传命令结果 |
-| `/api/mobile-sync/ocr` | POST | 上传 OCR 文本行 |
-| `/api/mobile-sync/stations` | POST | 上传手机端解析后的场站 |
-| `/api/mobile-sync/supervisor` | POST | 上传 AI/规则监督事件 |
-| `/api/mobile-control/browser-session` | POST | 兼容旧前端的无鉴权会话接口，返回 authMode=disabled |
-| `/api/mobile-control/devices` | GET | 查看在线设备 |
-| `/api/mobile-control/commands` | GET/POST | 查询或下发单条命令 |
-| `/api/mobile-control/workflows` | GET | 查询手机工作流 |
-| `/api/mobile-control/workflows/city-increment/start` | POST | 启动多城市增量采集工作流 |
-| `/api/mobile-control/interaction/config` | GET | 查询 DCC/规则解析配置 |
-| `/api/mobile-control/chat` | POST | 自然语言对话并下发命令 |
-| `/api/mobile-control/chat/sessions` | GET | 查询对话会话 |
+主要能力：
 
-## 后台自动化识别
+- 查看在线设备。
+- 下发单条操作指令。
+- 启动多城市增量采集工作流。
+- 读取手机端页面识别结果。
+- 汇总规则监督和智能诊断事件。
+- 通过自然语言生成可执行指令。
 
-| 接口 | 方法 | 说明 |
-| --- | --- | --- |
-| `/api/smart-collect/preflight` | POST | 自动化前置检查 |
-| `/api/smart-collect/start` | POST | 启动自动化会话 |
-| `/api/smart-collect/scroll` | POST | 执行一次或多次下滑 |
-| `/api/smart-collect/status/:sessionId` | GET | 查询会话状态 |
-| `/api/smart-collect/finish` | POST | 结束会话 |
-| `/api/smart-collect/sessions` | GET | 查询会话列表 |
-| `/api/smart-collect/cancel` | POST | 取消会话 |
+普通用户通过 OIDC 或受信 SSO 代理完成身份验证；移动设备和同步节点使用独立机器凭据，不能只依赖内网边界。
 
-## HAR 与模板
+## 页面采集
 
-| 接口 | 方法 | 说明 |
-| --- | --- | --- |
-| `/api/parse-charles` | POST | 解析 Charles/HAR 文件路径 |
-| `/api/parse-har-upload` | POST | 上传 HAR 并解析入库 |
-| `/api/crawler/learn` | POST | 从请求样本学习模板 |
-| `/api/crawler/learn-upload` | POST | 上传 HAR 学习模板 |
-| `/api/capture-recorder/status` | GET | 查询内置录包服务状态、监听端口和最近 HAR 会话 |
-| `/api/capture-recorder/start` | POST | 启动系统录包服务，生成 HAR 会话 |
-| `/api/capture-recorder/stop` | POST | 停止当前系统录包服务 |
-| `/api/templates` | GET/POST | 查询或新增模板 |
-| `/api/templates/batch` | POST | 批量保存模板 |
-| `/api/templates/deduplicate` | POST | 清理重复模板 |
-| `/api/templates/:id` | GET/PUT/DELETE | 模板详情、更新、删除 |
-| `/api/templates/platform/:platform` | GET | 查询平台模板 |
-| `/api/templates/:id/use` | POST | 使用指定模板采集 |
+页面采集用于按用户视角读取微信小程序页面。
 
-## 流量自动化识别
+主要能力：
 
-| 接口 | 方法 | 说明 |
-| --- | --- | --- |
-| `/api/outbound/status` | GET | 查询统一出口配置摘要和最近请求证据 |
-| `/api/outbound/evidence/recent` | GET | 查询最近服务器侧外部请求证据 |
-| `/api/crawler/run-quota` | GET/PUT | 查询或更新当次请求上限 |
-| `/api/crawler/generate-grid` | POST | 生成地标周边坐标网格 |
-| `/api/crawler/crawl` | POST | 执行模板采集；响应包含 `preflightDiagnostics`，用于说明签名模板跨城保护等前置跳过原因 |
-| `/api/crawler/crawl-platforms-with-coordinates` | POST | 同步执行多平台坐标采集 |
-| `/api/crawler/crawl-platforms-with-coordinates/start` | POST | 异步启动多平台坐标采集；支持单任务多 `targetLocations`，每个目标独立请求预算和 `proxyContext` |
+- 做页面环境检查。
+- 启动页面采集任务。
+- 执行下滑、返回、切换城市、点击文本等操作。
+- 读取页面截图或文本识别结果。
+- 将页面可见字段整理后入库。
 
-## 定时任务与自愈
+适用于请求记录不可解析、页面内容已经足够支撑验证的场景。
 
-| 接口 | 方法 | 说明 |
-| --- | --- | --- |
-| `/api/schedules` | GET/POST | 查询或创建定时任务 |
-| `/api/schedules/:id/drill` | POST | 演练任务 |
-| `/api/schedules/:id` | DELETE | 删除任务 |
-| `/api/self-heal/settings` | GET/PUT | 自愈配置 |
-| `/api/self-heal/runs` | GET | 自愈记录 |
-| `/api/self-heal/diagnose` | POST | 诊断异常 |
-| `/api/self-heal/apply` | POST | 应用恢复动作 |
+## 请求采集
+
+请求采集用于通过电脑端小程序触发真实业务请求，并由系统记录、解析和入库。
+
+主要能力：
+
+- 检查请求记录服务是否可用。
+- 启动和停止请求记录会话。
+- 自动操控小程序完成搜索、列表和详情访问。
+- 生成请求摘要和响应摘要。
+- 将业务请求解析为场站数据并入库。
+- 将可复用请求材料沉淀到材料库。
+
+适用于页面识别不稳定，但业务请求可以解析的场景。
+
+## 小规模访问验证
+
+小规模访问验证用于在授权范围内验证指定城市或地标的数据访问风险。
+
+主要能力：
+
+- 生成目标地标周边坐标范围。
+- 解析城市或地标时保留坐标系元数据；本地预设为 `WGS84`，高德地理编码为 `GCJ02`。
+- 控制单次请求预算。
+- 使用已验证的请求材料访问目标平台。
+- 按城市记录网络出口命中情况。
+- 生成可进入报告的请求证据摘要。
+- 对低风险异常给出智能修复建议。
+
+该能力必须受请求次数、目标范围和网络出口策略约束。
+
+## 报告与证据
+
+报告与证据能力用于把验证过程转成可复核、可归档的结论。
+
+主要能力：
+
+- 查看报告列表和报告详情。
+- 按平台、城市、结论和风险等级筛选。
+- 下载脱敏报告。
+- 创建复测任务。
+- 引用页面证据、请求证据和数据库校验结果。
+
+默认展示脱敏内容。完整数据只应在授权审计场景下查看。
+
+## 定时任务与智能诊断
+
+定时任务与智能诊断用于持续运行已确认的验证流程，并在异常时给出处理建议。
+
+主要能力：
+
+- 创建和启停定时任务。
+- 持久化 Cron、时区、下次运行和最近执行结果，服务重启后恢复已启用任务。
+- 支持立即运行；后台执行返回接受状态，运行进度进入任务记录。
+- 演练任务配置。
+- 查看自动排查记录。
+- 诊断失败原因。
+- 对低风险问题生成处理建议。
+
+智能诊断不得自动生成或猜测账号凭证、会话凭据，也不得绕过登录态、验证码或平台访问控制。
+# Edge Agent 协同接口
+
+主端管理接口使用产品现有用户鉴权：
+
+- `GET /api/edge/status`：节点和任务汇总。
+- `GET /api/edge/nodes`：统一节点列表；管理员可用 `includeIp=true` 查看完整观测 IP。
+- `GET /api/edge/tasks?limit=100`：最近任务。
+- `POST /api/edge/tasks`：按能力、目标属地或明确节点创建任务。
+- `POST /api/edge/tasks/:id/cancel`：取消未终态任务。
+
+设备接口使用 enrollment token 完成首次登记，之后使用节点独立 session token：
+
+- `POST /api/edge/v1/nodes/register`
+- `POST /api/edge/v1/nodes/heartbeat`
+- `GET /api/edge/v1/tasks/poll`
+- `POST /api/edge/v1/tasks/:id/result`
+- `POST /api/edge/v1/tasks`：仅允许具备委派权限的控制节点创建子任务。
+
+严格属地任务只会租给 IP 属地已验证且匹配的在线节点。服务位于反向代理后时，必须通过
+`EDGE_TRUST_PROXY_IPS` 指定直接上游代理，不能信任任意客户端提供的转发头。

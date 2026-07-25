@@ -1,4 +1,5 @@
 const db = require('../database/init');
+const { serializeRedacted } = require('../services/sensitive-redactor');
 
 class PriceScheduleModel {
     static buildInsertStatement() {
@@ -22,7 +23,9 @@ class PriceScheduleModel {
             item.weekday_mask || null,
             item.source_type || null,
             item.source_stage || null,
-            item.raw_data ? JSON.stringify(item.raw_data) : null
+            serializeRedacted(item.raw_data, {
+                maxBytes: process.env.PRICE_SCHEDULE_RAW_DATA_MAX_BYTES || 64 * 1024
+            })
         );
     }
 

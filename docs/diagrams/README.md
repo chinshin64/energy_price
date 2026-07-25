@@ -1,23 +1,23 @@
-# 三种数据学习方式技术原理
+# 三种数据采集与验证能力
 
 ## 详细说明
 
-- [三种方式技术原理详解](TECHNICAL_PRINCIPLES.md)
+- [三种能力内部实现说明](TECHNICAL_PRINCIPLES.md)
 
-## 原理图
+## 能力图
 
 ### 合并长图
 
-![三种数据学习方式技术原理总览](methods-principle-combined.png)
+![三种数据采集与验证能力总览](methods-principle-combined.png)
 
-### 页面自动化识别
+### 页面采集
 
-![页面自动化识别](method-1-principle.png)
+![页面采集](method-1-principle.png)
 
-### 后台自动化识别
+### 请求采集
 
-![后台自动化识别](method-2-principle.png)
+![请求采集](method-2-principle.png)
 
-### 流量自动化识别
+### 小规模访问验证
 
-![流量自动化识别](method-3-principle.png)
+![小规模访问验证](method-3-principle.png)

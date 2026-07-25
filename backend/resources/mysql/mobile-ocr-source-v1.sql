@@ -1,0 +1,67 @@
+-- 47 mobile OCR source schema (MySQL 5.7+/8.0, InnoDB, utf8mb4).
+-- Apply with a migration account before starting the source-node service.
+
+CREATE TABLE IF NOT EXISTS mobile_ocr_ingest_batches (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    ingest_id CHAR(36) NOT NULL,
+    idempotency_key CHAR(64) NOT NULL,
+    source_node VARCHAR(64) NOT NULL DEFAULT '47-mysql',
+    source_agent VARCHAR(64) NOT NULL,
+    source_type VARCHAR(32) NOT NULL DEFAULT 'mobile-ocr',
+    source_stage VARCHAR(64) NULL,
+    platform VARCHAR(64) NOT NULL,
+    city VARCHAR(128) NOT NULL,
+    device_id VARCHAR(128) NULL,
+    session_id VARCHAR(128) NOT NULL,
+    page_index INT UNSIGNED NOT NULL DEFAULT 0,
+    client_version VARCHAR(64) NULL,
+    captured_at DATETIME(3) NOT NULL,
+    station_count INT UNSIGNED NOT NULL,
+    raw_meta JSON NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_mobile_ocr_ingest_id (ingest_id),
+    UNIQUE KEY uk_mobile_ocr_idempotency (idempotency_key),
+    KEY idx_mobile_ocr_batch_agent_time (source_agent, captured_at),
+    KEY idx_mobile_ocr_batch_city_time (city, captured_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_ocr_station_snapshots (
+    source_record_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    ingest_batch_id BIGINT UNSIGNED NOT NULL,
+    record_index INT UNSIGNED NOT NULL,
+    source_node VARCHAR(64) NOT NULL DEFAULT '47-mysql',
+    source_agent VARCHAR(64) NOT NULL,
+    source_type VARCHAR(32) NOT NULL DEFAULT 'mobile-ocr',
+    source_stage VARCHAR(64) NULL,
+    platform VARCHAR(64) NOT NULL,
+    city VARCHAR(128) NOT NULL,
+    station_id VARCHAR(191) NULL,
+    station_name VARCHAR(512) NOT NULL,
+    address VARCHAR(1024) NULL,
+    latitude DECIMAL(10,7) NULL,
+    longitude DECIMAL(10,7) NULL,
+    price_fast DECIMAL(10,4) NULL,
+    price_slow DECIMAL(10,4) NULL,
+    price_super DECIMAL(10,4) NULL,
+    price_service DECIMAL(10,4) NULL,
+    available_ports INT UNSIGNED NOT NULL DEFAULT 0,
+    total_ports INT UNSIGNED NOT NULL DEFAULT 0,
+    fast_idle_ports INT UNSIGNED NOT NULL DEFAULT 0,
+    fast_total_ports INT UNSIGNED NOT NULL DEFAULT 0,
+    slow_idle_ports INT UNSIGNED NOT NULL DEFAULT 0,
+    slow_total_ports INT UNSIGNED NOT NULL DEFAULT 0,
+    super_idle_ports INT UNSIGNED NOT NULL DEFAULT 0,
+    super_total_ports INT UNSIGNED NOT NULL DEFAULT 0,
+    captured_at DATETIME(3) NOT NULL,
+    raw_data JSON NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (source_record_id),
+    UNIQUE KEY uk_mobile_ocr_batch_record (ingest_batch_id, record_index),
+    KEY idx_mobile_ocr_snapshot_city_cursor (city, source_record_id),
+    KEY idx_mobile_ocr_snapshot_platform_cursor (platform, source_record_id),
+    KEY idx_mobile_ocr_snapshot_agent_cursor (source_agent, source_record_id),
+    CONSTRAINT fk_mobile_ocr_snapshot_batch
+        FOREIGN KEY (ingest_batch_id) REFERENCES mobile_ocr_ingest_batches(id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

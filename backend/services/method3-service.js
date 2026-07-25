@@ -7,6 +7,7 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const TemplatePreflightService = require('./template-preflight-service');
 const { redactObject, isSensitiveKey, REDACTED } = require('./sensitive-redactor');
 const { RequestFailureAnalyzer } = require('./request-failure-analyzer');
+const { UNIFIED_OUTBOUND_PROXY_URL } = require('../config/unified-proxy');
 
 const REASONS = {
     template_missing: 'No API templates available',
@@ -20,12 +21,9 @@ const REASONS = {
     request_failed: 'API request failed',
     response_parse_failed: 'API response parse failed',
     no_data_returned: 'API returned no data',
-    proxy_not_configured: 'METHOD3_UPSTREAM_PROXY is not configured; refusing to use an implicit outbound proxy',
+    proxy_not_configured: 'Unified outbound proxy is not configured; refusing to use a direct connection',
     unknown_error: 'unknown error',
 };
-
-// Upstream proxy for outbound traffic. Do not use a hard-coded public proxy by default.
-const UPSTREAM_PROXY = String(process.env.METHOD3_UPSTREAM_PROXY || '').trim();
 
 // 强制限制
 const MAX_PAGES = 1;
@@ -36,6 +34,12 @@ class Method3Service {
     constructor(options = {}) {
         this.signatureProvider = options.signatureProvider || null;
         this.failureAnalyzer = options.failureAnalyzer || new RequestFailureAnalyzer({ config: options.aiAgentConfig || {} });
+        this.upstreamProxy = options.upstreamProxy === undefined
+            ? UNIFIED_OUTBOUND_PROXY_URL
+            : String(options.upstreamProxy || '').trim();
+        this.httpClient = options.httpClient || axios;
+        this.proxyAgentFactory = options.proxyAgentFactory || (url => new HttpsProxyAgent(url));
+        this.sleep = options.sleep || (milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)));
         this.preflightService = new TemplatePreflightService({
             signatureProvider: this.signatureProvider,
             templateDir: options.templateDir || path.join(__dirname, '../../data'),
@@ -75,7 +79,7 @@ class Method3Service {
 
         const templateAvailable = Number(templateStats.list || 0) + Number(templateStats.detail || 0) > 0;
         const corpusAvailable = Boolean(corpusStats && Number(corpusStats.totalEntries || 0) > 0);
-        const proxyConfigured = Boolean(UPSTREAM_PROXY);
+        const proxyConfigured = Boolean(this.upstreamProxy);
         const hasTarget = Boolean(input.city && Number.isFinite(Number(input.lat)) && Number.isFinite(Number(input.lng)));
         let targetPreflight = null;
         let targetMatched = true;
@@ -190,7 +194,15 @@ class Method3Service {
         const requestedMaxRequests = Number(input.maxRequestCount ?? 5);
         const requestedMaxQps = Number(input.maxQps ?? 1);
 
-        if (requestedMaxPages > MAX_PAGES || requestedMaxRequests > MAX_REQUEST_COUNT || requestedMaxQps > MAX_QPS) {
+        if (!Number.isInteger(requestedMaxPages)
+            || requestedMaxPages < 1
+            || requestedMaxPages > MAX_PAGES
+            || !Number.isInteger(requestedMaxRequests)
+            || requestedMaxRequests < 1
+            || requestedMaxRequests > MAX_REQUEST_COUNT
+            || !Number.isFinite(requestedMaxQps)
+            || requestedMaxQps <= 0
+            || requestedMaxQps > MAX_QPS) {
             return this._withAgentAnalysis({
                 success: false,
                 reason: 'request_limit_exceeded',
@@ -223,7 +235,7 @@ class Method3Service {
         const listPattern = { platform: platform || 'didi-charging', baseUrl: 'https://energy.xiaojukeji.com/station-api/homepage/stationList', method: 'POST' };
         const detailPattern = { platform: platform || 'didi-charging', baseUrl: 'https://energy.xiaojukeji.com/station-api/station/getoneinfo', method: 'POST' };
 
-        // 方式三不依赖实时请求参数，直接用 findListCandidates 找最近语料条目
+        // 小规模访问验证不依赖实时请求参数，直接用 findListCandidates 找最近材料条目
         const candidates = this.signatureProvider.findListCandidates(listPattern, proxyContext);
         if (!candidates || candidates.length === 0) {
             return this._withAgentAnalysis({
@@ -259,6 +271,7 @@ class Method3Service {
             nearestDistance,
             mode: mode || 'list',
             maxRequestCount: Math.min(requestedMaxRequests, MAX_REQUEST_COUNT),
+            maxQps: Math.min(requestedMaxQps, MAX_QPS),
         });
 
         const output = {
@@ -366,12 +379,22 @@ class Method3Service {
         }
     }
 
-    async _executeBoundedRequest({ entry, targetLat, targetLng, city, radiusKm, nearestDistance, mode, maxRequestCount }) {
+    async _executeBoundedRequest({
+        entry,
+        targetLat,
+        targetLng,
+        city,
+        radiusKm,
+        nearestDistance,
+        mode,
+        maxRequestCount,
+        maxQps,
+    }) {
         const results = [];
         let successCount = 0;
         let failCount = 0;
 
-        if (!UPSTREAM_PROXY) {
+        if (!this.upstreamProxy) {
             return {
                 success: false,
                 reason: 'proxy_not_configured',
@@ -384,8 +407,7 @@ class Method3Service {
         }
 
         try {
-            const proxyUrl = 'http://' + UPSTREAM_PROXY;
-            const agent = new HttpsProxyAgent(proxyUrl);
+            const agent = this.proxyAgentFactory(this.upstreamProxy);
 
             // Construct request from corpus entry
             const url = entry.baseUrl || 'https://energy.xiaojukeji.com/station-api/homepage/stationList';
@@ -415,6 +437,7 @@ class Method3Service {
             headers['content-type'] = 'application/json';
 
             const requestCount = Math.min(maxRequestCount, MAX_REQUEST_COUNT);
+            const requestIntervalMs = Math.ceil(1000 / Math.min(maxQps, MAX_QPS));
 
             for (let i = 0; i < requestCount; i++) {
                 try {
@@ -429,7 +452,7 @@ class Method3Service {
                         validateStatus: () => true, // accept any status
                     };
 
-                    const response = await axios(axiosConfig);
+                    const response = await this.httpClient(axiosConfig);
                     const isOk = response.status >= 200 && response.status < 300;
                     const responseData = response.data;
 
@@ -444,7 +467,7 @@ class Method3Service {
                         ok: isOk,
                         dataSize: JSON.stringify(responseData).length,
                         dataPreview: redactedData,
-                        upstreamProxy: this._redactProxy(UPSTREAM_PROXY),
+                        upstreamProxy: this._redactProxy(this.upstreamProxy),
                         coordinateStrategy: preserveSignedCoordinate ? 'preserve_signed_sample' : 'target_center',
                         effectiveCoordinate: preserveSignedCoordinate
                             ? {
@@ -458,10 +481,6 @@ class Method3Service {
                     if (isOk) successCount++;
                     else failCount++;
 
-                    // Rate limit: 1 QPS
-                    if (i < requestCount - 1) {
-                        await new Promise(r => setTimeout(r, 1000));
-                    }
                 } catch (err) {
                     results.push({
                         attempt: i + 1,
@@ -470,6 +489,10 @@ class Method3Service {
                         error: err.code || 'request_failed',
                     });
                     failCount++;
+                } finally {
+                    if (i < requestCount - 1) {
+                        await this._sleep(requestIntervalMs);
+                    }
                 }
             }
 
@@ -492,6 +515,10 @@ class Method3Service {
                 error: err.code || 'request_failed',
             };
         }
+    }
+
+    async _sleep(milliseconds) {
+        await this.sleep(milliseconds);
     }
 
     _primaryFailureCode(preflightResult = {}) {

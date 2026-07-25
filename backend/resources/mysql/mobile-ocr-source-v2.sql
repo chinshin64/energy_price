@@ -1,0 +1,26 @@
+-- Mobile OCR source schema v2 reference.
+--
+-- The executable migration is:
+--   backend/scripts/migrate-mobile-source-mysql.js
+--
+-- It uses mysql2 with multipleStatements=false and executes one guarded DDL
+-- statement at a time after inspecting information_schema. This file must not
+-- be passed to connection.query(): MySQL 5.7 does not support every
+-- ALTER TABLE ... IF NOT EXISTS form required for a portable idempotent script.
+--
+-- The runner creates or verifies:
+--   mobile_ocr_schema_migrations(version=2)
+--   mobile_ocr_ingest_batches.schema_version
+--   mobile_ocr_ingest_batches.observation_type
+--   mobile_ocr_station_snapshots.station_type
+--   idx_mobile_ocr_batch_observation_type
+--   idx_mobile_ocr_snapshot_station_type
+--   mobile_ocr_fuel_offers
+--   uq_mobile_ocr_fuel_offer
+--   idx_mobile_ocr_fuel_offer_grade
+--   fk_mobile_ocr_fuel_offer_snapshot
+--
+-- Use:
+--   node backend/scripts/migrate-mobile-source-mysql.js --dry-run
+--   node backend/scripts/migrate-mobile-source-mysql.js --apply
+--   node backend/scripts/migrate-mobile-source-mysql.js --validate-only

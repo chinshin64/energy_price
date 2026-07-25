@@ -1,4 +1,8 @@
 const db = require('../database/init');
+const crypto = require('crypto');
+const { UNIFIED_OUTBOUND_PROXY_URL } = require('../config/unified-proxy');
+const { defaultSecretCrypto } = require('../services/secret-crypto');
+const { isSensitiveKey } = require('../services/sensitive-redactor');
 
 const NETWORK_PROXY_KEY = 'network.proxy';
 const CRAWLER_PER_RUN_LIMIT_KEY = 'crawler.per_run_limit';
@@ -8,9 +12,9 @@ const SELF_HEAL_RUNS_KEY = 'self_heal.runs';
 const SELF_HEAL_SCHEDULE_RECOVERY_KEY = 'self_heal.schedule_recovery';
 const AI_AGENT_SETTINGS_KEY = 'ai_agent.settings';
 const DEFAULT_PROXY_SETTINGS = {
-    enabled: false,
-    defaultProxyUrl: '',
-    proxyUrl: '',
+    enabled: Boolean(UNIFIED_OUTBOUND_PROXY_URL),
+    defaultProxyUrl: UNIFIED_OUTBOUND_PROXY_URL,
+    proxyUrl: UNIFIED_OUTBOUND_PROXY_URL,
     autoCityProxyEnabled: false,
     cityProxyPool: [],
     providerProxy: {
@@ -99,7 +103,8 @@ class AppSettingModel {
     }
 
     static getProxySettings() {
-        const value = this.getJson(NETWORK_PROXY_KEY, null);
+        const stored = this.getJson(NETWORK_PROXY_KEY, null);
+        const value = this.decryptProxySettings(stored);
         if (!value || typeof value !== 'object') {
             return this.normalizeProxySettings(DEFAULT_PROXY_SETTINGS);
         }
@@ -108,13 +113,119 @@ class AppSettingModel {
     }
 
     static saveProxySettings(settings = {}) {
+        const current = this.getProxySettings();
+        const stored = this.getJson(NETWORK_PROXY_KEY, {}) || {};
+        const currentById = new Map((current.cityProxyPool || []).map(item => [item.id, item]));
+        const providerInput = settings.providerProxy && typeof settings.providerProxy === 'object'
+            ? settings.providerProxy
+            : {};
+        const providerToken = providerInput.clearAuthToken === true
+            ? ''
+            : (providerInput.keepAuthToken === true && !providerInput.authToken
+                ? current.providerProxy.authToken
+                : String(providerInput.authToken ?? current.providerProxy.authToken ?? ''));
+        const defaultProxyUrl = settings.keepDefaultProxyUrl === true && !settings.defaultProxyUrl
+            ? current.defaultProxyUrl
+            : String(settings.defaultProxyUrl ?? settings.proxyUrl ?? current.defaultProxyUrl ?? '');
+        const cityProxyPool = Array.isArray(settings.cityProxyPool)
+            ? settings.cityProxyPool.map(item => {
+                const existing = currentById.get(String(item?.id || ''));
+                return {
+                    ...item,
+                    proxyUrl: item?.keepProxyUrl === true && !item?.proxyUrl
+                        ? String(existing?.proxyUrl || '')
+                        : String(item?.proxyUrl || '')
+                };
+            })
+            : current.cityProxyPool;
         const value = this.normalizeProxySettings({
             ...settings,
+            defaultProxyUrl,
+            cityProxyPool,
+            providerProxy: {
+                ...providerInput,
+                authToken: providerToken
+            },
             updatedAt: new Date().toLocaleString('zh-CN')
         });
 
-        this.setJson(NETWORK_PROXY_KEY, value);
+        const storedPoolById = new Map(
+            (Array.isArray(stored.cityProxyPool) ? stored.cityProxyPool : [])
+                .map(item => [String(item?.id || ''), item])
+        );
+        const protectedValue = {
+            ...value,
+            defaultProxyUrl: this.protectUrlSecret(value.defaultProxyUrl, stored.defaultProxyUrl),
+            proxyUrl: this.protectUrlSecret(value.defaultProxyUrl, stored.proxyUrl || stored.defaultProxyUrl),
+            cityProxyPool: value.cityProxyPool.map(item => ({
+                ...item,
+                proxyUrl: this.protectUrlSecret(item.proxyUrl, storedPoolById.get(item.id)?.proxyUrl)
+            })),
+            providerProxy: {
+                ...value.providerProxy,
+                authToken: this.protectSecret(value.providerProxy.authToken, stored.providerProxy?.authToken)
+            }
+        };
+        this.setJson(NETWORK_PROXY_KEY, protectedValue);
         return value;
+    }
+
+    static publicProxySettings(settings = {}) {
+        const normalized = this.normalizeProxySettings(settings);
+        const defaultIsSecret = this.urlContainsSecret(normalized.defaultProxyUrl);
+        return {
+            ...normalized,
+            defaultProxyUrl: defaultIsSecret ? '' : normalized.defaultProxyUrl,
+            proxyUrl: defaultIsSecret ? '' : normalized.defaultProxyUrl,
+            defaultProxyUrlConfigured: Boolean(normalized.defaultProxyUrl),
+            defaultProxyUrlSecret: defaultIsSecret,
+            defaultProxyUrlPreview: this.maskUrlSecret(normalized.defaultProxyUrl),
+            keepDefaultProxyUrl: defaultIsSecret,
+            cityProxyPool: normalized.cityProxyPool.map(item => {
+                const secret = this.urlContainsSecret(item.proxyUrl);
+                return {
+                    ...item,
+                    proxyUrl: secret ? '' : item.proxyUrl,
+                    proxyUrlConfigured: Boolean(item.proxyUrl),
+                    proxyUrlSecret: secret,
+                    proxyUrlPreview: this.maskUrlSecret(item.proxyUrl),
+                    keepProxyUrl: secret
+                };
+            }),
+            providerProxy: {
+                ...normalized.providerProxy,
+                authToken: undefined,
+                authTokenConfigured: Boolean(normalized.providerProxy.authToken),
+                authTokenPreview: this.maskSecret(normalized.providerProxy.authToken),
+                keepAuthToken: Boolean(normalized.providerProxy.authToken)
+            },
+            secretStorage: {
+                encryptionConfigured: defaultSecretCrypto.isConfigured(),
+                plaintextAllowed: defaultSecretCrypto.allowPlaintext
+            }
+        };
+    }
+
+    static decryptProxySettings(stored) {
+        if (!stored || typeof stored !== 'object') return stored;
+        const provider = stored.providerProxy && typeof stored.providerProxy === 'object'
+            ? stored.providerProxy
+            : {};
+        return {
+            ...stored,
+            defaultProxyUrl: this.decryptSecret(stored.defaultProxyUrl),
+            proxyUrl: this.decryptSecret(stored.proxyUrl),
+            cityProxyPool: Array.isArray(stored.cityProxyPool)
+                ? stored.cityProxyPool.map(item => ({
+                    ...item,
+                    proxyUrl: this.decryptSecret(item?.proxyUrl)
+                }))
+                : [],
+            providerProxy: {
+                ...provider,
+                authToken: this.decryptSecret(provider.authToken)
+            }
+        };
     }
 
     static normalizeSelfHealSettings(settings = {}) {
@@ -221,7 +332,10 @@ class AppSettingModel {
             ...DEFAULT_AI_AGENT_SETTINGS,
             ...(baseSettings || {})
         });
-        const saved = this.getJson(AI_AGENT_SETTINGS_KEY, null);
+        const stored = this.getJson(AI_AGENT_SETTINGS_KEY, null);
+        const saved = stored && typeof stored === 'object'
+            ? { ...stored, apiKey: this.decryptSecret(stored.apiKey) }
+            : stored;
         if (!saved || typeof saved !== 'object') {
             return base;
         }
@@ -233,6 +347,7 @@ class AppSettingModel {
 
     static saveAiAgentSettings(settings = {}, baseSettings = {}) {
         const current = this.getAiAgentSettings(baseSettings);
+        const stored = this.getJson(AI_AGENT_SETTINGS_KEY, {}) || {};
         const wantsToKeepKey = settings.keepApiKey === true && !settings.apiKey;
         const nextInput = {
             ...current,
@@ -247,7 +362,10 @@ class AppSettingModel {
         delete nextInput.clearApiKey;
 
         const value = this.normalizeAiAgentSettings(nextInput, current);
-        this.setJson(AI_AGENT_SETTINGS_KEY, value);
+        this.setJson(AI_AGENT_SETTINGS_KEY, {
+            ...value,
+            apiKey: this.protectSecret(value.apiKey, stored.apiKey)
+        });
         return value;
     }
 
@@ -258,7 +376,72 @@ class AppSettingModel {
             apiKey: undefined,
             apiKeyConfigured: Boolean(normalized.apiKey),
             apiKeyPreview: this.maskSecret(normalized.apiKey),
-            configured: Boolean(normalized.baseUrl && normalized.apiKey && normalized.modelId)
+            configured: Boolean(normalized.baseUrl && normalized.apiKey && normalized.modelId),
+            secretStorage: {
+                encryptionConfigured: defaultSecretCrypto.isConfigured(),
+                plaintextAllowed: defaultSecretCrypto.allowPlaintext
+            }
+        };
+    }
+
+    static getCredentialStorageStatus() {
+        const ai = this.getJson(AI_AGENT_SETTINGS_KEY, {}) || {};
+        const network = this.getJson(NETWORK_PROXY_KEY, {}) || {};
+        const fields = [
+            { name: 'aiAgent.apiKey', value: ai.apiKey, secret: Boolean(ai.apiKey) },
+            {
+                name: 'network.defaultProxyUrl',
+                value: network.defaultProxyUrl,
+                secret: defaultSecretCrypto.isEncrypted(network.defaultProxyUrl)
+                    || this.urlContainsSecret(network.defaultProxyUrl)
+            },
+            {
+                name: 'network.providerProxy.authToken',
+                value: network.providerProxy?.authToken,
+                secret: Boolean(network.providerProxy?.authToken)
+            },
+            ...(Array.isArray(network.cityProxyPool) ? network.cityProxyPool.map((item, index) => ({
+                name: `network.cityProxyPool[${index}].proxyUrl`,
+                value: item?.proxyUrl,
+                secret: defaultSecretCrypto.isEncrypted(item?.proxyUrl) || this.urlContainsSecret(item?.proxyUrl)
+            })) : [])
+        ].filter(item => item.secret);
+        return {
+            secretFields: fields.length,
+            encryptedFields: fields.filter(item => defaultSecretCrypto.isEncrypted(item.value)).length,
+            legacyFields: fields.filter(item => !defaultSecretCrypto.isEncrypted(item.value)).length,
+            fields: fields.map(item => ({
+                name: item.name,
+                state: defaultSecretCrypto.storageState(item.value)
+            }))
+        };
+    }
+
+    static migrateStoredCredentials(options = {}) {
+        const dryRun = options.dryRun !== false;
+        const status = this.getCredentialStorageStatus();
+        if (dryRun || status.legacyFields === 0) return { dryRun, migratedFields: 0, ...status };
+        if (!defaultSecretCrypto.isConfigured()) {
+            const error = new Error('SETTINGS_ENCRYPTION_KEY is required for settings migration');
+            error.code = 'settings_encryption_key_required';
+            error.statusCode = 503;
+            throw error;
+        }
+
+        const aiStored = this.getJson(AI_AGENT_SETTINGS_KEY, null);
+        if (aiStored && typeof aiStored === 'object') {
+            const ai = this.getAiAgentSettings();
+            this.saveAiAgentSettings({ ...ai, apiKey: ai.apiKey, keepApiKey: false });
+        }
+        const networkStored = this.getJson(NETWORK_PROXY_KEY, null);
+        if (networkStored && typeof networkStored === 'object') {
+            this.saveProxySettings(this.getProxySettings());
+        }
+        const next = this.getCredentialStorageStatus();
+        return {
+            dryRun: false,
+            migratedFields: Math.max(0, status.legacyFields - next.legacyFields),
+            ...next
         };
     }
 
@@ -267,6 +450,54 @@ class AppSettingModel {
         if (!text) return '';
         if (text.length <= 8) return '********';
         return `${'*'.repeat(Math.min(12, text.length - 4))}${text.slice(-4)}`;
+    }
+
+    static protectSecret(value, existingStored = '') {
+        const plaintext = String(value || '');
+        if (!plaintext) return '';
+        const existing = String(existingStored || '');
+        if (!defaultSecretCrypto.isConfigured() && existing) {
+            const existingPlaintext = defaultSecretCrypto.decrypt(existing);
+            if (existingPlaintext === plaintext) return existing;
+        }
+        return defaultSecretCrypto.encrypt(plaintext);
+    }
+
+    static decryptSecret(value) {
+        return defaultSecretCrypto.decrypt(String(value || ''));
+    }
+
+    static protectUrlSecret(value, existingStored = '') {
+        const url = String(value || '').trim();
+        return this.urlContainsSecret(url) ? this.protectSecret(url, existingStored) : url;
+    }
+
+    static urlContainsSecret(value) {
+        const text = String(value || '').trim();
+        if (!text) return false;
+        try {
+            const url = new URL(text);
+            if (url.username || url.password) return true;
+            return Array.from(url.searchParams.keys()).some(key => isSensitiveKey(key));
+        } catch {
+            return false;
+        }
+    }
+
+    static maskUrlSecret(value) {
+        const text = String(value || '').trim();
+        if (!text) return '';
+        try {
+            const url = new URL(text);
+            if (url.username) url.username = '***';
+            if (url.password) url.password = '***';
+            for (const key of Array.from(url.searchParams.keys())) {
+                if (isSensitiveKey(key)) url.searchParams.set(key, '***');
+            }
+            return url.toString();
+        } catch {
+            return this.maskSecret(text);
+        }
     }
 
     static getSelfHealRuns(limit = 40) {
@@ -313,10 +544,20 @@ class AppSettingModel {
         return map[key];
     }
 
+    static deleteScheduleRecovery(scheduleId) {
+        const map = this.getScheduleRecoveryMap();
+        const key = String(scheduleId);
+        if (!Object.prototype.hasOwnProperty.call(map, key)) return false;
+        delete map[key];
+        this.setJson(SELF_HEAL_SCHEDULE_RECOVERY_KEY, map);
+        return true;
+    }
+
     static normalizeProxySettings(settings = {}) {
-        const defaultProxyUrl = String(settings.defaultProxyUrl || settings.proxyUrl || '').trim();
+        const defaultProxyUrl = String(settings.defaultProxyUrl || settings.proxyUrl || UNIFIED_OUTBOUND_PROXY_URL).trim();
         const cityProxyPool = Array.isArray(settings.cityProxyPool)
-            ? settings.cityProxyPool.map(item => ({
+            ? settings.cityProxyPool.map((item, index) => ({
+                id: String(item?.id || '').trim() || this.proxyEntryId(item, index),
                 enabled: item?.enabled !== false,
                 province: String(item?.province || '').trim(),
                 city: String(item?.city || '').trim(),
@@ -329,7 +570,7 @@ class AppSettingModel {
         const ttlMinutes = Math.max(1, Math.floor(Number(provider.ttlMinutes) || 10));
 
         return {
-            enabled: Boolean(settings.enabled),
+            enabled: settings.enabled !== false,
             defaultProxyUrl,
             // proxyUrl 保留给旧代码和旧前端兼容，真实含义等同 defaultProxyUrl。
             proxyUrl: defaultProxyUrl,
@@ -344,6 +585,11 @@ class AppSettingModel {
             },
             updatedAt: settings.updatedAt || null
         };
+    }
+
+    static proxyEntryId(item = {}, index = 0) {
+        const identity = [item.province, item.city, index].map(value => String(value || '').trim()).join('|');
+        return `proxy-${crypto.createHash('sha256').update(identity).digest('hex').slice(0, 12)}`;
     }
 
     static isUnlimitedCrawlerPerRunLimit(value) {

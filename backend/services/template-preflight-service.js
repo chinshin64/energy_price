@@ -57,10 +57,10 @@ class TemplatePreflightService {
         if (corpusStatus.corpusAgeDays && corpusStatus.corpusAgeDays > MAX_CORPUS_AGE_DAYS) {
             diagnostics.push({
                 code: 'signature_corpus_expired',
-                message: `Signature corpus is ${corpusStatus.corpusAgeDays} days old (max ${MAX_CORPUS_AGE_DAYS} days); refresh required`,
+                message: `请求材料已超过 ${corpusStatus.corpusAgeDays} 天未刷新，需更新后再执行`,
                 corpusAgeDays: corpusStatus.corpusAgeDays,
                 maxAgeDays: MAX_CORPUS_AGE_DAYS,
-                repairSuggestion: 'Use mitmproxy to capture fresh signatures from the target',
+                repairSuggestion: '通过请求采集沉淀当前目标的最新请求材料',
             });
             return {
                 success: false,
@@ -168,7 +168,7 @@ class TemplatePreflightService {
     }
 
     _countTemplates() {
-        // 查找 API 模板文件
+        // 查找请求材料文件
         const listTemplates = [];
         const detailTemplates = [];
 

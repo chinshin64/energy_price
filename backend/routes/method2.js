@@ -45,6 +45,38 @@ router.get('/status', (req, res) => {
 });
 
 /**
+ * GET /api/method2/workflow
+ * 返回只读 workflow readiness 和录包诊断，不启动录包
+ */
+router.get('/workflow', (req, res) => {
+    try {
+        const result = getService(req).getWorkflowReadiness({
+            targetHosts: req.query.targetHosts
+                ? String(req.query.targetHosts).split(',').map(item => item.trim()).filter(Boolean)
+                : undefined,
+        });
+        res.json(result);
+    } catch (err) {
+        console.error("[method2-route]", err);
+        res.status(500).json({
+            success: false,
+            available: false,
+            stage: 'diagnose',
+            reason: 'unknown_error',
+            nextAction: 'Check server logs and recheck Method2 workflow readiness.',
+            diagnostics: [{
+                code: 'unknown_error',
+                component: 'method2',
+                status: 'unavailable',
+                message: "Internal error; check server logs for details",
+            }],
+            checks: {},
+            captureDiagnostics: {},
+        });
+    }
+});
+
+/**
  * POST /api/method2/start-capture
  * 启动录包
  */
@@ -70,6 +102,25 @@ router.post('/start-capture', (req, res) => {
 router.post('/stop-and-analyze', async (req, res) => {
     try {
         const result = await getService(req).stopAndAnalyze(req.body || {});
+        const status = result.success ? 200 : 400;
+        res.status(status).json(result);
+    } catch (err) {
+        console.error("[method2-route]", err);
+        res.status(500).json({
+            success: false,
+            reason: 'unknown_error',
+            message: "Internal error; check server logs for details",
+        });
+    }
+});
+
+/**
+ * POST /api/method2/run-auto-capture
+ * 自动操控电脑端微信小程序，停止录包并解析入库
+ */
+router.post('/run-auto-capture', async (req, res) => {
+    try {
+        const result = await getService(req).runAutoCapture(req.body || {});
         const status = result.success ? 200 : 400;
         res.status(status).json(result);
     } catch (err) {

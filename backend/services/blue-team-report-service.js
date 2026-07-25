@@ -6,12 +6,14 @@ const sensitiveRedactor = require('./sensitive-redactor');
 
 const DEFAULT_SEED_REPORT_ID = 'BTR-RISK-20260531-0001';
 const REPORT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/;
+const DEFAULT_SCREENSHOT_MAX_BYTES = 10 * 1024 * 1024;
+const DEFAULT_TEXT_EVIDENCE_MAX_BYTES = 1024 * 1024;
 
 const INTERFACE_DISPLAY_MAP = {
-    'stationList': '列表接口',
-    'getoneinfo': '详情接口',
-    'homepage/stationList': '场站列表接口',
-    'station/getoneinfo': '场站详情接口',
+    'stationList': '列表请求',
+    'getoneinfo': '详情请求',
+    'homepage/stationList': '场站列表请求',
+    'station/getoneinfo': '场站详情请求',
 };
 
 const SENSITIVE_PARAM_NAMES = ['openid', 'token', 'tokenId', 'ticket', 'wsgsig', 'session_key'];
@@ -28,9 +30,9 @@ const EVIDENCE_DIR_MAP = {
 };
 
 const METHOD_LABEL_MAP = {
-    'page-automation': '页面自动化识别',
-    'background-automation': '后台自动化识别',
-    'traffic-template': '流量自动化识别',
+    'page-automation': '页面采集',
+    'background-automation': '请求采集',
+    'traffic-template': '小规模访问验证',
 };
 
 const STATUS_LABEL_MAP = {
@@ -151,20 +153,23 @@ class BlueTeamReportService {
         fs.mkdirSync(path.join(reportDir, 'evidence'), { recursive: true });
         fs.mkdirSync(path.join(reportDir, 'evidence', 'screenshots'), { recursive: true });
 
+        const storedReport = this.sanitizeStoredValue(report);
         this.writeFileAtomic(
             path.join(reportDir, 'report.json'),
-            `${JSON.stringify(report, null, 2)}\n`
+            `${JSON.stringify(storedReport, null, 2)}\n`
         );
 
-        this.upsertReportIndex(report);
+        this.upsertReportIndex(storedReport);
 
-        return this.decorateReport(report);
+        return this.decorateReport(storedReport);
     }
 
     appendEvent(reportId, events = []) {
         const id = this.normalizeReportId(reportId);
         const report = this.readReportRaw(id);
-        const appendList = Array.isArray(events) ? events : [events];
+        const appendList = (Array.isArray(events) ? events : [events])
+            .slice(0, 100)
+            .map(event => this.sanitizeStoredValue(event));
 
         if (!Array.isArray(report.events)) {
             report.events = [];
@@ -212,22 +217,27 @@ class BlueTeamReportService {
             const screenshotsDir = path.join(evidencePath, 'screenshots');
             fs.mkdirSync(screenshotsDir, { recursive: true });
             const safeName = this.sanitizeFilename(filename || `screenshot-${Date.now()}.png`);
-            const filePath = path.join(screenshotsDir, safeName);
-            if (typeof data === 'string') {
-                fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
-            } else if (Buffer.isBuffer(data)) {
-                fs.writeFileSync(filePath, data);
-            } else {
-                fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+            if (!safeName || !['.png', '.jpg', '.jpeg'].includes(path.extname(safeName).toLowerCase())) {
+                const error = new Error('screenshot filename must use .png, .jpg or .jpeg');
+                error.statusCode = 400;
+                error.code = 'invalid_screenshot_filename';
+                throw error;
             }
+            const image = this.decodeScreenshot(data, safeName);
+            const filePath = path.join(screenshotsDir, safeName);
+            fs.writeFileSync(filePath, image, { mode: 0o600 });
             relativePath = `evidence/screenshots/${safeName}`;
             this.updateEvidenceMatrix(report, type, relativePath, city);
         } else if (mappedName.endsWith('.jsonl')) {
-            const line = typeof data === 'string' ? data : JSON.stringify(data);
-            fs.appendFileSync(targetPath, `${line}\n`, 'utf8');
+            const safeData = this.sanitizeStoredValue(data);
+            const line = typeof safeData === 'string' ? safeData : JSON.stringify(safeData);
+            this.assertTextEvidenceSize(line);
+            fs.appendFileSync(targetPath, `${line}\n`, { encoding: 'utf8', mode: 0o600 });
             this.updateEvidenceMatrix(report, type, relativePath, city);
         } else {
-            const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            const safeData = this.sanitizeStoredValue(data);
+            const content = typeof safeData === 'string' ? safeData : JSON.stringify(safeData, null, 2);
+            this.assertTextEvidenceSize(content);
             fs.writeFileSync(targetPath, content, 'utf8');
             this.updateEvidenceMatrix(report, type, relativePath, city);
         }
@@ -277,6 +287,12 @@ class BlueTeamReportService {
         if (input.attackChain && typeof input.attackChain === 'object') {
             report.attackChain = input.attackChain;
         }
+        if (input.executionProcedure && typeof input.executionProcedure === 'object') {
+            report.executionProcedure = input.executionProcedure;
+        }
+        if (input.exploitableRisk && typeof input.exploitableRisk === 'object') {
+            report.exploitableRisk = input.exploitableRisk;
+        }
         if (input.methods && Array.isArray(input.methods)) {
             report.methods = input.methods;
         }
@@ -324,6 +340,10 @@ class BlueTeamReportService {
 
         // 计算资源统计
         report.resourceStats = this.computeResourceStats(report);
+
+        report.businessSummary = input.businessSummary && typeof input.businessSummary === 'object'
+            ? { ...this.buildBusinessSummary(report), ...input.businessSummary }
+            : this.buildBusinessSummary(report);
 
         // 构建 infra 结构（从 executor 迁移）
         if (!report.infra) {
@@ -493,6 +513,12 @@ class BlueTeamReportService {
 
         if (type === 'screenshot') {
             const safeName = this.sanitizeFilename(filename || '');
+            if (!safeName || !['.png', '.jpg', '.jpeg'].includes(path.extname(safeName).toLowerCase())) {
+                const error = new Error('invalid screenshot filename');
+                error.statusCode = 400;
+                error.code = 'invalid_screenshot_filename';
+                throw error;
+            }
             filePath = path.join(reportDir, 'evidence', 'screenshots', safeName);
         } else {
             filePath = path.join(reportDir, 'evidence', mappedName);
@@ -570,6 +596,67 @@ class BlueTeamReportService {
     sanitizeEvidenceValue(value) {
         const redacted = sensitiveRedactor.redactObject(value);
         return this.deepSanitizeEvidenceValue(redacted);
+    }
+
+    sanitizeStoredValue(value) {
+        const redacted = sensitiveRedactor.redactObject(value);
+        const walk = item => {
+            if (Array.isArray(item)) return item.map(walk);
+            if (item && typeof item === 'object') {
+                return Object.fromEntries(Object.entries(item).map(([key, raw]) => [key, walk(raw)]));
+            }
+            return typeof item === 'string' ? sensitiveRedactor.redactText(item) : item;
+        };
+        return walk(redacted);
+    }
+
+    decodeScreenshot(data, filename) {
+        let image;
+        if (Buffer.isBuffer(data)) {
+            image = data;
+        } else if (typeof data === 'string') {
+            const encoded = data.replace(/^data:image\/(?:png|jpeg);base64,/i, '').trim();
+            if (!encoded || !/^[A-Za-z0-9+/_=-]+$/.test(encoded)) {
+                const error = new Error('screenshot data must be valid base64');
+                error.statusCode = 400;
+                error.code = 'invalid_screenshot_data';
+                throw error;
+            }
+            image = Buffer.from(encoded, 'base64');
+        } else {
+            const error = new Error('screenshot data must be a buffer or base64 string');
+            error.statusCode = 400;
+            error.code = 'invalid_screenshot_data';
+            throw error;
+        }
+
+        const maxBytes = Math.max(1024, Number(process.env.REPORT_SCREENSHOT_MAX_BYTES) || DEFAULT_SCREENSHOT_MAX_BYTES);
+        if (image.length === 0 || image.length > maxBytes) {
+            const error = new Error('screenshot exceeds the configured size limit');
+            error.statusCode = 413;
+            error.code = 'screenshot_too_large';
+            throw error;
+        }
+        const extension = path.extname(filename).toLowerCase();
+        const isPng = image.length >= 8 && image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+        const isJpeg = image.length >= 3 && image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff;
+        if ((extension === '.png' && !isPng) || (['.jpg', '.jpeg'].includes(extension) && !isJpeg)) {
+            const error = new Error('screenshot content does not match its file extension');
+            error.statusCode = 400;
+            error.code = 'screenshot_type_mismatch';
+            throw error;
+        }
+        return image;
+    }
+
+    assertTextEvidenceSize(content) {
+        const maxBytes = Math.max(1024, Number(process.env.REPORT_TEXT_EVIDENCE_MAX_BYTES) || DEFAULT_TEXT_EVIDENCE_MAX_BYTES);
+        if (Buffer.byteLength(String(content || ''), 'utf8') > maxBytes) {
+            const error = new Error('text evidence exceeds the configured size limit');
+            error.statusCode = 413;
+            error.code = 'text_evidence_too_large';
+            throw error;
+        }
     }
 
     deepSanitizeEvidenceValue(value) {
@@ -712,7 +799,8 @@ class BlueTeamReportService {
     writeReportJson(reportId, report) {
         const id = this.normalizeReportId(reportId);
         const jsonPath = path.join(this.getReportDir(id), 'report.json');
-        this.writeFileAtomic(jsonPath, `${JSON.stringify(report, null, 2)}\n`);
+        const storedReport = this.sanitizeStoredValue(report);
+        this.writeFileAtomic(jsonPath, `${JSON.stringify(storedReport, null, 2)}\n`);
     }
 
     upsertReportIndex(report) {
@@ -884,9 +972,9 @@ class BlueTeamReportService {
     describeEvidenceType(type) {
         const descriptions = {
             'screenshot': '截图证据',
-            'ocr-lines': 'OCR 识别行',
-            'har-summary': 'HAR 摘要',
-            'api-request': '接口请求日志',
+            'ocr-lines': '页面识别行',
+            'har-summary': '请求记录摘要',
+            'api-request': '业务请求日志',
             'outbound-evidence': '出站证据',
             'db-check': '数据库校验',
             'supervisor-event': 'AI 监督事件',
@@ -1009,7 +1097,9 @@ class BlueTeamReportService {
     }
 
     sanitizeFilename(filename) {
-        return String(filename || '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 255);
+        const raw = String(filename || '').trim();
+        if (!raw || raw !== path.basename(raw) || raw.includes('..')) return '';
+        return raw.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 255);
     }
 
     sanitizeUrl(rawUrl) {
@@ -1440,7 +1530,7 @@ class BlueTeamReportService {
                     s.description = this._sanitizeDescription(s.description);
                 }
 
-                // result 中接口名用 INTERFACE_DISPLAY_MAP 映射
+                // result 中请求名用 INTERFACE_DISPLAY_MAP 映射
                 if (typeof s.result === 'string') {
                     s.result = this._sanitizeInterfaceNames(s.result);
                 }
@@ -1571,8 +1661,8 @@ class BlueTeamReportService {
         for (const [key, display] of Object.entries(INTERFACE_DISPLAY_MAP)) {
             result = result.replace(new RegExp(key, 'g'), display);
         }
-        // 去重映射后可能出现的"接口接口"重复
-        result = result.replace(/接口接口/g, '接口');
+        // 去重映射后可能出现的重复词
+        result = result.replace(/请求请求/g, '请求');
         // 认证参数名脱敏
         for (const param of SENSITIVE_PARAM_NAMES) {
             const re = new RegExp('\\b' + param + '\\b', 'gi');
@@ -1838,9 +1928,11 @@ class BlueTeamReportService {
 
     decorateReport(report = {}) {
         const reportId = this.normalizeReportId(report.reportId || report.id);
+        const businessSummary = report.businessSummary || this.buildBusinessSummary(report);
         return {
             ...report,
             reportId,
+            businessSummary,
             operationView: report.operationView || this.buildOperationView(report),
             files: this.getRelativeFiles(reportId),
             downloads: this.getDownloadLinks(reportId)
@@ -1872,6 +1964,7 @@ class BlueTeamReportService {
             retestStatus: report.retestStatus || report.retest?.status || '',
             evidenceCompleteness: report.evidenceCompleteness || '',
             findingCount: Array.isArray(report.findings) ? report.findings.length : 0,
+            businessSummary: report.businessSummary || this.buildBusinessSummary(report),
             operationView: report.operationView || this.buildOperationView(report),
             files: report.files || this.getRelativeFiles(report.reportId),
             downloads: report.downloads || this.getDownloadLinks(report.reportId)
@@ -1914,6 +2007,175 @@ class BlueTeamReportService {
             problemCause,
             recommendedActions,
         };
+    }
+
+    buildBusinessSummary(report = {}) {
+        const metrics = report.metrics || {};
+        const resourceStats = report.resourceStats || {};
+        const targets = Array.isArray(report.targets) ? report.targets : [];
+        const methods = this.buildBusinessMethodSummary(report);
+        const totalTests = this.pickNumber(
+            resourceStats.totalRequests,
+            resourceStats.requests,
+            targets.reduce((sum, item) => sum + Number(item.metrics?.requests || 0), 0),
+            targets.length
+        );
+        const successTests = this.pickNumber(
+            resourceStats.successRequests,
+            targets.reduce((sum, item) => sum + Number(item.metrics?.success || 0), 0),
+            targets.filter(item => /success|done|pass|完成|通过/i.test(String(item.status || ''))).length
+        );
+        const failedTests = this.pickNumber(
+            resourceStats.failedRequests,
+            targets.reduce((sum, item) => sum + Number(item.metrics?.failed || 0), 0),
+            Math.max(0, totalTests - successTests)
+        );
+        const dataRecords = this.pickNumber(metrics.stationCount, metrics.distinctCount, successTests);
+        const evidenceFileCount = this.pickNumber(resourceStats.evidenceFileCount, 0);
+        const tokenUsage = this.extractTokenUsage(report);
+        const cost = this.buildBusinessCostSummary(report, {
+            totalTests,
+            evidenceFileCount,
+            tokenUsage
+        });
+        const successRate = totalTests > 0 ? Math.round((successTests / totalTests) * 100) : 0;
+
+        return {
+            methodSummary: {
+                title: methods.map(item => item.name).join(' / ') || '蓝军验证',
+                description: methods.map(item => item.description).filter(Boolean).join('；') || '按授权范围执行蓝军验证并归档证据。',
+                methods
+            },
+            costSummary: cost,
+            resultSummary: {
+                totalTests,
+                successTests,
+                failedTests,
+                successRate,
+                dataRecords,
+                evidenceFileCount,
+                cities: this.arrayValue(report.cities || report.target?.cities).length || targets.length,
+                label: `测试 ${totalTests} 次，成功 ${successTests} 次，获取 ${dataRecords} 条数据`
+            },
+            conclusionSummary: {
+                status: STATUS_LABEL_MAP[report.overallStatus] || report.overallStatus || '待确认',
+                riskLevel: report.riskLevelLabel || this.toRiskLabel(report.riskLevel),
+                evidenceCompleteness: report.evidenceCompleteness || 'unknown',
+                conclusion: report.conclusion || report.completion?.summary || '',
+                nextAction: this.firstText(
+                    report.retest?.statusLabel,
+                    report.recommendations?.[0]?.action,
+                    report.evidenceCompleteness === 'missing' ? '补齐证据后复核' : '',
+                    '按报告结论推进复测或归档'
+                )
+            }
+        };
+    }
+
+    buildBusinessMethodSummary(report = {}) {
+        const methods = Array.isArray(report.methods) && report.methods.length
+            ? report.methods
+            : this.arrayValue(report.method).map(method => ({ id: method, name: METHOD_LABEL_MAP[method] || method }));
+
+        return methods.map(method => {
+            const id = method.id || method.type || method.method || method.name || report.method || '';
+            const name = method.name || METHOD_LABEL_MAP[id] || id || '蓝军验证';
+            return {
+                id,
+                name,
+                status: STATUS_LABEL_MAP[method.status] || method.status || '',
+                description: this.describeBusinessMethod(id, method)
+            };
+        });
+    }
+
+    describeBusinessMethod(id, method = {}) {
+        const text = String(id || method.name || '').toLowerCase();
+        if (text.includes('page') || text.includes('页面')) {
+            return '通过小程序页面截图和页面识别，复核普通用户可见数据。';
+        }
+        if (text.includes('background') || text.includes('capture') || text.includes('请求')) {
+            return '通过小程序操作触发业务请求，记录并解析返回数据。';
+        }
+        if (text.includes('traffic') || text.includes('template') || text.includes('访问')) {
+            return '复用已授权请求材料，做小规模访问验证并统计数据产出。';
+        }
+        return method.principle || method.description || '按授权范围执行蓝军测试并保留证据。';
+    }
+
+    buildBusinessCostSummary(report = {}, facts = {}) {
+        const monthlySalary = Number(report.resourceStats?.monthlySalary || report.businessSummary?.costSummary?.monthlySalary || 20000);
+        const hourlyRate = monthlySalary / 22 / 8;
+        const durationHours = this.computeDurationHours(report.startedAt, report.finishedAt);
+        const estimatedManualHours = Number(report.resourceStats?.manualWorkHours)
+            || Number(report.businessSummary?.costSummary?.estimatedManualHours)
+            || Math.max(0.5, durationHours || 0, (Number(facts.totalTests) || 0) * 0.15 + (Number(facts.evidenceFileCount) || 0) * 0.05);
+        const humanCost = Math.round(estimatedManualHours * hourlyRate);
+        const tokenUsage = facts.tokenUsage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+        const tokenLabel = tokenUsage.totalTokens > 0
+            ? `模型消耗约 ${tokenUsage.totalTokens} tokens`
+            : '未记录模型 token 消耗';
+
+        return {
+            monthlySalary,
+            estimatedManualHours: Number(estimatedManualHours.toFixed(2)),
+            estimatedHumanCost: humanCost,
+            tokenUsage,
+            label: `${tokenLabel}；按月薪 2w 技术人员估算，人工复现约 ${Number(estimatedManualHours.toFixed(2))} 人时，约 ${humanCost} 元`
+        };
+    }
+
+    extractTokenUsage(value, depth = 0) {
+        if (!value || typeof value !== 'object' || depth > 4) {
+            return { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+        }
+
+        const promptTokens = Number(value.promptTokens ?? value.prompt_tokens ?? 0) || 0;
+        const completionTokens = Number(value.completionTokens ?? value.completion_tokens ?? 0) || 0;
+        const totalTokens = Number(value.totalTokens ?? value.total_tokens ?? value.tokens ?? 0) || 0;
+        const own = {
+            promptTokens,
+            completionTokens,
+            totalTokens: totalTokens || promptTokens + completionTokens
+        };
+
+        let nested = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+        for (const [key, child] of Object.entries(value)) {
+            if (['promptTokens', 'prompt_tokens', 'completionTokens', 'completion_tokens', 'totalTokens', 'total_tokens', 'tokens'].includes(key)) {
+                continue;
+            }
+            if (child && typeof child === 'object') {
+                const usage = this.extractTokenUsage(child, depth + 1);
+                nested.promptTokens += usage.promptTokens;
+                nested.completionTokens += usage.completionTokens;
+                nested.totalTokens += usage.totalTokens;
+            }
+        }
+
+        return {
+            promptTokens: own.promptTokens + nested.promptTokens,
+            completionTokens: own.completionTokens + nested.completionTokens,
+            totalTokens: own.totalTokens + nested.totalTokens
+        };
+    }
+
+    computeDurationHours(startedAt, finishedAt) {
+        const startMs = Date.parse(startedAt || '');
+        const endMs = Date.parse(finishedAt || '');
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+            return 0;
+        }
+        return (endMs - startMs) / 3600000;
+    }
+
+    pickNumber(...values) {
+        for (const value of values) {
+            const number = Number(value);
+            if (Number.isFinite(number) && number > 0) {
+                return number;
+            }
+        }
+        return 0;
     }
 
     buildTargetCompletion(report = {}) {
@@ -2010,7 +2272,7 @@ class BlueTeamReportService {
                 id: item.id || `A-${index + 1}`,
                 priority: item.priority || 'P1',
                 action: item.action || item.title || item.desc || '',
-                owner: item.owner || '业务运营 / 安全接口人',
+                owner: item.owner || '业务运营 / 安全联系人',
                 validation: item.verification || item.criteria || '复测报告状态更新为完成，证据中心可复核',
             }));
         }
@@ -2018,7 +2280,7 @@ class BlueTeamReportService {
             id: 'A-1',
             priority: /高|high/i.test(String(report.riskLevelLabel || report.riskLevel || '')) ? 'P0' : 'P1',
             action: problemCause.summary || '补充测试证据并复核未完成目标',
-            owner: '业务运营 / 安全接口人',
+            owner: '业务运营 / 安全联系人',
             validation: '完成复测并生成包含目标完成情况、使用资源、攻击路径和问题原因的报告',
         }];
     }
@@ -2042,23 +2304,23 @@ class BlueTeamReportService {
                 scope: '武汉、南京、苏州、桂林 / 半径 20km',
                 cities: ['武汉', '南京', '苏州', '桂林'],
                 radiusKm: 20,
-                assets: ['stationList', 'getoneinfo', 'SQLite stations']
+                assets: ['列表请求', '详情请求', '数据库场站记录']
             },
             scope: '武汉、南京、苏州、桂林 / 半径 20km',
             methods: [
                 {
                     id: 'business-request',
-                    name: '业务请求验证',
+                    name: '请求采集',
                     status: 'partial',
-                    principle: '通过内置录包服务和小程序窗口复核实际业务请求，验证业务包来源、请求参数和页面侧证据是否完整。',
+                    principle: '通过请求记录服务和小程序窗口复核实际业务请求，验证业务请求来源、请求材料和页面侧证据是否完整。',
                     evidenceRefs: ['capture-recorder-status', 'business-har-pending']
                 },
                 {
                     id: 'traffic-template',
-                    name: '自动化采集验证',
+                    name: '小规模访问验证',
                     status: 'partial',
-                    principle: '通过已学习模板 API、城市/地标定位和数据库校验复核多城市场站数据链路。',
-                    evidenceRefs: ['stationList', 'getoneinfo', 'sqlite-check']
+                    principle: '通过已验证请求材料、城市/地标定位和数据库校验复核多城市场站数据链路。',
+                    evidenceRefs: ['列表请求', '详情请求', '数据库校验']
                 }
             ],
             overallStatus: 'partial',
@@ -2067,25 +2329,25 @@ class BlueTeamReportService {
             riskLevelLabel: '中',
             evidenceCompleteness: 'partial',
             impact: {
-                summary: '多城市场站数据链路已有部分接口和入库证据，但业务请求验证和失败城市证据仍不完整，当前结论不能直接升级为完全通过。',
-                affectedAssets: ['业务请求验证页面窗口', 'HAR / 录包服务', '签名模板', '场站列表与详情数据'],
-                exposure: '若未补齐业务请求证据，无法证明测试结论来自真实小程序业务包；若模板签名问题未复测，苏州、桂林等城市的数据完整性仍存在不确定性。',
+                summary: '多城市场站数据链路已有部分请求和入库证据，但请求采集和失败城市证据仍不完整，当前结论不能直接升级为完全通过。',
+                affectedAssets: ['请求采集页面窗口', '请求记录服务', '请求材料', '场站列表与详情数据'],
+                exposure: '若未补齐业务请求证据，无法证明测试结论来自真实小程序业务请求；若请求材料问题未复测，苏州、桂林等城市的数据完整性仍存在不确定性。',
                 businessImpact: '影响安全报告可复核性、跨城市数据质量判定和后续修复闭环优先级。'
             },
             findings: [
                 {
                     id: 'M-001',
-                    title: '业务请求验证证据不完整',
+                    title: '请求采集证据不完整',
                     severity: 'medium',
                     severityLabel: '中风险',
                     status: 'pending-retest',
-                    affectedScope: ['小程序窗口', '页面截图', '业务 HAR'],
+                    affectedScope: ['小程序窗口', '页面截图', '业务请求记录'],
                     impact: '无法完整证明报告结论来自真实业务请求链路，影响渗透测试报告归档可信度。',
                     reproduction: {
                         steps: [
-                            '打开安全报告详情页，检查业务请求验证证据矩阵。',
-                            '核对内置录包服务状态和业务 HAR 产物。',
-                            '比对页面截图、HAR 摘要和数据库校验结果是否同源。'
+                            '打开安全报告详情页，检查请求采集证据矩阵。',
+                            '核对请求记录服务状态和业务请求记录产物。',
+                            '比对页面截图、请求摘要和数据库校验结果是否同源。'
                         ],
                         evidenceRefs: [
                             {
@@ -2095,62 +2357,62 @@ class BlueTeamReportService {
                                 path: ''
                             },
                             {
-                                type: 'har',
-                                label: '业务 HAR',
+                                type: 'request-record',
+                                label: '业务请求记录',
                                 status: 'pending',
                                 path: ''
                             }
                         ]
                     },
-                    recommendation: '补齐小程序业务窗口截图、录包会话 HAR、请求摘要和数据库核对结果，并在报告中保持证据与结论分离。',
+                    recommendation: '补齐小程序业务窗口截图、请求记录会话、请求摘要和数据库核对结果，并在报告中保持证据与结论分离。',
                     retestStatus: 'pending'
                 },
                 {
                     id: 'M-002',
-                    title: '签名模板待复测',
+                    title: '请求材料待复测',
                     severity: 'medium',
                     severityLabel: '中风险',
                     status: 'pending-retest',
-                    affectedScope: ['苏州', '桂林', '签名模板', '自动化采集验证'],
-                    impact: '失败城市可能由模板签名或目标参数不匹配导致，当前无法判断是目标平台风险、模板过期还是环境问题。',
+                    affectedScope: ['苏州', '桂林', '请求材料', '小规模访问验证'],
+                    impact: '失败城市可能由请求材料或目标参数不匹配导致，当前无法判断是目标平台风险、材料过期还是环境问题。',
                     reproduction: {
                         steps: [
-                            '使用目标城市和半径重新执行自动化采集验证。',
-                            '观察 stationList / getoneinfo 请求是否出现 signed_template_target_mismatch。',
-                            '对失败城市单独保存请求摘要、响应摘要和代理出口状态。'
+                            '使用目标城市和半径重新执行小规模访问验证。',
+                            '观察列表请求和详情请求是否出现材料与目标不匹配。',
+                            '对失败城市单独保存请求摘要、响应摘要和网络出口状态。'
                         ],
                         evidenceRefs: [
                             {
-                                type: 'api-log',
-                                label: 'signed_template_target_mismatch',
+                                type: 'request-summary',
+                                label: '请求材料与目标不匹配',
                                 status: 'partial',
-                                path: 'data/outbound-evidence/'
+                                path: ''
                             }
                         ]
                     },
-                    recommendation: '重新通过 HAR 学习或复核签名模板，失败城市需独立记录请求预算、代理出口、响应摘要和参数差异。',
+                    recommendation: '重新通过请求采集沉淀或复核请求材料，失败城市需独立记录请求预算、网络出口、响应摘要和参数差异。',
                     retestStatus: 'pending'
                 },
                 {
                     id: 'L-001',
-                    title: '武汉、南京自动化采集验证已形成可复核证据',
+                    title: '武汉、南京小规模访问验证已形成可复核证据',
                     severity: 'low',
                     severityLabel: '已验证',
                     status: 'passed',
-                    affectedScope: ['武汉', '南京', 'stationList', 'getoneinfo', 'SQLite'],
+                    affectedScope: ['武汉', '南京', '列表请求', '详情请求', '数据库'],
                     impact: '已能支撑部分通过结论，但仍需与业务请求验证证据合并归档。',
                     reproduction: {
                         steps: [
-                            '复核 stationList / getoneinfo 请求摘要。',
-                            '核对 SQLite 入库记录和城市范围。',
+                            '复核列表请求和详情请求摘要。',
+                            '核对数据库入库记录和城市范围。',
                             '确认报告字段与证据矩阵一致。'
                         ],
                         evidenceRefs: [
                             {
                                 type: 'database',
-                                label: 'SQLite stations',
+                                label: '数据库场站记录',
                                 status: 'partial',
-                                path: 'data/stations.db'
+                                path: ''
                             }
                         ]
                     },
@@ -2166,49 +2428,49 @@ class BlueTeamReportService {
                     refs: ['小程序窗口 / 页面截图']
                 },
                 {
-                    type: 'HAR / 录包服务',
+                    type: '请求记录服务',
                     status: 'partial',
                     purpose: '证明小程序实际业务包来源',
                     refs: ['capture-recorder-status', 'business-har-pending']
                 },
                 {
-                    type: '自动化采集验证接口日志',
+                    type: '小规模访问验证请求摘要',
                     status: 'partial',
-                    purpose: '复核 stationList / getoneinfo 响应状态',
-                    refs: ['stationList', 'getoneinfo']
+                    purpose: '复核列表请求和详情请求响应状态',
+                    refs: ['列表请求', '详情请求']
                 },
                 {
                     type: '数据库校验',
                     status: 'partial',
                     purpose: '验证场站、价格、枪数等字段落点',
-                    refs: ['data/stations.db']
+                    refs: ['数据库校验']
                 },
                 {
                     type: '失败城市证据',
                     status: 'pending',
-                    purpose: '区分目标平台失败、签名模板失败和环境问题',
-                    refs: ['signed_template_target_mismatch']
+                    purpose: '区分目标平台失败、请求材料失败和环境问题',
+                    refs: ['请求材料与目标不匹配']
                 }
             ],
             recommendations: [
                 {
                     id: 'R-001',
                     priority: 'P0',
-                    action: '补齐业务请求 HAR、页面截图和请求摘要，形成同一报告目录下的证据引用。',
+                    action: '补齐业务请求记录、页面截图和请求摘要，形成同一报告下的证据引用。',
                     owner: 'backend/test',
-                    verification: 'report.json 中 evidenceMatrix 与 report.md 附录能定位对应证据。'
+                    verification: '报告中的证据矩阵和附录能定位对应证据。'
                 },
                 {
                     id: 'R-002',
                     priority: 'P0',
-                    action: '对苏州、桂林独立复测签名模板和代理出口状态。',
+                    action: '对苏州、桂林独立复测请求材料和网络出口状态。',
                     owner: 'backend',
-                    verification: '失败城市记录请求预算、响应摘要、模板 ID 和复测结论。'
+                    verification: '失败城市记录请求预算、响应摘要、请求材料状态和复测结论。'
                 },
                 {
                     id: 'R-003',
                     priority: 'P1',
-                    action: '前端接入后按报告 API 渲染列表、详情和下载入口。',
+                    action: '页面接入后按报告服务渲染列表、详情和下载入口。',
                     owner: 'frontend',
                     verification: '静态 SECURITY_REPORTS 可平滑迁移为后端报告列表。'
                 }
@@ -2217,7 +2479,7 @@ class BlueTeamReportService {
                 status: 'pending',
                 statusLabel: '待复测',
                 criteria: [
-                    '业务请求验证需有 HAR、截图、请求摘要和数据库校验四类证据。',
+                    '请求采集需有请求记录、截图、请求摘要和数据库校验四类证据。',
                     '四个城市需分别记录结论，失败城市不能只在总报告里摘要化处理。',
                     '修复后重新生成 report.json 与 report.md，并保留复测状态。'
                 ]
@@ -2246,6 +2508,14 @@ class BlueTeamReportService {
         const problemCause = operationView.problemCause || {};
         const operationActions = Array.isArray(operationView.recommendedActions) ? operationView.recommendedActions : [];
         const attackPath = Array.isArray(operationView.attackPath) ? operationView.attackPath : [];
+        const businessSummary = report.businessSummary || this.buildBusinessSummary(report);
+        const resultSummary = businessSummary.resultSummary || {};
+        const costSummary = businessSummary.costSummary || {};
+        const conclusionSummary = businessSummary.conclusionSummary || {};
+        const executionProcedure = report.executionProcedure || {};
+        const executionSteps = Array.isArray(executionProcedure.steps) ? executionProcedure.steps : [];
+        const exploitableRisk = report.exploitableRisk || {};
+        const exploitCost = exploitableRisk.exploitCost || {};
 
         const lines = [
             `# ${this.markdownText(report.title || report.reportName || report.reportId)}`,
@@ -2253,10 +2523,10 @@ class BlueTeamReportService {
             '## 安全声明',
             '',
             ...(sanitize ? [
-                '本报告为蓝军测试内部文档。报告内容经过脱敏处理，接口地址、参数结构和认证字段已遮蔽。',
+                '本报告为蓝军测试内部文档。报告内容经过脱敏处理，请求地址、参数结构和认证字段已遮蔽。',
                 '如需查看完整证据，请通过完整版导出功能获取。',
             ] : [
-                '本报告为蓝军测试内部全文文档。以下内容未做脱敏处理，包含原始接口、参数结构、认证字段、执行节点和证据引用。',
+                '本报告为蓝军测试内部全文文档。以下内容未做脱敏处理，包含原始请求、参数结构、认证字段、执行节点和证据引用。',
                 '仅限授权安全测试与内部复核使用。',
             ]),
             '',
@@ -2273,6 +2543,51 @@ class BlueTeamReportService {
             `- 证据完整性：${this.markdownText(report.evidenceCompleteness || '')}`,
             `- 复测状态：${this.markdownText(retest.statusLabel || report.retestStatus || '')}`,
             '',
+            '## 业务摘要',
+            '',
+            `- 测试方式：${this.markdownText(businessSummary.methodSummary?.title || '')}`,
+            `- 方式说明：${this.markdownText(businessSummary.methodSummary?.description || '')}`,
+            `- 资源成本：${this.markdownText(costSummary.label || '')}`,
+            `- 测试结果：${this.markdownText(resultSummary.label || '')}`,
+            `- 成功率：${this.markdownText(resultSummary.successRate ?? 0)}%`,
+            `- 数据产出：${this.markdownText(resultSummary.dataRecords ?? 0)} 条`,
+            `- 当前结论：${this.markdownText(conclusionSummary.conclusion || conclusionSummary.status || '')}`,
+            `- 下一步：${this.markdownText(conclusionSummary.nextAction || '')}`,
+            '',
+            ...(executionSteps.length ? [
+                '## 具体执行过程',
+                '',
+                ...(executionProcedure.summary ? [
+                    this.markdownText(executionProcedure.summary),
+                    '',
+                ] : []),
+                '| 顺序 | 步骤 | 输入材料 | 执行方式 | 输出结果 | 校验方式 | 安全边界 |',
+                '| --- | --- | --- | --- | --- | --- | --- |',
+                ...executionSteps.map((step, index) => [
+                    this.tableCell(String(step.order || index + 1)),
+                    this.tableCell(step.name || step.phase || ''),
+                    this.tableCell(Array.isArray(step.inputs) ? step.inputs.join('、') : (step.inputs || '')),
+                    this.tableCell(step.action || ''),
+                    this.tableCell(step.output || step.result || ''),
+                    this.tableCell(Array.isArray(step.validation) ? step.validation.join('、') : (step.validation || '')),
+                    this.tableCell(step.boundary || '')
+                ].join(' | ')).map(row => `| ${row} |`),
+                '',
+            ] : []),
+            ...(exploitableRisk.summary ? [
+                '## 可利用风险与利用成本',
+                '',
+                `- 可利用性：${this.markdownText(exploitableRisk.exploitability || '')}`,
+                `- 风险说明：${this.markdownText(exploitableRisk.summary || '')}`,
+                `- 前置条件：${this.markdownText(Array.isArray(exploitableRisk.prerequisites) ? exploitableRisk.prerequisites.join('；') : (exploitableRisk.prerequisites || ''))}`,
+                `- 可达能力：${this.markdownText(Array.isArray(exploitableRisk.availableCapabilities) ? exploitableRisk.availableCapabilities.join('；') : (exploitableRisk.availableCapabilities || ''))}`,
+                `- 已有限制：${this.markdownText(Array.isArray(exploitableRisk.limitations) ? exploitableRisk.limitations.join('；') : (exploitableRisk.limitations || ''))}`,
+                `- 业务影响：${this.markdownText(exploitableRisk.businessImpact || '')}`,
+                `- 模型成本：${this.markdownText(exploitCost.tokenLabel || '')}`,
+                `- 人力成本：${this.markdownText(exploitCost.humanCostLabel || '')}`,
+                `- 总体成本：${this.markdownText(exploitCost.totalCostLabel || '')}`,
+                '',
+            ] : []),
             ...(report.evidenceCompleteness === 'missing' ? [
                 '> ⚠️ **证据缺失警告**：本报告无实际证据文件支撑，结论已自动降级为部分通过。请补充证据后重新提交。',
                 '',
@@ -2299,7 +2614,7 @@ class BlueTeamReportService {
             `- 资产范围：${this.markdownText(Array.isArray(resources.assets) ? resources.assets.join('、') : '')}`,
             `- 请求数量：${this.markdownText(resources.requestCount ?? '')}`,
             `- 证据文件数：${this.markdownText(resources.evidenceFileCount ?? '')}`,
-            `- 录包资源：${this.markdownText(resources.captureResource || '')}`,
+            `- 请求记录资源：${this.markdownText(resources.captureResource || '')}`,
             `- 出站资源：${this.markdownText(resources.outboundResource || '')}`,
             '',
             '## 攻击路径',
@@ -2459,7 +2774,7 @@ class BlueTeamReportService {
 
     writeFileAtomic(filePath, content) {
         const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-        fs.writeFileSync(tmpPath, content, 'utf8');
+        fs.writeFileSync(tmpPath, content, { encoding: 'utf8', mode: 0o600 });
         fs.renameSync(tmpPath, filePath);
     }
 

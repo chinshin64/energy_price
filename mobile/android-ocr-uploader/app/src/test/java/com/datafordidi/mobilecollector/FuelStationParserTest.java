@@ -137,6 +137,31 @@ public class FuelStationParserTest {
     }
 
     @Test
+    public void rejectsPromotionTextLikeAdd200Save1FromPriceFields() {
+        // 真实样本：高德/团油油站页促销文案「加200省1」「24时营业加200省1」里的数字
+        // 被误抓成油价（stationPrice=2）。验证促销行被屏蔽、营业时间行被屏蔽。
+        List<OcrRow> rows = Arrays.asList(
+                row("杭州中海联城西加油站", .06f, .20f, .5f, .04f),
+                row("92# 油站价 7.15元/L", .06f, .27f, .35f, .035f),
+                row("24时营业加200省1", .06f, .43f, .5f, .035f),
+                row("加200省2元", .06f, .47f, .4f, .035f),
+                row("前20升立减5", .06f, .51f, .4f, .035f)
+        );
+        List<FuelStationRecord> stations = FuelStationParser.extract(
+                rows, "amap-fuel", "screen-ocr-auto-scroll"
+        );
+        assertEquals(1, stations.size());
+        FuelOffer offer = stations.get(0).fuelOffers.get(0);
+        assertEquals("92", offer.gradeCode);
+        assertEquals(7.15d, offer.stationPrice.doubleValue(), 0.00001d);
+        // 促销文案里的 2/5/200 不得进入任何价格字段
+        assertFalse(Double.valueOf(2d).equals(offer.stationPrice));
+        assertFalse(Double.valueOf(2d).equals(offer.discountPrice));
+        assertFalse(Double.valueOf(5d).equals(offer.discountPrice));
+        assertNull(offer.unclassifiedPrice);
+    }
+
+    @Test
     public void supportsOffsetFilterHeaderAndRejectsMarketingOnlyPrices() {
         List<FuelStationRecord> header = FuelStationParser.extract(
                 Arrays.asList(

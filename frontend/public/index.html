@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
     <title>风控蓝军验证工作台</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23111827'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='18' fill='white'%3E%E8%93%9D%3C/text%3E%3C/svg%3E">
     <style>
         :root {
             --bg: #f7f4ef;
@@ -658,6 +659,10 @@
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
+        .field-grid.four-col {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
         .field-group {
             display: grid;
             gap: 8px;
@@ -834,6 +839,134 @@
             background: linear-gradient(180deg, rgba(255, 239, 239, 0.98), rgba(255, 248, 248, 0.98));
             border-color: rgba(217, 74, 69, 0.12);
             color: #8c3934;
+        }
+
+        .workflow-panel {
+            display: grid;
+            gap: 14px;
+            margin: 16px 0;
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(31, 42, 68, 0.08);
+            background: rgba(249, 250, 252, 0.96);
+        }
+
+        .workflow-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: flex-start;
+        }
+
+        .workflow-title {
+            display: grid;
+            gap: 4px;
+        }
+
+        .workflow-title strong {
+            font-size: 15px;
+            line-height: 1.35;
+        }
+
+        .workflow-title span {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .workflow-status {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: rgba(125, 134, 153, 0.12);
+            color: #566074;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .workflow-status.ready,
+        .workflow-status.success {
+            background: rgba(22, 155, 98, 0.12);
+            color: var(--success);
+        }
+
+        .workflow-status.running,
+        .workflow-status.info {
+            background: rgba(49, 94, 251, 0.1);
+            color: var(--blue);
+        }
+
+        .workflow-status.blocked,
+        .workflow-status.warn {
+            background: rgba(209, 139, 0, 0.14);
+            color: #8a6100;
+        }
+
+        .workflow-status.error {
+            background: rgba(217, 74, 69, 0.12);
+            color: var(--danger);
+        }
+
+        .workflow-steps {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .workflow-step {
+            min-height: 74px;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(31, 42, 68, 0.08);
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .workflow-step strong,
+        .workflow-detail strong {
+            display: block;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .workflow-step span,
+        .workflow-detail span {
+            display: block;
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .workflow-step.active {
+            border-color: rgba(49, 94, 251, 0.2);
+            background: rgba(238, 243, 255, 0.86);
+        }
+
+        .workflow-step.done {
+            border-color: rgba(22, 155, 98, 0.18);
+            background: rgba(235, 251, 243, 0.82);
+        }
+
+        .workflow-step.blocked {
+            border-color: rgba(209, 139, 0, 0.2);
+            background: rgba(255, 248, 231, 0.9);
+        }
+
+        .workflow-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .workflow-detail {
+            min-height: 78px;
+            padding: 12px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.86);
+            border: 1px solid rgba(31, 42, 68, 0.06);
         }
 
         .stats-grid {
@@ -1322,6 +1455,97 @@
             margin-top: 4px;
         }
 
+        .mobile-location-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(320px, 0.62fr);
+            gap: 18px;
+            align-items: stretch;
+        }
+
+        .mobile-location-controls {
+            display: grid;
+            gap: 12px;
+        }
+
+        .mobile-mock-map-wrap {
+            display: grid;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .mobile-mock-map {
+            position: relative;
+            min-height: 260px;
+            aspect-ratio: 1.38;
+            overflow: hidden;
+            border: 1px solid rgba(31, 42, 68, 0.12);
+            border-radius: 8px;
+            background:
+                linear-gradient(90deg, rgba(31, 42, 68, 0.08) 1px, transparent 1px),
+                linear-gradient(0deg, rgba(31, 42, 68, 0.08) 1px, transparent 1px),
+                #eef5f7;
+            background-size: 14.285% 20%, 14.285% 20%, auto;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .mobile-mock-map::before {
+            content: "";
+            position: absolute;
+            inset: 13% 10% 12% 12%;
+            border: 1px solid rgba(37, 99, 235, 0.18);
+            border-radius: 42% 54% 46% 48%;
+            background: rgba(255, 255, 255, 0.42);
+            pointer-events: none;
+        }
+
+        .mobile-mock-city-dot {
+            position: absolute;
+            width: 7px;
+            height: 7px;
+            transform: translate(-50%, -50%);
+            border: 1px solid rgba(31, 42, 68, 0.28);
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow: 0 1px 4px rgba(31, 42, 68, 0.14);
+            pointer-events: none;
+        }
+
+        .mobile-mock-marker {
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            display: grid;
+            place-items: center;
+            transform: translate(-50%, -100%);
+            border: 0;
+            border-radius: 999px 999px 999px 4px;
+            background: #f97316;
+            box-shadow: 0 8px 16px rgba(249, 115, 22, 0.3);
+            cursor: grab;
+            rotate: -45deg;
+        }
+
+        .mobile-mock-marker::after {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: #ffffff;
+        }
+
+        .mobile-mock-marker:active {
+            cursor: grabbing;
+        }
+
+        .mobile-mock-map-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
         .mobile-task-board {
             display: grid;
             grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
@@ -1684,6 +1908,48 @@
             margin-top: 8px;
             font-size: 24px;
             line-height: 1.1;
+        }
+
+        .table-action-row {
+            margin-top: 0;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .table-action-row .btn {
+            min-height: 34px;
+            padding: 7px 11px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 4px 9px;
+            border-radius: 8px;
+            background: #f2f4f7;
+            color: #4c566a;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .status-pill.success {
+            background: #e8f7ee;
+            color: #157347;
+        }
+
+        .status-pill.warn {
+            background: #fff2df;
+            color: #a14f00;
+        }
+
+        .management-table-shell {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .management-table-shell table {
+            min-width: 720px;
         }
 
         .capture-metric-text {
@@ -2087,53 +2353,6 @@
             line-height: 1.8;
         }
 
-        .runtime-banner {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 18px;
-            padding: 16px 18px;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.18);
-            border: 1px solid rgba(255, 255, 255, 0.24);
-            backdrop-filter: blur(12px);
-        }
-
-        .runtime-banner strong {
-            font-size: 16px;
-        }
-
-        .runtime-banner p {
-            margin: 0;
-            color: rgba(255, 255, 255, 0.92);
-            line-height: 1.7;
-            font-size: 13px;
-        }
-
-        .runtime-preview .topbar {
-            border-color: rgba(209, 139, 0, 0.35);
-            box-shadow: 0 18px 42px rgba(209, 139, 0, 0.12);
-        }
-
-        .runtime-preview-notice {
-            padding: 10px 12px;
-            border-radius: 12px;
-            color: #6b4200;
-            background: rgba(255, 214, 102, 0.96);
-            border: 1px solid rgba(209, 139, 0, 0.28);
-            font-size: 13px;
-            line-height: 1.6;
-            font-weight: 700;
-        }
-
-        .runtime-restrictions {
-            margin: 0;
-            padding-left: 18px;
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 12px;
-            line-height: 1.7;
-        }
-
         .chain-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2174,6 +2393,256 @@
         .chain-badge.success {
             background: rgba(34, 197, 94, 0.14);
             color: #15803d;
+        }
+
+        .agent-command-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.35fr);
+            gap: 18px;
+            align-items: start;
+            margin-bottom: 18px;
+        }
+
+        .agent-tool-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .agent-tool-card {
+            min-height: 118px;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(31, 42, 68, 0.08);
+            background: rgba(249, 250, 252, 0.95);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .agent-tool-card strong {
+            font-size: 15px;
+        }
+
+        .agent-tool-card small {
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .agent-tool-card.mutating {
+            border-color: rgba(245, 158, 11, 0.28);
+            background: rgba(255, 251, 235, 0.72);
+        }
+
+        .agent-output-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .agent-output-grid textarea {
+            min-height: 260px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 12px;
+        }
+
+        .agent-chat-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 340px;
+            gap: 18px;
+            align-items: start;
+        }
+
+        .agent-chat-panel {
+            min-height: 680px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .agent-chat-messages {
+            min-height: 420px;
+            max-height: 56vh;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 4px;
+            margin-bottom: 18px;
+        }
+
+        .agent-message {
+            max-width: 86%;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(31, 42, 68, 0.08);
+            background: rgba(249, 250, 252, 0.98);
+            color: #253044;
+            line-height: 1.65;
+            white-space: pre-wrap;
+        }
+
+        .agent-message.user {
+            align-self: flex-end;
+            background: #1f6feb;
+            color: #fff;
+            border-color: rgba(31, 111, 235, 0.22);
+        }
+
+        .agent-message.agent {
+            align-self: flex-start;
+        }
+
+        .agent-message.system {
+            max-width: 100%;
+            align-self: stretch;
+            background: rgba(255, 251, 235, 0.82);
+            color: #6b4e16;
+        }
+
+        .agent-composer {
+            display: grid;
+            gap: 12px;
+            margin-top: auto;
+        }
+
+        .agent-composer textarea {
+            min-height: 116px;
+            resize: vertical;
+        }
+
+        .agent-quick-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .agent-side-stack {
+            display: grid;
+            gap: 18px;
+        }
+
+        .agent-tool-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .agent-tool-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(249, 250, 252, 0.95);
+            border: 1px solid rgba(31, 42, 68, 0.08);
+            font-size: 12px;
+        }
+
+        .agent-desktop {
+            min-height: calc(100vh - 170px);
+            display: grid;
+            grid-template-rows: auto minmax(360px, 1fr) auto;
+            gap: 18px;
+            max-width: 1040px;
+            margin: 0 auto;
+        }
+
+        .agent-desktop-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            align-items: center;
+            padding: 4px 2px 12px;
+            border-bottom: 1px solid rgba(31, 42, 68, 0.08);
+        }
+
+        .agent-desktop-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .agent-desktop-title strong {
+            font-size: 18px;
+        }
+
+        .agent-desktop-title span,
+        .agent-model-pill,
+        .agent-model-select {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .agent-model-pill {
+            min-height: 34px;
+            display: inline-flex;
+            align-items: center;
+            padding: 0 12px;
+            border-radius: 999px;
+            background: rgba(249, 250, 252, 0.98);
+            border: 1px solid rgba(31, 42, 68, 0.1);
+        }
+
+        .agent-desktop-controls {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .agent-model-select {
+            min-height: 34px;
+            max-width: 240px;
+            padding: 0 34px 0 12px;
+            border-radius: 999px;
+            background-color: rgba(249, 250, 252, 0.98);
+            border: 1px solid rgba(31, 42, 68, 0.1);
+            box-shadow: none;
+        }
+
+        .agent-desktop-messages {
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            padding: 10px 2px 24px;
+        }
+
+        .agent-desktop-composer {
+            position: sticky;
+            bottom: 16px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: end;
+            padding: 14px;
+            border-radius: 28px;
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid rgba(31, 42, 68, 0.12);
+            box-shadow: 0 18px 50px rgba(31, 42, 68, 0.12);
+        }
+
+        .agent-desktop-composer textarea {
+            min-height: 54px;
+            max-height: 180px;
+            resize: vertical;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            padding: 8px 10px;
+            font-size: 15px;
+        }
+
+        .agent-send-button {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            line-height: 1;
         }
 
         .chain-badge.warn {
@@ -2331,6 +2800,11 @@
             }
 
             .hero-layout,
+            .agent-chat-layout,
+            .agent-command-grid,
+            .agent-output-grid,
+            .workflow-detail-grid,
+            .workflow-steps,
             .content-grid.two-up,
             .content-grid.three-up,
             .signal-grid,
@@ -2338,12 +2812,14 @@
             .metric-grid,
             .field-grid.two-col,
             .field-grid.three-col,
+            .field-grid.four-col,
             .stats-grid,
             .mini-metrics,
             .chain-grid,
             .task-progress-metrics,
             .mobile-hero-panel,
             .mobile-overview-grid,
+            .mobile-location-layout,
             .mobile-task-board,
             .security-report-row,
             .readiness-check-row,
@@ -2418,6 +2894,614 @@
                 padding: 18px;
             }
         }
+
+        /* Commercial product shell */
+        :root {
+            --bg: #f6f7f8;
+            --bg-soft: #f3f4f6;
+            --surface: #ffffff;
+            --surface-strong: #ffffff;
+            --surface-warm: #f7f7f8;
+            --line: #e5e7eb;
+            --line-strong: #d1d5db;
+            --text: #202124;
+            --muted: #6b7280;
+            --brand: #111827;
+            --brand-deep: #111827;
+            --brand-soft: #f0f1f3;
+            --blue: #2563eb;
+            --blue-soft: #eff6ff;
+            --shadow-lg: none;
+            --shadow-md: none;
+            --radius-xl: 8px;
+            --radius-lg: 8px;
+            --radius-md: 6px;
+            --radius-sm: 4px;
+            --content-width: none;
+        }
+
+        * {
+            letter-spacing: 0 !important;
+        }
+
+        html,
+        body {
+            min-height: 100%;
+            background: var(--bg);
+        }
+
+        body::before {
+            display: none;
+        }
+
+        .app-shell {
+            width: 100%;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr);
+        }
+
+        .topbar,
+        body.topbar-collapsed .topbar {
+            position: sticky;
+            top: 0;
+            align-self: start;
+            width: 220px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+            padding: 14px 12px;
+            margin: 0;
+            border: 0;
+            border-right: 1px solid var(--line);
+            border-radius: 0;
+            background: #fbfbfc;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+
+        .brand,
+        body.topbar-collapsed .brand {
+            min-width: 0;
+            gap: 10px;
+            padding: 4px 4px 14px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .brand-mark,
+        body.topbar-collapsed .brand-mark {
+            width: 32px;
+            height: 32px;
+            flex: 0 0 32px;
+            border-radius: 6px;
+            font-size: 15px;
+            background: #111827;
+            box-shadow: none;
+        }
+
+        .brand-copy strong,
+        body.topbar-collapsed .brand-copy strong {
+            max-width: none;
+            opacity: 1;
+            overflow: visible;
+            transform: none;
+            font-size: 14px;
+            line-height: 1.35;
+            white-space: normal;
+        }
+
+        .top-nav,
+        body.topbar-collapsed .top-nav {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+            gap: 4px;
+            padding: 0;
+            overflow: visible;
+        }
+
+        .nav-item,
+        body.topbar-collapsed .nav-item {
+            width: 100%;
+            min-width: 0;
+            justify-content: flex-start;
+            padding: 10px 12px;
+            border-radius: 6px;
+            color: #4b5563;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .nav-item:hover {
+            color: var(--text);
+            background: #f0f1f3;
+        }
+
+        .nav-item.active {
+            color: #111827;
+            background: #e9eaec;
+            box-shadow: none;
+            font-weight: 600;
+        }
+
+        .workspace {
+            min-width: 0;
+            min-height: 100vh;
+            display: block;
+        }
+
+        .workspace-main {
+            min-width: 0;
+            padding: 20px 24px 40px;
+        }
+
+        .workspace-subnav {
+            position: sticky;
+            top: 0;
+            z-index: 12;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-height: 46px;
+            margin: -20px -24px 18px;
+            padding: 6px 24px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(8px);
+        }
+
+        .workspace-subnav.is-hidden {
+            display: none;
+        }
+
+        .subnav-item {
+            flex: 0 0 auto;
+            min-height: 32px;
+            padding: 6px 10px;
+            border-radius: 5px;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .subnav-item:hover,
+        .subnav-item.active {
+            color: var(--text);
+            background: #f0f1f3;
+        }
+
+        .section {
+            animation: none;
+        }
+
+        .section-head {
+            margin-bottom: 14px;
+        }
+
+        .section-title-group h2 {
+            font-size: 22px;
+            line-height: 1.3;
+        }
+
+        .hero-card,
+        .portal-card,
+        .rail-card,
+        .context-card,
+        .metric-card,
+        .mini-metric,
+        .chain-card,
+        .status-banner,
+        .table-shell {
+            border-color: var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            box-shadow: none;
+        }
+
+        .hero-card {
+            background: #ffffff !important;
+        }
+
+        .hero-card h1 {
+            font-size: 24px;
+        }
+
+        .hero-kicker {
+            color: var(--muted);
+        }
+
+        input,
+        select,
+        textarea,
+        .btn,
+        .mode-option,
+        .inline-field {
+            border-radius: 6px;
+        }
+
+        .btn-primary {
+            color: #ffffff;
+            background: #111827;
+            box-shadow: none;
+        }
+
+        .btn-primary:hover {
+            background: #000000;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            color: #374151;
+            background: #ffffff;
+            border: 1px solid var(--line-strong);
+        }
+
+        body.agent-view-active .workspace-main {
+            padding: 0;
+            background: #ffffff;
+        }
+
+        body.agent-view-active {
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        body.agent-view-active .app-shell,
+        body.agent-view-active .workspace,
+        body.agent-view-active .workspace-main {
+            height: 100vh;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        body.agent-view-active .workspace-subnav {
+            display: none;
+        }
+
+        .agent-desktop {
+            width: 100%;
+            max-width: none;
+            min-height: 100vh;
+            margin: 0;
+            display: grid;
+            grid-template-rows: 64px minmax(0, 1fr) auto;
+            gap: 0;
+            background: #ffffff;
+        }
+
+        .agent-desktop-header {
+            min-width: 0;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--line);
+            background: #ffffff;
+        }
+
+        .agent-desktop-title {
+            min-width: 0;
+            gap: 2px;
+        }
+
+        .agent-title-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .agent-desktop-title strong {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .agent-desktop-title span,
+        .agent-model-status {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .agent-new-chat {
+            width: 30px;
+            height: 30px;
+            display: inline-grid;
+            place-items: center;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            color: #374151;
+            background: #ffffff;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .agent-new-chat:hover {
+            background: #f3f4f6;
+        }
+
+        .agent-desktop-controls {
+            min-width: 0;
+            flex-wrap: nowrap;
+        }
+
+        .agent-model-select {
+            min-height: 32px;
+            max-width: 220px;
+            padding: 0 30px 0 10px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            color: #374151;
+            background-color: #ffffff;
+            font-size: 12px;
+        }
+
+        .agent-desktop-messages {
+            width: min(100%, 900px);
+            min-height: 0;
+            margin: 0 auto;
+            padding: 34px 28px 130px;
+            gap: 24px;
+        }
+
+        .agent-message {
+            width: fit-content;
+            max-width: 82%;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            color: #202124;
+            background: transparent;
+            line-height: 1.7;
+        }
+
+        .agent-message.user {
+            align-self: flex-end;
+            padding: 10px 13px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            color: #202124;
+            background: #f4f4f5;
+        }
+
+        .agent-message.agent {
+            align-self: flex-start;
+        }
+
+        .agent-message.system {
+            align-self: center;
+            max-width: 680px;
+            color: var(--muted);
+            background: transparent;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .agent-message details {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .agent-message pre {
+            max-width: 100%;
+            max-height: 320px;
+            overflow: auto;
+            margin-top: 8px;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #f7f7f8;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .agent-desktop-composer {
+            position: sticky;
+            bottom: 18px;
+            width: min(calc(100% - 40px), 900px);
+            margin: -106px auto 18px;
+            padding: 10px 10px 10px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 8px 24px rgba(17, 24, 39, 0.09);
+        }
+
+        .agent-desktop-composer:focus-within {
+            border-color: #9ca3af;
+            box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.06);
+        }
+
+        .agent-desktop-composer textarea {
+            min-height: 48px;
+            max-height: 180px;
+            padding: 8px 4px;
+            resize: none;
+            line-height: 1.5;
+        }
+
+        .agent-send-button {
+            width: 38px;
+            height: 38px;
+            display: inline-grid;
+            place-items: center;
+            padding: 0;
+            border-radius: 50%;
+            color: #ffffff;
+            background: #111827;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .agent-send-button:disabled {
+            cursor: not-allowed;
+            background: #d1d5db;
+        }
+
+        @media (min-width: 761px) and (max-width: 960px) {
+            .agent-desktop-header {
+                gap: 12px;
+            }
+
+            .agent-model-status {
+                display: none;
+            }
+
+            .agent-model-select {
+                max-width: 200px;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .app-shell {
+                display: block;
+                padding: 0 0 64px;
+            }
+
+            .topbar,
+            body.topbar-collapsed .topbar {
+                position: sticky;
+                top: 0;
+                z-index: 40;
+                width: 100%;
+                height: 52px;
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                padding: 8px 12px;
+                border-right: 0;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .brand,
+            body.topbar-collapsed .brand {
+                flex: 1 1 auto;
+                padding: 0;
+                border: 0;
+            }
+
+            .brand-mark,
+            body.topbar-collapsed .brand-mark {
+                width: 28px;
+                height: 28px;
+                flex-basis: 28px;
+                font-size: 13px;
+            }
+
+            .brand-copy strong,
+            body.topbar-collapsed .brand-copy strong {
+                font-size: 13px;
+                white-space: nowrap;
+            }
+
+            .top-nav,
+            body.topbar-collapsed .top-nav {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 50;
+                height: calc(64px + env(safe-area-inset-bottom));
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 0;
+                padding: 5px 4px env(safe-area-inset-bottom);
+                border-top: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(12px);
+            }
+
+            .nav-item,
+            body.topbar-collapsed .nav-item {
+                width: auto;
+                min-width: 0;
+                justify-content: center;
+                padding: 5px 2px;
+                border-radius: 5px;
+                font-size: 11px;
+                line-height: 1.25;
+                text-align: center;
+                white-space: normal;
+            }
+
+            .workspace-main {
+                padding: 12px 12px 28px;
+            }
+
+            .workspace-subnav {
+                top: 52px;
+                min-height: 42px;
+                margin: -12px -12px 12px;
+                padding: 5px 12px;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .section-title-group h2,
+            .hero-card h1 {
+                font-size: 20px;
+            }
+
+            .topbar,
+            .hero-card,
+            .portal-card,
+            .rail-card,
+            .context-card {
+                padding: 12px;
+            }
+
+            body.agent-view-active .workspace-main {
+                padding: 0;
+            }
+
+            body.agent-view-active,
+            body.agent-view-active .app-shell {
+                height: 100dvh;
+            }
+
+            body.agent-view-active .workspace,
+            body.agent-view-active .workspace-main {
+                height: calc(100dvh - 52px - 64px);
+            }
+
+            .agent-desktop {
+                min-height: calc(100dvh - 52px - 64px);
+                grid-template-rows: 54px minmax(0, 1fr) auto;
+            }
+
+            .agent-desktop-header {
+                padding: 0 12px;
+                gap: 8px;
+            }
+
+            .agent-desktop-title > span,
+            .agent-model-status {
+                display: none;
+            }
+
+            .agent-model-select {
+                max-width: 158px;
+            }
+
+            .agent-desktop-messages {
+                padding: 24px 16px 122px;
+                gap: 20px;
+            }
+
+            .agent-message {
+                max-width: 92%;
+            }
+
+            .agent-desktop-composer {
+                bottom: 72px;
+                width: calc(100% - 24px);
+                margin: -102px 12px 8px;
+                padding: 8px 8px 8px 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2432,18 +3516,21 @@
 
             <nav class="top-nav">
                 <button class="nav-item active" data-tab="overview" type="button">验证工作台</button>
-                <button class="nav-item" data-tab="frontend" type="button">页面验证</button>
-                <button class="nav-item" data-tab="capture" type="button">请求验证</button>
-                <button class="nav-item" data-tab="crawler" type="button">接口验证</button>
-                <button class="nav-item" data-tab="capture-center" type="button">证据中心</button>
-                <button class="nav-item" data-tab="ai-center" type="button">智能诊断</button>
-                <button class="nav-item" data-tab="mobile-control" type="button">手机辅助通道</button>
-                <button class="nav-item" data-tab="settings" type="button">系统设置</button>
+                <button class="nav-item" data-tab="capture-center" type="button">数据与证据</button>
+                <button class="nav-item" data-tab="agent-workbench" type="button">AI Agent</button>
+                <button class="nav-item" data-tab="mobile-control" type="button">设备与节点</button>
+                <button class="nav-item" data-tab="settings" type="button">系统管理</button>
             </nav>
         </header>
 
         <div class="workspace">
             <main class="workspace-main">
+                <nav id="validationSubnav" class="workspace-subnav" aria-label="验证方式">
+                    <button class="subnav-item active" data-tab="overview" type="button">任务概览</button>
+                    <button class="subnav-item" data-tab="frontend" type="button">页面采集</button>
+                    <button class="subnav-item" data-tab="capture" type="button">请求采集</button>
+                    <button class="subnav-item" data-tab="crawler" type="button">小规模访问验证</button>
+                </nav>
                 <section id="overview" class="section active">
                     <div class="section-head">
                         <div class="section-title-group">
@@ -2473,62 +3560,11 @@
                                 <small>记录数量</small>
                             </div>
                         </div>
-                        <div class="action-row">
-                            <button class="btn btn-primary" type="button" onclick="document.querySelector('.nav-item[data-tab=&quot;frontend&quot;]').click()">页面验证</button>
-                            <button class="btn btn-primary" type="button" onclick="document.querySelector('.nav-item[data-tab=&quot;capture&quot;]').click()">请求验证</button>
-                            <button class="btn btn-primary" type="button" onclick="document.querySelector('.nav-item[data-tab=&quot;crawler&quot;]').click()">接口验证</button>
-                            <button class="btn btn-secondary" type="button" onclick="document.querySelector('.nav-item[data-tab=&quot;capture-center&quot;]').click()">查看证据中心</button>
-                        </div>
-                        <div id="runtimeModeBanner" class="runtime-banner">
-                            <strong>运行模式加载中...</strong>
-                        </div>
                     </article>
 
                     <article class="portal-card">
                         <div class="accent-title">当前可用能力</div>
                         <div id="chainStatusGrid" class="chain-grid"></div>
-                    </article>
-
-                    <article class="portal-card">
-                        <div class="report-list-toolbar">
-                            <div>
-                                <div class="accent-title">全局 AI 控制台</div>
-                            </div>
-                            <button id="globalAgentRefreshBtn" class="btn btn-secondary" type="button">刷新状态</button>
-                        </div>
-                        <div id="globalAgentStatusBanner" class="status-banner warn">等待全局 Agent 状态。</div>
-                        <div class="field-grid three-col">
-                            <div class="field-group">
-                                <label for="globalAgentCity">目标城市</label>
-                                <input id="globalAgentCity" type="text" value="上海" placeholder="上海">
-                            </div>
-                            <div class="field-group">
-                                <label for="globalAgentLat">纬度</label>
-                                <input id="globalAgentLat" type="number" step="0.000001" value="31.2304">
-                            </div>
-                            <div class="field-group">
-                                <label for="globalAgentLng">经度</label>
-                                <input id="globalAgentLng" type="number" step="0.000001" value="121.4737">
-                            </div>
-                        </div>
-                        <div class="field-group">
-                            <label for="globalAgentPrompt">全局指令</label>
-                            <textarea id="globalAgentPrompt" placeholder="例如：检查三条链路，选择当前最合适的链路做一次小规模验证"></textarea>
-                        </div>
-                        <div class="action-row">
-                            <button id="globalAgentPlanBtn" class="btn btn-secondary" type="button">生成计划</button>
-                            <button id="globalAgentDryRunBtn" class="btn btn-primary" type="button">预演执行</button>
-                        </div>
-                        <div class="content-grid two-up">
-                            <div class="field-group">
-                                <label for="globalAgentPlanOutput">计划</label>
-                                <textarea id="globalAgentPlanOutput" readonly placeholder="全局 Agent 的计划会展示在这里"></textarea>
-                            </div>
-                            <div class="field-group">
-                                <label for="globalAgentRunOutput">执行结果</label>
-                                <textarea id="globalAgentRunOutput" readonly placeholder="预演或执行结果会展示在这里"></textarea>
-                            </div>
-                        </div>
                     </article>
 
                     <article class="portal-card">
@@ -2558,13 +3594,14 @@
                                         <th>场站地址</th>
                                         <th>价格摘要</th>
                                         <th>数量摘要</th>
+                                        <th>证据</th>
                                         <th>来源</th>
                                         <th>价格/枪数时间</th>
                                     </tr>
                                 </thead>
                                 <tbody id="dataTableBody">
                                     <tr>
-                                        <td colspan="7" style="text-align:center; padding:40px;">数据加载中...</td>
+                                        <td colspan="8" style="text-align:center; padding:40px;">数据加载中...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2576,7 +3613,7 @@
                     <div class="section-head">
                         <div class="section-title-group">
 	                            <div>
-		                                <h2>页面验证</h2>
+                            <h2>页面采集</h2>
 	                            </div>
                         </div>
                     </div>
@@ -2597,8 +3634,32 @@
                     </article>
 
                     <article class="portal-card">
-                        <div class="accent-title">页面验证：模拟用户浏览小程序</div>
+                        <div class="accent-title">页面采集：按用户视角读取小程序</div>
                         <div class="meta-hint">适合验证“普通用户在页面上能看到什么”。请先打开电脑端微信，并进入目标小程序页面。</div>
+                        <div id="method1WorkflowPanel" class="workflow-panel">
+                            <div class="workflow-head">
+                                <div class="workflow-title">
+                                    <strong>主任务流</strong>
+                                    <span>准备 -> 执行 -> 证据 -> 下一步</span>
+                                </div>
+                                <div id="method1WorkflowStatus" class="workflow-status warn">等待检测</div>
+                            </div>
+                            <div id="method1WorkflowSteps" class="workflow-steps" aria-label="页面采集任务流步骤"></div>
+                            <div class="workflow-detail-grid">
+                                <div class="workflow-detail">
+                                    <strong>准备状态</strong>
+                                    <span id="method1WorkflowReadiness">等待检查页面环境</span>
+                                </div>
+                                <div class="workflow-detail">
+                                    <strong>下一步</strong>
+                                    <span id="method1WorkflowNextAction">先检查页面环境</span>
+                                </div>
+                                <div class="workflow-detail">
+                                    <strong>当前阻塞</strong>
+                                    <span id="method1WorkflowBlockingReason">暂无</span>
+                                </div>
+                            </div>
+                        </div>
                         <div class="mini-metrics">
                             <div class="mini-metric">
                                 <span>微信窗口</span>
@@ -2721,7 +3782,7 @@
                     <div class="section-head">
                         <div class="section-title-group">
 	                            <div>
-		                                <h2>请求验证</h2>
+                            <h2>请求采集</h2>
 	                            </div>
                         </div>
                     </div>
@@ -2744,19 +3805,43 @@
 
 
                     <article class="portal-card">
-                        <div class="accent-title">请求验证：记录并分析小程序请求</div>
-                        <div class="meta-hint">适合验证“页面背后调用了哪些接口”。点击开始记录后，请手动操作电脑端小程序，再停止并分析。</div>
+                        <div class="accent-title">请求采集：自动记录小程序业务数据</div>
+                        <div class="meta-hint">适合验证“页面背后的业务请求是否暴露数据”。可点击“自动采集并入库”由系统操控小程序，也可手动开始记录后自行操作电脑端小程序。</div>
+                        <div id="method2WorkflowPanel" class="workflow-panel">
+                            <div class="workflow-head">
+                                <div class="workflow-title">
+                                    <strong>两阶段任务流</strong>
+                                    <span>先确认记录环境，再由用户操作电脑端小程序完成搜索、列表、详情访问</span>
+                                </div>
+                                <div id="method2WorkflowStatus" class="workflow-status warn">等待检测</div>
+                            </div>
+                            <div id="method2WorkflowSteps" class="workflow-steps" aria-label="请求采集任务流步骤"></div>
+                            <div class="workflow-detail-grid">
+                                <div class="workflow-detail">
+                                    <strong>准备状态</strong>
+                                    <span id="method2WorkflowReadiness">等待检查请求记录环境</span>
+                                </div>
+                                <div class="workflow-detail">
+                                    <strong>下一步</strong>
+                                    <span id="method2WorkflowNextAction">先检查环境，然后开始记录</span>
+                                </div>
+                                <div class="workflow-detail">
+                                    <strong>当前阻塞</strong>
+                                    <span id="method2WorkflowBlockingReason">暂无</span>
+                                </div>
+                            </div>
+                        </div>
                         <div class="mini-metrics">
                             <div class="mini-metric">
-                                <span>请求记录服务</span>
+                                <span>记录组件</span>
                                 <strong id="method2MitmdumpStatus">未检测</strong>
                             </div>
                             <div class="mini-metric">
-                                <span>请求记录服务</span>
+                                <span>记录状态</span>
                                 <strong id="method2RecorderStatus">未检测</strong>
                             </div>
                             <div class="mini-metric">
-                                <span>网络代理</span>
+                                <span>网络出口</span>
                                 <strong id="method2ProxyStatus">未检测</strong>
                             </div>
                             <div class="mini-metric">
@@ -2767,17 +3852,18 @@
                         <div id="method2ReasonBanner" class="status-banner warn">等待检测</div>
                         <div class="action-row">
                             <button id="method2RefreshStatus" class="btn btn-secondary" type="button">检查请求记录环境</button>
-                            <button id="method2StartCapture" class="btn btn-primary" type="button">开始记录请求</button>
-                            <button id="method2StopAnalyze" class="btn btn-secondary" type="button">停止并分析请求</button>
+                            <button id="method2StartCapture" class="btn btn-primary" type="button">开始请求采集</button>
+                            <button id="method2StopAnalyze" class="btn btn-secondary" type="button">停止并生成摘要</button>
+                            <button id="method2RunAutoCapture" class="btn btn-primary" type="button">自动采集并入库</button>
                         </div>
                         <div class="content-grid two-up">
                             <div class="field-group">
                                 <label for="method2CaptureSummary">请求记录摘要</label>
-                                <textarea id="method2CaptureSummary" readonly placeholder="展示记录编号、代理地址、请求数量、目标接口数量"></textarea>
+                                <textarea id="method2CaptureSummary" readonly placeholder="展示记录编号、网络出口、请求数量、业务请求数量"></textarea>
                             </div>
                             <div class="field-group">
-                                <label for="method2RequestSummary">目标接口摘要</label>
-                                <textarea id="method2RequestSummary" readonly placeholder="展示脱敏后的接口路径和返回字段摘要"></textarea>
+                                <label for="method2RequestSummary">业务请求摘要</label>
+                                <textarea id="method2RequestSummary" readonly placeholder="展示脱敏后的业务请求路径和返回字段摘要"></textarea>
                             </div>
                         </div>
                     </article>
@@ -2797,12 +3883,35 @@
 
                                 <div class="field-grid two-col">
                                     <div class="field-group">
-                                        <label for="method2CaptureHostFilter">只记录这些域名</label>
+                                        <label for="method2CaptureHostFilter">记录范围（域名）</label>
                                         <input id="method2CaptureHostFilter" type="text" placeholder="例如：xiaojukeji.com, didiglobal.com">
                                     </div>
                                     <div class="field-group">
-                                        <label for="method2CaptureIpFilter">只记录这些 IP</label>
+                                        <label for="method2CaptureIpFilter">记录范围（IP）</label>
                                         <input id="method2CaptureIpFilter" type="text" placeholder="例如：10.0.0.0/8, 1.2.3.4">
+                                    </div>
+                                </div>
+
+                                <div class="field-group">
+                                    <label class="checkbox-row" for="method2LocationOverrideEnabled">
+                                        <input id="method2LocationOverrideEnabled" type="checkbox">
+                                        <span>按请求使用测试定位</span>
+                                    </label>
+                                    <div class="field-hint">仅在本次请求采集期间替换目标业务请求的定位，不修改系统定位。</div>
+                                </div>
+
+                                <div class="field-grid three-col">
+                                    <div class="field-group">
+                                        <label for="method2OverrideCity">定位城市</label>
+                                        <input id="method2OverrideCity" type="text" placeholder="例如：上海">
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="method2OverrideLat">纬度</label>
+                                        <input id="method2OverrideLat" type="number" step="0.000001" placeholder="31.2304">
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="method2OverrideLng">经度</label>
+                                        <input id="method2OverrideLng" type="number" step="0.000001" placeholder="121.4737">
                                     </div>
                                 </div>
 
@@ -2862,15 +3971,15 @@
                             <div class="accent-title">备用文件解析</div>
                             <label class="upload-dropzone">
 	                                <input id="harFileInput" type="file" accept=".har,.json,.txt" multiple>
-	                                <strong>选择历史 请求记录 文件</strong>
-	                                <span>历史 请求记录</span>
+	                                <strong>选择历史请求记录文件</strong>
+	                                <span>历史请求记录</span>
 	                            </label>
 
                             <div class="action-row">
                                 <button id="parseHarBtn" class="btn btn-primary" type="button" style="display:none;">开始解析</button>
                             </div>
 
-                            <div id="uploadFileList" class="file-list" data-empty="暂无历史 请求记录 文件"></div>
+                            <div id="uploadFileList" class="file-list" data-empty="暂无历史请求记录文件"></div>
                         </article>
                     </div>
 
@@ -2891,7 +4000,7 @@
                     <div class="section-head">
                         <div class="section-title-group">
 	                            <div>
-		                                <h2>接口验证</h2>
+		                                <h2>小规模访问验证</h2>
 	                            </div>
                         </div>
                     </div>
@@ -2914,7 +4023,7 @@
 
 
                     <article class="portal-card">
-                        <div class="accent-title">接口验证：小规模访问检查</div>
+                        <div class="accent-title">小规模访问验证：使用已授权材料检查访问风险</div>
                         <div class="meta-hint">适合验证“授权范围内是否存在小规模批量访问风险”。系统会先检查请求材料，材料不匹配时不会继续请求。</div>
                         <div class="mini-metrics">
                             <div class="mini-metric">
@@ -2928,10 +4037,6 @@
                             <div class="mini-metric">
                                 <span>网络出口</span>
                                 <strong id="method3ProxyStatus">未检测</strong>
-                            </div>
-                            <div class="mini-metric">
-                                <span>限制</span>
-                                <strong id="method3LimitStatus">未检测</strong>
                             </div>
                         </div>
                         <div id="method3ReasonBanner" class="status-banner warn">等待检测</div>
@@ -2950,18 +4055,18 @@
                             </div>
                         </div>
                         <div class="action-row">
-                            <button id="method3RefreshStatus" class="btn btn-secondary" type="button">检查接口验证环境</button>
-                            <button id="method3Preflight" class="btn btn-secondary" type="button">运行前检查</button>
-                            <button id="method3RunBasic" class="btn btn-primary" type="button">开始小规模验证</button>
+                            <button id="method3RefreshStatus" class="btn btn-secondary" type="button">刷新状态</button>
+                            <button id="method3Preflight" class="btn btn-secondary" type="button">检查请求材料</button>
+                            <button id="method3RunBasic" class="btn btn-primary" type="button">开始访问验证</button>
                         </div>
                         <div class="content-grid two-up">
                             <div class="field-group">
-                                <label for="method3PreflightSummary">运行前检查结果</label>
+                                <label for="method3PreflightSummary">材料检查结果</label>
                                 <textarea id="method3PreflightSummary" readonly placeholder="展示材料是否匹配、失败原因和处理建议"></textarea>
                             </div>
                             <div class="field-group">
-                                <label for="method3RunSummary">请求结果摘要</label>
-                                <textarea id="method3RunSummary" readonly placeholder="检查通过后最多请求 5 次；材料不匹配时不会继续请求"></textarea>
+                                <label for="method3RunSummary">访问结果摘要</label>
+                                <textarea id="method3RunSummary" readonly placeholder="展示访问结果、风险结论和处理建议"></textarea>
                             </div>
                         </div>
                     </article>
@@ -3009,37 +4114,31 @@
                                         </select>
                                     </div>
                                 </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="field-group">
+                                        <label for="crawlerRunLimitInput">每目标请求上限</label>
+                                        <input id="crawlerRunLimitInput" type="number" min="1" step="1" placeholder="加载中">
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="checkbox-row" for="crawlerUnlimitedRunInput">
+                                            <input id="crawlerUnlimitedRunInput" type="checkbox">
+                                            <span>不限制本轮请求</span>
+                                        </label>
+                                        <div id="crawlerRunQuotaStatus" class="field-hint">正在加载访问保护策略...</div>
+                                    </div>
+                                </div>
+
+                                <div id="crawlerRunQuotaStats" class="quota-banner" data-empty="暂无请求统计"></div>
                             </div>
 
                             <div class="action-row">
+                                <button id="saveCrawlerRunLimitBtn" class="btn btn-secondary" type="button">保存访问保护</button>
                                 <button id="crawlByCoordinatesBtn" class="btn btn-primary" type="button">按坐标开始验证</button>
                             </div>
                         </article>
 
-                        <article class="portal-card">
-	                            <div class="accent-title">当次请求限制</div>
-	                            <div class="field-group">
-		                                <label for="crawlerRunLimitInput">当次请求上限</label>
-		                                <input id="crawlerRunLimitInput" type="number" min="1" step="1" value="100" placeholder="留空表示无上限">
-		                            </div>
-                                <label class="inline-field">
-                                    <input id="crawlerUnlimitedRunInput" type="checkbox">
-                                    <span>本次执行无上限</span>
-                                </label>
-
-	                            <div class="action-row">
-	                                <button id="saveCrawlerRunLimitBtn" class="btn btn-secondary" type="button">保存当次上限</button>
-                            </div>
-
-	                            <div id="crawlerRunQuotaStats" class="quota-banner">
-		                                <div class="quota-chip"><strong>0</strong><span>今日请求</span></div>
-                                        <div class="quota-chip"><strong>0</strong><span>今日成功</span></div>
-                                        <div class="quota-chip"><strong>0</strong><span>今日 501</span></div>
-                                        <div class="quota-chip"><strong>0/100</strong><span>当次上限</span></div>
-		                            </div>
-                        </article>
-
-	                        <article class="portal-card full-width">
+		                        <article class="portal-card full-width">
 	                            <div class="accent-title">执行进度</div>
 	                            <div id="crawlerProgressMeta" class="meta-hint">未开始执行</div>
 		                            <div id="crawlerProgressList" class="task-progress-list" data-empty="暂无进度"></div>
@@ -3064,7 +4163,7 @@
 	                                </div>
 	                                <button id="refreshSecurityReportsBtn" class="btn btn-secondary" type="button">刷新报告</button>
 	                            </div>
-                            <div id="securityReportsSourceStatus" class="status-banner warn report-list-status">报告接口未加载，当前显示本地样例。</div>
+                            <div id="securityReportsSourceStatus" class="status-banner warn report-list-status">报告服务未加载，当前显示本地样例。</div>
                             <div id="securityReportList" class="security-report-list">
                                 <button class="security-report-row" type="button" data-report-id="BTR-RISK-20260531-0001">
                                     <span>2026-05-31 23:40</span>
@@ -3090,7 +4189,7 @@
                                 <div class="report-field">
                                     <span>产品视角</span>
                                     <strong>报告流待核对</strong>
-                                    <small>等待接口状态</small>
+                                    <small>等待服务状态</small>
                                 </div>
                                 <div class="report-field">
                                     <span>用户视角</span>
@@ -3104,6 +4203,28 @@
                                 </div>
                             </div>
                             <div id="productReadinessChecklist" class="readiness-check-list"></div>
+                        </article>
+
+                        <article class="portal-card full-width">
+                            <div class="report-list-toolbar">
+                                <div class="accent-title">OCR 数据质量</div>
+                                <button id="refreshOcrQualityBtn" class="btn btn-secondary" type="button">刷新质量数据</button>
+                            </div>
+                            <div class="mini-metrics">
+                                <div class="mini-metric"><span>数据总量</span><strong id="ocrQualityTotal">-</strong></div>
+                                <div class="mini-metric"><span>已通过</span><strong id="ocrQualityApproved">-</strong></div>
+                                <div class="mini-metric"><span>待复核</span><strong id="ocrQualityPending">-</strong></div>
+                                <div class="mini-metric"><span>异常池</span><strong id="ocrQualityRejected">-</strong></div>
+                                <div class="mini-metric"><span>通过率</span><strong id="ocrQualityAccuracy">-</strong></div>
+                                <div class="mini-metric"><span>平均置信度</span><strong id="ocrQualityConfidence">-</strong></div>
+                            </div>
+                            <div id="ocrQualityStatus" class="status-banner">等待加载 OCR 数据质量</div>
+                            <div class="table-shell management-table-shell">
+                                <table>
+                                    <thead><tr><th>平台</th><th>场站</th><th>地址</th><th>置信度</th><th>采集时间</th><th>复核</th></tr></thead>
+                                    <tbody id="ocrReviewTableBody"><tr><td colspan="6" style="text-align:center; padding:28px;">质量数据加载中...</td></tr></tbody>
+                                </table>
+                            </div>
                         </article>
                     </div>
 
@@ -3138,8 +4259,8 @@
 	                            </div>
 	                            <div class="report-field">
 	                                <span>测试方式</span>
-		                                <strong>请求验证 / 接口验证</strong>
-	                                <small>业务包 / 流量</small>
+		                                <strong>请求采集 / 小规模访问验证</strong>
+	                                <small>业务请求 / 访问记录</small>
 	                            </div>
 	                            <div class="report-field">
 	                                <span>城市范围</span>
@@ -3154,7 +4275,7 @@
 	                            <div class="report-field">
 	                                <span>风险等级</span>
 	                                <strong>中</strong>
-	                                <small>模板 / 环境</small>
+	                                <small>请求材料 / 环境</small>
 	                            </div>
 	                            <div class="report-field">
 	                                <span>证据完整性</span>
@@ -3171,9 +4292,29 @@
                             <span class="report-badge warn">结论：部分通过</span>
                             <span class="report-badge warn">证据：部分完整</span>
                             <span class="report-badge">范围：多城市</span>
-	                            <span class="report-badge error">阻塞项：请求验证页面窗口</span>
+	                            <span class="report-badge error">阻塞项：请求采集页面窗口</span>
                         </div>
                     </article>
+
+	                    <article class="portal-card">
+	                        <div class="accent-title">可利用风险与利用成本</div>
+	                        <div id="securityReportExploitRiskGrid" class="report-summary-grid">
+	                            <div class="report-field">
+	                                <span>可利用性</span>
+	                                <strong>待加载</strong>
+	                                <small>等待报告数据</small>
+	                            </div>
+	                        </div>
+	                    </article>
+
+	                    <article class="portal-card">
+	                        <div class="accent-title">具体执行过程</div>
+	                        <div id="securityReportExecutionProcedure" class="finding-list">
+	                            <div class="finding-card">
+	                                <p>等待报告数据。</p>
+	                            </div>
+	                        </div>
+	                    </article>
 
 	                    <article class="portal-card">
 	                        <div class="accent-title">风险发现</div>
@@ -3181,14 +4322,14 @@
 	                            <div class="finding-card">
 	                                <header>
 	                                    <span class="severity-chip medium">中风险</span>
-		                                    <h3>M-001 请求验证证据不完整</h3>
+		                                    <h3>M-001 请求采集证据不完整</h3>
 	                                </header>
 	                                <p><strong>状态：</strong>待复测。<strong>证据：</strong>小程序窗口 / 页面截图。</p>
 	                            </div>
 	                            <div class="finding-card">
 	                                <header>
 	                                    <span class="severity-chip medium">中风险</span>
-	                                    <h3>M-002 签名模板待复测</h3>
+	                                    <h3>M-002 请求材料待复测</h3>
 	                                </header>
 	                                <p><strong>状态：</strong>待复测。<strong>证据：</strong>请求材料与目标不匹配。</p>
 	                            </div>
@@ -3197,7 +4338,7 @@
 	                                    <span class="severity-chip low">已验证</span>
 	                                    <h3>L-001 武汉、南京通过</h3>
 	                                </header>
-	                                <p><strong>状态：</strong>通过。<strong>证据：</strong>stationList / getoneinfo / SQLite。</p>
+	                                <p><strong>状态：</strong>通过。<strong>证据：</strong>列表请求 / 详情请求 / 数据库。</p>
 	                            </div>
 	                        </div>
 	                    </article>
@@ -3216,19 +4357,19 @@
                                     </thead>
 	                                    <tbody id="securityReportEvidenceMatrixBody">
                                         <tr>
-                                            <td>请求验证预检</td>
+                                            <td>请求采集预检</td>
                                             <td>部分失败</td>
                                             <td>定位环境权限、窗口识别、截图授权问题</td>
                                         </tr>
                                         <tr>
                                             <td>请求记录服务</td>
-                                            <td>服务可用，业务 请求记录 待补齐</td>
+                                            <td>服务可用，业务请求记录待补齐</td>
                                             <td>证明小程序实际业务包来源</td>
                                         </tr>
                                         <tr>
-                                            <td>接口验证接口日志</td>
+                                            <td>小规模访问验证日志</td>
                                             <td>武汉、南京已形成</td>
-                                            <td>复核 stationList / getoneinfo 响应状态</td>
+                                            <td>复核列表和详情请求返回状态</td>
                                         </tr>
                                         <tr>
                                             <td>数据库校验</td>
@@ -3237,8 +4378,8 @@
                                         </tr>
                                         <tr>
                                             <td>失败城市证据</td>
-                                            <td>苏州、桂林为模板不匹配</td>
-                                            <td>区分目标平台失败与签名模板失败</td>
+                                            <td>苏州、桂林为请求材料不匹配</td>
+                                            <td>区分目标平台失败与请求材料失败</td>
                                         </tr>
                                         <tr>
                                             <td>截图 / 页面识别</td>
@@ -3254,18 +4395,18 @@
 	                            <div class="accent-title">复测标准</div>
 		                            <div id="securityReportRetestGrid" class="report-summary-grid">
 	                                <div class="report-field">
-		                                    <span>请求验证</span>
+		                                    <span>请求采集</span>
 	                                    <strong>请求记录</strong>
 	                                    <small>待补齐</small>
 	                                </div>
 	                                <div class="report-field">
-		                                    <span>接口验证</span>
+		                                    <span>小规模访问验证</span>
 	                                    <strong>四城</strong>
 	                                    <small>待复测</small>
 	                                </div>
 	                                <div class="report-field">
 	                                    <span>入库</span>
-	                                    <strong>SQLite</strong>
+	                                    <strong>数据库</strong>
 	                                    <small>待核对</small>
 	                                </div>
 	                                <div class="report-field">
@@ -3287,7 +4428,7 @@
                         <div class="accent-title">出口状态</div>
                         <div class="mini-metrics">
                             <div class="mini-metric">
-                                <span>代理开关</span>
+                                <span>出口开关</span>
                                 <strong id="captureProxyEnabled">加载中</strong>
                             </div>
                             <div class="mini-metric">
@@ -3295,7 +4436,7 @@
                                 <strong id="captureDefaultProxy" class="capture-metric-text">未配置</strong>
                             </div>
                             <div class="mini-metric">
-                                <span>城市代理</span>
+                                <span>城市出口</span>
                                 <strong id="captureCityProxyCount">0</strong>
                             </div>
                             <div class="mini-metric">
@@ -3315,7 +4456,7 @@
                                 <strong id="captureRecorderAvailable">加载中</strong>
                             </div>
                             <div class="mini-metric">
-                                <span>代理监听</span>
+                                <span>服务监听</span>
                                 <strong id="captureRecorderEndpoint" class="capture-metric-text">--</strong>
                             </div>
                             <div class="mini-metric">
@@ -3331,15 +4472,15 @@
                                 <strong id="captureRecorderRequestCount" class="capture-metric-text">-</strong>
                             </div>
                             <div class="mini-metric">
-                                <span>记录流量</span>
+                                <span>记录请求</span>
                                 <strong id="captureRecorderRecordedCount" class="capture-metric-text">-</strong>
                             </div>
                             <div class="mini-metric">
-                                <span>过滤流量</span>
+                                <span>过滤请求</span>
                                 <strong id="captureRecorderFilteredCount" class="capture-metric-text">-</strong>
                             </div>
                             <div class="mini-metric">
-                                <span>拦截流量</span>
+                                <span>拦截请求</span>
                                 <strong id="captureRecorderBlockedCount" class="capture-metric-text">-</strong>
                             </div>
                             <div class="mini-metric">
@@ -3350,16 +4491,16 @@
                         <div id="captureRecorderStatus" class="status-banner">请求记录服务状态加载中...</div>
                         <div class="field-grid two-col">
                             <div class="field-group">
-                                <label for="captureRecorderHostFilter">只记录域名</label>
+                                <label for="captureRecorderHostFilter">记录范围（域名）</label>
                                 <input id="captureRecorderHostFilter" type="text" placeholder="例如：xiaojukeji.com, didiglobal.com">
                             </div>
                             <div class="field-group">
-                                <label for="captureRecorderIpFilter">只记录 IP</label>
+                                <label for="captureRecorderIpFilter">记录范围（IP）</label>
                                 <input id="captureRecorderIpFilter" type="text" placeholder="例如：10.0.0.0/8, 1.2.3.4">
                             </div>
                         </div>
                         <div class="action-row">
-                            <button id="startCaptureRecorderBtn" class="btn btn-primary" type="button">开始记录请求服务</button>
+                            <button id="startCaptureRecorderBtn" class="btn btn-primary" type="button">开始请求记录服务</button>
                             <button id="stopCaptureRecorderBtn" class="btn btn-secondary" type="button">停止请求记录服务</button>
                         </div>
                     </article>
@@ -3377,10 +4518,10 @@
                                 </select>
                             </div>
                             <div class="field-group">
-                                <label for="captureProxyFilter">代理过滤</label>
+                                <label for="captureProxyFilter">网络出口过滤</label>
                                 <select id="captureProxyFilter">
                                     <option value="">全部请求</option>
-                                    <option value="proxied">走代理</option>
+                                    <option value="proxied">使用网络出口</option>
                                     <option value="direct">直连</option>
                                 </select>
                             </div>
@@ -3394,7 +4535,7 @@
                             </div>
                             <div class="action-row">
                                 <button id="refreshCaptureCenterBtn" class="btn btn-secondary" type="button">刷新证据</button>
-                                <button id="exportCaptureEvidenceBtn" class="btn btn-primary" type="button">导出 JSON</button>
+                                <button id="exportCaptureEvidenceBtn" class="btn btn-primary" type="button">导出原始数据</button>
                             </div>
                         </div>
 
@@ -3407,7 +4548,7 @@
                                         <th>时间</th>
                                         <th>链路</th>
                                         <th>目标</th>
-                                        <th>代理</th>
+                                        <th>网络出口</th>
                                         <th>状态</th>
                                         <th>耗时</th>
                                         <th>错误</th>
@@ -3424,165 +4565,34 @@
                     </div>
 	                </section>
 
-		                <section id="ai-center" class="section">
-	                    <div class="section-head">
-	                        <div class="section-title-group">
-		                            <div>
-		                                <h2>智能诊断</h2>
-		                            </div>
-	                        </div>
-	                    </div>
-
-	                    <article class="portal-card full-width">
-                        <div class="accent-title">智能诊断助手状态</div>
-                        <div class="meta-hint">用于在请求失败时自动分析原因，并给出下一步处理建议。密钥只在后台配置，页面不会展示。</div>
-                        <div class="mini-metrics">
-                            <div class="mini-metric">
-                                <span>当前模式</span>
-                                <strong id="aiAgentMode">未检测</strong>
+                <section id="agent-workbench" class="section">
+                    <div class="agent-desktop">
+                        <div class="agent-desktop-header">
+                            <div class="agent-desktop-title">
+                                <div class="agent-title-row">
+                                    <button id="agentWorkbenchNewChatBtn" class="agent-new-chat" type="button" title="新对话" aria-label="新对话">＋</button>
+                                    <strong>AI Agent</strong>
+                                </div>
+                                <span id="agentWorkbenchStatusBanner">正在连接产品服务...</span>
                             </div>
-                            <div class="mini-metric">
-                                <span>模型</span>
-                                <strong id="aiAgentModel">未配置</strong>
-                            </div>
-                            <div class="mini-metric">
-                                <span>服务地址</span>
-                                <strong id="aiAgentBaseUrl" class="capture-metric-text">--</strong>
-                            </div>
-                            <div class="mini-metric">
-                                <span>访问密钥</span>
-                                <strong id="aiAgentKeyStatus">未配置</strong>
+                            <div class="agent-desktop-controls">
+                                <select id="agentWorkbenchModelSelect" class="agent-model-select" aria-label="切换智能助手模型"></select>
+                                <span id="agentWorkbenchModelStatus" class="agent-model-status">模型加载中</span>
                             </div>
                         </div>
-                        <div id="aiAgentStatusBanner" class="status-banner warn">等待检测智能诊断配置</div>
-                        <div class="action-row">
-                            <button id="refreshAiAgentDashboard" class="btn btn-secondary" type="button">刷新智能诊断状态</button>
+
+                        <div id="agentWorkbenchChatMessages" class="agent-desktop-messages">
+                            <div class="agent-message system">描述你的目标，Agent 会读取产品状态并给出可追溯的处理结果。</div>
                         </div>
-                        <div class="content-grid three-up">
-                            <div class="field-group">
-                                <label for="aiAgentFailureEvents">最近失败记录</label>
-                                <textarea id="aiAgentFailureEvents" readonly placeholder="最近的请求失败原因会展示在这里"></textarea>
-                            </div>
-                            <div class="field-group">
-                                <label for="aiAgentAnalyses">最近诊断结果</label>
-                                <textarea id="aiAgentAnalyses" readonly placeholder="智能诊断助手的分析结果会展示在这里"></textarea>
-                            </div>
-                            <div class="field-group">
-                                <label for="aiAgentPatches">待处理建议</label>
-                                <textarea id="aiAgentPatches" readonly placeholder="需要确认的策略建议会展示在这里"></textarea>
-                            </div>
+
+                        <div class="agent-desktop-composer">
+                            <textarea id="agentWorkbenchPrompt" placeholder="向智能助手发送消息"></textarea>
+                            <button id="agentWorkbenchSendBtn" class="agent-send-button" type="button" title="发送" aria-label="发送" disabled>↑</button>
                         </div>
-                    </article>
+                    </div>
+                </section>
 
-                    <div class="content-grid two-up">
-	                        <article class="portal-card">
-	                            <div class="accent-title">智能诊断设置</div>
-
-	                            <div class="field-grid">
-	                                <div class="inline-field">
-	                                    <input id="selfHealEnabled" type="checkbox">
-	                                    <label for="selfHealEnabled">启用智能诊断</label>
-	                                </div>
-
-	                                <div class="inline-field">
-	                                    <input id="autoFallbackEnabled" type="checkbox">
-	                                    <label for="autoFallbackEnabled">当前能力修复失败后才允许兜底</label>
-	                                </div>
-
-	                                <div class="inline-field">
-	                                    <input id="autoTemplateSwitch" type="checkbox">
-	                                    <label for="autoTemplateSwitch">自动检查请求材料</label>
-	                                </div>
-
-	                                <div class="inline-field">
-	                                    <input id="autoProxyRotate" type="checkbox">
-	                                    <label for="autoProxyRotate">自动检查网络出口</label>
-	                                </div>
-
-	                                <div class="inline-field">
-	                                    <input id="autoUaRotate" type="checkbox">
-	                                    <label for="autoUaRotate">自动调整访问标识</label>
-	                                </div>
-
-	                                <div class="inline-field">
-	                                    <input id="autoRefreshLearning" type="checkbox">
-	                                    <label for="autoRefreshLearning">自动补充最新请求材料</label>
-	                                </div>
-
-	                                <div class="inline-field">
-	                                    <input id="resumeFromBreakpoint" type="checkbox">
-	                                    <label for="resumeFromBreakpoint">从断点恢复任务</label>
-	                                </div>
-
-	                                <div class="field-grid three-col">
-	                                    <div class="field-group">
-	                                        <label for="maxAttemptsPerRun">单任务最大重试轮次</label>
-	                                        <input id="maxAttemptsPerRun" type="number" min="1" step="1" value="3">
-	                                    </div>
-	                                    <div class="field-group">
-	                                        <label for="manualEscalationThreshold">人工介入阈值</label>
-	                                        <input id="manualEscalationThreshold" type="number" min="1" step="1" value="3">
-	                                    </div>
-	                                    <div class="field-group">
-	                                        <label for="stallMinutes">卡住判定（分钟）</label>
-	                                        <input id="stallMinutes" type="number" min="1" step="1" value="8">
-	                                    </div>
-	                                </div>
-
-	                                <div class="field-grid three-col">
-	                                    <div class="field-group">
-	                                        <label for="fail501Threshold">连续异常阈值</label>
-	                                        <input id="fail501Threshold" type="number" min="1" step="1" value="2">
-	                                    </div>
-	                                    <div class="field-group">
-	                                        <label for="emptyResponseThreshold">空响应阈值</label>
-	                                        <input id="emptyResponseThreshold" type="number" min="1" step="1" value="1">
-	                                    </div>
-	                                    <div class="field-group">
-	                                        <label for="parseEmptyThreshold">空解析阈值</label>
-	                                        <input id="parseEmptyThreshold" type="number" min="1" step="1" value="1">
-	                                    </div>
-	                                </div>
-	                            </div>
-
-	                            <div class="action-row">
-	                                <button id="saveSelfHealSettingsBtn" class="btn btn-primary" type="button">保存诊断设置</button>
-	                            </div>
-
-	                            <div id="selfHealStatus" class="status-banner">排查策略加载中...</div>
-	                        </article>
-
-	                        <article class="portal-card">
-	                            <div class="accent-title">诊断演练</div>
-
-	                            <div class="field-grid">
-	                                <div class="field-grid two-col">
-	                                    <div class="field-group">
-	                                        <label for="selfHealScenario">异常场景</label>
-	                                        <select id="selfHealScenario"></select>
-	                                    </div>
-	                                    <div class="field-group">
-	                                        <label for="selfHealCurrentChain">当前链路</label>
-	                                        <select id="selfHealCurrentChain">
-	                                            <option value="api">流量自动化识别</option>
-	                                            <option value="mitm">后台自动化识别</option>
-	                                            <option value="page">页面自动化识别</option>
-	                                        </select>
-	                                    </div>
-	                                </div>
-	                            </div>
-
-	                            <div class="action-row">
-	                                <button id="runSelfHealDiagnosisBtn" class="btn btn-secondary" type="button">执行诊断演练</button>
-	                            </div>
-
-	                            <div id="selfHealPlan" class="self-heal-plan"></div>
-	                            <div id="selfHealLog" class="log-panel" data-empty="暂无排查演练记录"></div>
-	                        </article>
-	                    </div>
-	                </section>
-
-		                <section id="mobile-control" class="section">
+			                <section id="mobile-control" class="section">
                     <div class="section-head">
                         <div class="section-title-group">
 	                            <div>
@@ -3600,11 +4610,66 @@
                             <div id="mobileOverviewTiles" class="mobile-overview-grid" data-empty="暂无设备状态"></div>
                         </article>
 
+                        <article class="portal-card full-width">
+                            <div class="report-list-toolbar">
+                                <div class="accent-title">跨端协同</div>
+                                <button id="refreshEdgeAgentsBtn" class="btn btn-secondary" type="button">刷新</button>
+                            </div>
+                            <div id="edgeOrchestrationStatus" class="status-banner">正在加载协同状态</div>
+                            <div class="mobile-task-board full-width">
+                                <div>
+                                    <div class="accent-title">执行节点</div>
+                                    <div id="edgeNodeList" class="mobile-command-list" data-empty="暂无协同节点"></div>
+                                </div>
+                                <div>
+                                    <div class="accent-title">协同任务</div>
+                                    <div id="edgeTaskList" class="mobile-command-list" data-empty="暂无协同任务"></div>
+                                </div>
+                            </div>
+                        </article>
+
+                        <article class="portal-card full-width">
+                            <div class="report-list-toolbar">
+                                <div class="accent-title">同步节点</div>
+                                <button id="refreshSyncNodesBtn" class="btn btn-secondary" type="button">刷新节点</button>
+                            </div>
+                            <div class="field-grid four-col">
+                                <div class="field-group">
+                                    <label for="syncNodeName">节点名称</label>
+                                    <input id="syncNodeName" type="text" placeholder="例如：blue-team-01">
+                                </div>
+                                <div class="field-group">
+                                    <label for="syncNodeUrl">服务地址</label>
+                                    <input id="syncNodeUrl" type="url" placeholder="https://node.example">
+                                </div>
+                                <div class="field-group">
+                                    <label for="syncNodeDirection">同步方向</label>
+                                    <select id="syncNodeDirection">
+                                        <option value="bidirectional">双向</option>
+                                        <option value="push-only">仅推送</option>
+                                        <option value="pull-only">仅拉取</option>
+                                    </select>
+                                </div>
+                                <div class="field-group">
+                                    <label for="syncNodeAuthToken">节点凭据</label>
+                                    <input id="syncNodeAuthToken" type="password" autocomplete="off" placeholder="按需填写">
+                                </div>
+                            </div>
+                            <div class="action-row"><button id="addSyncNodeBtn" class="btn btn-primary" type="button">新增节点</button></div>
+                            <div id="syncNodeStatus" class="status-banner">等待加载同步节点</div>
+                            <div class="table-shell management-table-shell">
+                                <table>
+                                    <thead><tr><th>名称</th><th>地址</th><th>状态</th><th>方向</th><th>最近同步</th><th>操作</th></tr></thead>
+                                    <tbody id="syncNodeTableBody"><tr><td colspan="6" style="text-align:center; padding:28px;">节点加载中...</td></tr></tbody>
+                                </table>
+                            </div>
+                        </article>
+
                         <article class="portal-card mobile-primary-panel full-width">
                             <div class="field-grid two-col">
                                 <div class="field-group">
 	                                    <label>访问控制</label>
-	                                    <div class="status-banner">已关闭接口凭证校验，依赖内网访问控制</div>
+		                                    <div class="status-banner">按部署凭据和受控入口校验，生产缺少机器凭据时失败关闭</div>
                                 </div>
                                 <div class="field-group">
                                     <label>指令解析能力</label>
@@ -3624,6 +4689,71 @@
                             <div class="action-row mobile-toolbar">
                                 <button id="mobileStatusBtn" class="btn btn-secondary" type="button">刷新设备状态</button>
                                 <button id="mobileStopBtn" class="btn btn-danger" type="button">停止当前任务</button>
+                            </div>
+                        </article>
+
+                        <article class="portal-card mobile-location-panel full-width">
+                            <div class="accent-title">模拟定位</div>
+                            <div class="mobile-location-layout">
+                                <div class="mobile-location-controls">
+                                    <div class="field-grid two-col">
+                                        <div class="field-group">
+                                            <label for="mobileMockKeyword">目标位置</label>
+                                            <input id="mobileMockKeyword" type="text" list="mobileMockPresetList" value="西安钟楼" placeholder="城市或地标">
+                                            <datalist id="mobileMockPresetList"></datalist>
+                                        </div>
+                                        <div class="field-group">
+                                            <label for="mobileMockDeviceId">设备</label>
+                                            <input id="mobileMockDeviceId" type="text" placeholder="默认在线设备">
+                                        </div>
+                                    </div>
+                                    <div class="field-grid three-col">
+                                        <div class="field-group">
+                                            <label for="mobileMockLat">纬度</label>
+                                            <input id="mobileMockLat" type="number" inputmode="decimal" step="0.000001" min="-90" max="90" value="34.261000">
+                                        </div>
+                                        <div class="field-group">
+                                            <label for="mobileMockLng">经度</label>
+                                            <input id="mobileMockLng" type="number" inputmode="decimal" step="0.000001" min="-180" max="180" value="108.942500">
+                                        </div>
+                                        <div class="field-group">
+                                            <label for="mobileMockAccuracy">精度米</label>
+                                            <input id="mobileMockAccuracy" type="number" inputmode="numeric" step="1" min="1" max="1000" value="20">
+                                        </div>
+                                    </div>
+                                    <div class="field-grid two-col">
+                                        <div class="field-group">
+                                            <label for="mobileMockCoordinateSystem">坐标系</label>
+                                            <select id="mobileMockCoordinateSystem">
+                                                <option value="WGS84">WGS84</option>
+                                                <option value="GCJ02">GCJ02</option>
+                                                <option value="BD09">BD09</option>
+                                            </select>
+                                        </div>
+                                        <div class="field-group">
+                                            <label for="mobileMockPlatform">目标应用</label>
+                                            <select id="mobileMockPlatform">
+                                                <option value="didi-charging">滴滴充电</option>
+                                                <option value="amap-charging">高德充电</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="action-row mobile-toolbar">
+                                        <button id="applyMobileMockLocationBtn" class="btn btn-primary" type="button">切换定位</button>
+                                        <button id="restoreMobileLocationBtn" class="btn btn-secondary" type="button">恢复真实定位</button>
+                                    </div>
+                                    <div id="mobileMockLocationStatus" class="status-banner">等待选择目标位置。</div>
+                                </div>
+                                <div class="mobile-mock-map-wrap">
+                                    <div id="mobileMockMap" class="mobile-mock-map" role="application" aria-label="模拟定位地图">
+                                        <div id="mobileMockCityDots"></div>
+                                        <button id="mobileMockMarker" class="mobile-mock-marker" type="button" aria-label="拖动定位点"></button>
+                                    </div>
+                                    <div class="mobile-mock-map-meta">
+                                        <span>经度 73-135</span>
+                                        <span>纬度 18-54</span>
+                                    </div>
+                                </div>
                             </div>
                         </article>
 
@@ -3693,40 +4823,40 @@
                         </article>
 
                         <article class="portal-card">
-                            <div class="accent-title">网络代理池</div>
+                            <div class="accent-title">网络出口池</div>
 
                             <div class="field-grid">
                                 <div class="inline-field">
                                     <input id="networkProxyEnabled" type="checkbox">
-                                    <label for="networkProxyEnabled">启用代理出口</label>
+                                    <label for="networkProxyEnabled">启用网络出口</label>
                                 </div>
 
                                 <div class="inline-field">
                                     <input id="autoCityProxyEnabled" type="checkbox">
-                                    <label for="autoCityProxyEnabled">按目标城市自动匹配代理</label>
+                                    <label for="autoCityProxyEnabled">按目标城市自动匹配网络出口</label>
                                 </div>
 
                                 <div class="field-group">
-	                                    <label for="networkDefaultProxyUrl">默认代理</label>
+	                                    <label for="networkDefaultProxyUrl">默认网络出口</label>
 	                                    <input id="networkDefaultProxyUrl" type="password" autocomplete="off" placeholder="http://user:pass@host:port">
 	                                </div>
 
                                 <div class="field-group">
-                                    <label>城市代理池</label>
+                                    <label>城市网络出口池</label>
                                     <div id="cityProxyPoolRows" class="proxy-pool-rows"></div>
 	                                    <div class="action-row" style="margin-top:0;">
-	                                        <button id="addCityProxyBtn" class="btn btn-secondary" type="button">新增城市代理</button>
+	                                        <button id="addCityProxyBtn" class="btn btn-secondary" type="button">新增城市出口</button>
 	                                    </div>
 	                                </div>
 
                                 <div class="inline-field">
                                     <input id="providerProxyEnabled" type="checkbox">
-                                    <label for="providerProxyEnabled">启用代理商 API 补充</label>
+                                    <label for="providerProxyEnabled">启用供应商出口补充</label>
                                 </div>
 
                                 <div class="field-grid two-col">
                                     <div class="field-group">
-                                        <label for="providerProxyApiUrl">代理商 API</label>
+                                        <label for="providerProxyApiUrl">供应商出口地址</label>
                                         <input id="providerProxyApiUrl" type="password" autocomplete="off" placeholder="https://vendor.example/get?city={city}">
                                     </div>
                                     <div class="field-group">
@@ -3737,85 +4867,90 @@
 
                                 <div class="field-grid two-col">
                                     <div class="field-group">
-                                        <label for="providerProxyAuthHeader">鉴权 Header</label>
-                                        <input id="providerProxyAuthHeader" type="text" placeholder="Authorization">
+                                        <label for="providerProxyAuthHeader">鉴权头</label>
+                                        <input id="providerProxyAuthHeader" type="text" placeholder="鉴权头名称">
                                     </div>
                                     <div class="field-group">
-                                        <label for="providerProxyAuthToken">鉴权 Token</label>
-                                        <input id="providerProxyAuthToken" type="password" autocomplete="off" placeholder="Bearer token">
+                                        <label for="providerProxyAuthSecret">鉴权密钥</label>
+                                        <input id="providerProxyAuthSecret" type="password" autocomplete="off" placeholder="鉴权密钥内容">
+                                        <label class="inline-field" for="providerProxyClearAuthSecret">
+                                            <input id="providerProxyClearAuthSecret" type="checkbox">
+                                            <span>清除已保存密钥</span>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="action-row">
-                                <button id="saveSettingsBtn" class="btn btn-primary" type="button">保存代理设置</button>
+                                <button id="saveSettingsBtn" class="btn btn-primary" type="button">保存网络出口设置</button>
                             </div>
 
-                            <div id="networkProxyStatus" class="status-banner">当前未启用代理</div>
+                            <div id="networkProxyStatus" class="status-banner">当前未启用网络出口</div>
                         </article>
 
                         <article class="portal-card">
-                            <div class="accent-title">AI Agent 配置</div>
+                            <div class="accent-title">智能助手配置</div>
 
                             <div class="field-grid">
                                 <div class="field-grid two-col">
                                     <div class="field-group">
                                         <label for="aiAgentSettingsMode">运行模式</label>
                                         <select id="aiAgentSettingsMode">
-                                            <option value="disabled">disabled</option>
-                                            <option value="dry_run">dry_run</option>
-                                            <option value="enabled">enabled</option>
+                                            <option value="disabled">未启用</option>
+                                            <option value="dry_run">仅生成建议</option>
+                                            <option value="enabled">启用自动诊断</option>
                                         </select>
                                     </div>
                                     <div class="field-group">
-                                        <label for="aiAgentSettingsType">接口类型</label>
+                                        <label for="aiAgentSettingsType">服务类型</label>
                                         <select id="aiAgentSettingsType">
-                                            <option value="openai_compatible">OpenAI compatible</option>
-                                            <option value="anthropic_native">Anthropic Claude native</option>
+                                            <option value="openai_compatible">通用模型服务</option>
+                                            <option value="anthropic_native">Claude 原生服务</option>
                                         </select>
                                     </div>
                                 </div>
 
                                 <div class="field-group">
-                                    <label for="aiAgentSettingsBaseUrl">Base URL</label>
-                                    <input id="aiAgentSettingsBaseUrl" type="text" autocomplete="off" placeholder="https://api.openai.com/v1 或 https://api.anthropic.com/v1">
+                                    <label for="aiAgentSettingsBaseUrl">服务地址</label>
+                                    <input id="aiAgentSettingsBaseUrl" type="text" autocomplete="off" placeholder="填写企业批准的模型服务地址">
                                 </div>
 
                                 <div class="field-grid two-col">
                                     <div class="field-group">
-                                        <label for="aiAgentSettingsModelId">Model ID</label>
-                                        <input id="aiAgentSettingsModelId" type="text" autocomplete="off" placeholder="gpt-4.1-mini / claude-sonnet-4-6">
+                                        <label for="aiAgentSettingsModelSelect">模型</label>
+                                        <select id="aiAgentSettingsModelSelect"></select>
+                                        <input id="aiAgentSettingsModelId" type="text" autocomplete="off" placeholder="自定义模型标识">
                                     </div>
                                     <div class="field-group">
-                                        <label for="aiAgentSettingsTimeoutMs">Timeout ms</label>
+                                        <label for="aiAgentSettingsTimeoutMs">超时时间（毫秒）</label>
                                         <input id="aiAgentSettingsTimeoutMs" type="number" min="1000" step="1000" value="60000">
                                     </div>
                                 </div>
 
                                 <div class="field-group">
-                                    <label for="aiAgentSettingsApiKey">API Key</label>
-                                    <input id="aiAgentSettingsApiKey" type="password" autocomplete="new-password" placeholder="留空则保留已保存 Key">
+                                    <label for="aiAgentSettingsApiKey">访问密钥</label>
+                                    <input id="aiAgentSettingsApiKey" type="password" autocomplete="new-password" placeholder="留空则保留已保存密钥">
                                 </div>
 
                                 <div class="field-grid two-col">
                                     <div class="inline-field">
                                         <input id="aiAgentSettingsKeepKey" type="checkbox" checked>
-                                        <label for="aiAgentSettingsKeepKey">留空保留已保存 Key</label>
+                                        <label for="aiAgentSettingsKeepKey">留空保留已保存密钥</label>
                                     </div>
                                     <div class="inline-field">
                                         <input id="aiAgentSettingsClearKey" type="checkbox">
-                                        <label for="aiAgentSettingsClearKey">清空已保存 Key</label>
+                                        <label for="aiAgentSettingsClearKey">清空已保存密钥</label>
                                     </div>
                                 </div>
 
                                 <div class="field-grid two-col">
                                     <div class="field-group">
-                                        <label for="aiAgentSettingsTemperature">Temperature</label>
-                                        <input id="aiAgentSettingsTemperature" type="number" min="0" max="2" step="0.1" value="0">
+                                        <label for="aiAgentSettingsCreativity">回答随机性</label>
+                                        <input id="aiAgentSettingsCreativity" type="number" min="0" max="2" step="0.1" value="0">
                                     </div>
                                     <div class="field-group">
-                                        <label for="aiAgentSettingsMaxTokens">Max tokens</label>
-                                        <input id="aiAgentSettingsMaxTokens" type="number" min="1" step="1" value="1200">
+                                        <label for="aiAgentSettingsOutputLimit">最大输出长度</label>
+                                        <input id="aiAgentSettingsOutputLimit" type="number" min="1" step="1" value="1200">
                                     </div>
                                 </div>
 
@@ -3832,10 +4967,141 @@
                             </div>
 
                             <div class="action-row">
-                                <button id="saveAiAgentSettingsBtn" class="btn btn-primary" type="button">保存 AI Agent 配置</button>
+                                <button id="saveAiAgentSettingsBtn" class="btn btn-primary" type="button">保存智能助手配置</button>
                             </div>
 
-                            <div id="aiAgentSettingsStatus" class="status-banner">等待加载 AI Agent 配置</div>
+                            <div id="aiAgentSettingsStatus" class="status-banner">等待加载智能助手配置</div>
+                        </article>
+
+                        <article class="portal-card">
+                            <div class="accent-title">排查与自愈策略</div>
+
+                            <div class="field-grid">
+                                <div class="field-grid two-col">
+                                    <div class="inline-field">
+                                        <input id="selfHealEnabled" type="checkbox">
+                                        <label for="selfHealEnabled">启用自动排查</label>
+                                    </div>
+                                    <div class="inline-field">
+                                        <input id="autoFallbackEnabled" type="checkbox">
+                                        <label for="autoFallbackEnabled">允许链路兜底</label>
+                                    </div>
+                                </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="inline-field">
+                                        <input id="autoTemplateSwitch" type="checkbox">
+                                        <label for="autoTemplateSwitch">自动切换请求材料</label>
+                                    </div>
+                                    <div class="inline-field">
+                                        <input id="autoProxyRotate" type="checkbox">
+                                        <label for="autoProxyRotate">自动轮换网络出口</label>
+                                    </div>
+                                </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="inline-field">
+                                        <input id="autoUaRotate" type="checkbox">
+                                        <label for="autoUaRotate">自动轮换访问指纹</label>
+                                    </div>
+                                    <div class="inline-field">
+                                        <input id="autoRefreshLearning" type="checkbox">
+                                        <label for="autoRefreshLearning">失败后刷新学习样本</label>
+                                    </div>
+                                </div>
+
+                                <div class="inline-field">
+                                    <input id="resumeFromBreakpoint" type="checkbox">
+                                    <label for="resumeFromBreakpoint">从断点继续任务</label>
+                                </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="field-group">
+                                        <label for="maxAttemptsPerRun">单次最大尝试</label>
+                                        <input id="maxAttemptsPerRun" type="number" min="1" step="1" value="3">
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="manualEscalationThreshold">人工介入阈值</label>
+                                        <input id="manualEscalationThreshold" type="number" min="1" step="1" value="3">
+                                    </div>
+                                </div>
+
+                                <div class="field-grid two-col">
+                                    <div class="field-group">
+                                        <label for="selfHealScenario">演练场景</label>
+                                        <select id="selfHealScenario">
+                                            <option value="api_501_burst">接口连续 501</option>
+                                            <option value="empty_response">响应为空</option>
+                                            <option value="parse_empty">解析为空</option>
+                                            <option value="page_stalled">页面停滞</option>
+                                        </select>
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="selfHealCurrentChain">当前链路</label>
+                                        <select id="selfHealCurrentChain">
+                                            <option value="api">小规模访问验证</option>
+                                            <option value="mitm">请求采集</option>
+                                            <option value="page">页面采集</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="field-grid four-col">
+                                    <div class="field-group">
+                                        <label for="stallMinutes">停滞分钟</label>
+                                        <input id="stallMinutes" type="number" min="1" step="1" value="8">
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="fail501Threshold">501 阈值</label>
+                                        <input id="fail501Threshold" type="number" min="1" step="1" value="2">
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="emptyResponseThreshold">空响应阈值</label>
+                                        <input id="emptyResponseThreshold" type="number" min="1" step="1" value="1">
+                                    </div>
+                                    <div class="field-group">
+                                        <label for="parseEmptyThreshold">空解析阈值</label>
+                                        <input id="parseEmptyThreshold" type="number" min="1" step="1" value="1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="action-row">
+                                <button id="saveSelfHealSettingsBtn" class="btn btn-primary" type="button">保存排查策略</button>
+                                <button id="runSelfHealDiagnosisBtn" class="btn btn-secondary" type="button">执行排查演练</button>
+                            </div>
+
+                            <div id="selfHealStatus" class="status-banner">等待加载排查策略</div>
+                            <div id="selfHealPlan" class="self-heal-plan"></div>
+                            <div id="selfHealLog" class="log-panel" data-empty="暂无排查记录"></div>
+                        </article>
+
+                        <article class="portal-card full-width">
+                            <div class="report-list-toolbar">
+                                <div class="accent-title">平台能力健康</div>
+                                <button id="refreshOperationsGovernanceBtn" class="btn btn-secondary" type="button">刷新健康状态</button>
+                            </div>
+                            <div id="platformHealthStatus" class="status-banner">等待加载平台能力健康</div>
+                            <div class="table-shell management-table-shell">
+                                <table>
+                                    <thead><tr><th>平台</th><th>列表/详情材料</th><th>最近验证</th><th>签名状态</th><th>材料时间</th><th>今日剩余</th><th>操作</th></tr></thead>
+                                    <tbody id="platformHealthTableBody"><tr><td colspan="7" style="text-align:center; padding:28px;">健康状态加载中...</td></tr></tbody>
+                                </table>
+                            </div>
+                        </article>
+
+                        <article class="portal-card full-width">
+                            <div class="report-list-toolbar">
+                                <div class="accent-title">操作审计</div>
+                                <button id="refreshAuditEventsBtn" class="btn btn-secondary" type="button">刷新审计记录</button>
+                            </div>
+                            <div id="auditEventStatus" class="status-banner">等待加载操作审计</div>
+                            <div class="table-shell management-table-shell">
+                                <table>
+                                    <thead><tr><th>时间</th><th>操作者</th><th>动作/资源</th><th>结果</th><th>请求编号</th></tr></thead>
+                                    <tbody id="auditEventTableBody"><tr><td colspan="5" style="text-align:center; padding:28px;">审计记录加载中...</td></tr></tbody>
+                                </table>
+                            </div>
                         </article>
 
 	                    </div>
@@ -3848,6 +5114,42 @@
     <datalist id="collectPresetCityList"></datalist>
 
 	    <script src="./china-cities.js?v=20260604-centers"></script>
-	    <script src="./app.js?v=20260604-centers"></script>
+	    <script src="./navigation-control.js?v=20260713-control"></script>
+	    <script src="./user-reason-control.js?v=20260713-control"></script>
+	    <script src="./platform-selection-control.js?v=20260713-control"></script>
+	    <script src="./schedule-control.js?v=20260713-control"></script>
+	    <script src="./template-api-progress-control.js?v=20260713-control"></script>
+	    <script src="./coordinate-crawl-control.js?v=20260713-control"></script>
+	    <script src="./workflow-status-control.js?v=20260713-control"></script>
+	    <script src="./collection-flow-control.js?v=20260713-control"></script>
+	    <script src="./collection-result-control.js?v=20260713-control"></script>
+	    <script src="./collection-session-control.js?v=20260713-control"></script>
+	    <script src="./page-collection-control.js?v=20260713-control"></script>
+	    <script src="./page-ocr-control.js?v=20260713-control"></script>
+	    <script src="./request-collection-control.js?v=20260713-control"></script>
+	    <script src="./smart-collection-control.js?v=20260713-control"></script>
+	    <script src="./city-location-control.js?v=20260713-control"></script>
+	    <script src="./network-settings-control.js?v=20260713-control"></script>
+	    <script src="./har-upload-control.js?v=20260713-control"></script>
+	    <script src="./station-presentation-control.js?v=20260713-control"></script>
+	    <script src="./data-dashboard-control.js?v=20260713-control"></script>
+	    <script src="./crawler-run-quota-control.js?v=20260713-control"></script>
+	    <script src="./access-validation-control.js?v=20260713-control"></script>
+	    <script src="./capture-evidence-control.js?v=20260713-control"></script>
+	    <script src="./capture-recorder-control.js?v=20260713-control"></script>
+	    <script src="./security-report-control.js?v=20260713-control"></script>
+	    <script src="./ocr-quality-control.js?v=20260716-control"></script>
+	    <script src="./self-heal-settings-control.js?v=20260713-control"></script>
+	    <script src="./self-heal-operations-control.js?v=20260713-control"></script>
+	    <script src="./ai-agent-dashboard-control.js?v=20260715-control"></script>
+	    <script src="./ai-agent-settings-control.js?v=20260713-control"></script>
+	    <script src="./agent-workbench.js?v=20260713-control"></script>
+	    <script src="./mobile-control-board.js?v=20260713-control"></script>
+	    <script src="./edge-agent-control.js?v=20260716-control"></script>
+	    <script src="./sync-node-control.js?v=20260716-control"></script>
+	    <script src="./operations-governance-control.js?v=20260716-control"></script>
+	    <script src="./mobile-mock-location.js?v=20260713-control"></script>
+	    <script src="./mobile-intent-chat.js?v=20260713-control"></script>
+	    <script src="./app.js?v=20260713-control"></script>
 </body>
 </html>

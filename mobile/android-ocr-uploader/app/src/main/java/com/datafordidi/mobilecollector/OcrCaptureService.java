@@ -51,6 +51,7 @@ public final class OcrCaptureService extends Service {
     static final String EXTRA_RESULT_DATA = "resultData";
     static final String EXTRA_START_NONCE = "startNonce";
     static final String EXTRA_SESSION_ID = "sessionId";
+    static final String EXTRA_SELECTED_PLATFORM = "selectedPlatform";
 
     private static final String TAG = "StandaloneOcr";
     private static final String CHANNEL_ID = "standalone_ocr_capture";
@@ -91,6 +92,7 @@ public final class OcrCaptureService extends Service {
     private String nearChangeCandidateRawHash = "";
     private String stableCandidateHash = "";
     private String lockedTargetPackage = "";
+    private String selectedPlatform = "";
     private long stableDeadline;
     private long pausedAt;
     private long sessionStartedAt;
@@ -143,6 +145,8 @@ public final class OcrCaptureService extends Service {
             return START_NOT_STICKY;
         }
         String startNonce = intent == null ? "" : intent.getStringExtra(EXTRA_START_NONCE);
+        selectedPlatform = intent == null ? "" : intent.getStringExtra(EXTRA_SELECTED_PLATFORM);
+        if (selectedPlatform == null) selectedPlatform = "";
         if (runningState) {
             sendCaptureEvent(ACTION_CAPTURE_FAILED, startNonce);
             return START_NOT_STICKY;
@@ -335,11 +339,14 @@ public final class OcrCaptureService extends Service {
                 pauseAndMonitor(screenHash, rawHash, "页面已变化");
                 return;
             }
-            ScreenContextResolver.ParsedScreen parsed = ScreenContextResolver.resolve(
-                    rows,
-                    CaptureContextPolicy.parserPackage(automaticScrollSession, packageAtCapture),
-                    automaticScrollSession ? "screen-ocr-auto-scroll" : "screen-ocr-manual-scroll"
-            );
+            String sourceStage = automaticScrollSession ? "screen-ocr-auto-scroll" : "screen-ocr-manual-scroll";
+            ScreenContextResolver.ParsedScreen parsed = FuelPlatformHint.isExplicit(selectedPlatform)
+                    ? ScreenContextResolver.resolveWithHint(rows, selectedPlatform, sourceStage)
+                    : ScreenContextResolver.resolve(
+                            rows,
+                            CaptureContextPolicy.parserPackage(automaticScrollSession, packageAtCapture),
+                            sourceStage
+                    );
             if ("fuel".equals(parsed.stationType)) {
                 for (FuelStationRecord station : parsed.fuelStations) {
                     station.capturedAt = CaptureTime.requireUtc(capturedAt);

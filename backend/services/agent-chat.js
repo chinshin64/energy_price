@@ -83,7 +83,7 @@ class AgentChatService {
 
         this.llmBaseUrl = process.env.AGENT_LLM_BASE_URL || 'http://llm-proxy.intra.xiaojukeji.com';
         this.llmApiKey = process.env.AGENT_LLM_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
-        this.llmModel = process.env.AGENT_LLM_MODEL || 'glm-5.1-external';
+        this.llmModel = process.env.AGENT_LLM_MODEL || 'glm-5.1';
 
         fs.mkdirSync(this.dataDir, { recursive: true });
         this.state = this._loadState();
@@ -200,7 +200,7 @@ ${ctx}
                     return m.RunHistoryModel?.getRuns(limit) || [];
                 }
                 case 'query_schedules':
-                    return m.PriceScheduleModel?.getStatistics() || {};
+                    return m.ScheduleModel?.list() || [];
                 case 'query_mobile_status':
                     return s.mobileCommandService?.getControlStatus?.() || { deviceCount: 0 };
                 case 'start_crawl': {

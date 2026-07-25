@@ -85,6 +85,46 @@ public class ScreenContextResolverTest {
         assertFalse(specialized.address != null);
     }
 
+    @Test
+    public void userSelectedPlatformOverridesMissingPackageNameForFuel() {
+        // 手动模式下拿不到包名（""），detector 会判 generic-fuel 被服务端拒；
+        // 用户选了 tuanyou 后，resolveWithHint 应直接用 tuanyou 解析，platform 为 tuanyou。
+        ScreenContextResolver.ParsedScreen parsed = ScreenContextResolver.resolveWithHint(
+                Arrays.asList(
+                        row("团油·筛选"),
+                        row("浙江石油西湖塘河站"),
+                        row("92# 油站价 7.06元/L")
+                ),
+                "tuanyou",
+                "screen-ocr-manual-scroll"
+        );
+        assertEquals("fuel", parsed.stationType);
+        assertEquals("tuanyou", parsed.platform);
+        assertFalse(parsed.platform.startsWith("generic-fuel"));
+    }
+
+    @Test
+    public void userSelectedChargingPlatformUsesChargingParser() {
+        ScreenContextResolver.ParsedScreen parsed = ScreenContextResolver.resolveWithHint(
+                Arrays.asList(row("杭州未来科技城充电站"), row("1.08元/度")),
+                "didi-charging",
+                "screen-ocr-manual-scroll"
+        );
+        assertEquals("charging", parsed.stationType);
+        assertEquals("didi-charging", parsed.platform);
+    }
+
+    @Test
+    public void emptyHintFallsBackToAutomaticResolve() {
+        // 未选平台（auto）时退回原自动检测逻辑
+        ScreenContextResolver.ParsedScreen parsed = ScreenContextResolver.resolveWithHint(
+                Arrays.asList(row("非场站页面")),
+                "",
+                "screen-ocr-manual-scroll"
+        );
+        assertTrue(parsed.isEmpty());
+    }
+
     private static OcrRow row(String value) {
         return new OcrRow(value, 1f, 0.1f, 0.3f, 0.8f, 0.04f);
     }

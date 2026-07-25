@@ -37,6 +37,12 @@
         "name": "快电",
         "searchKeyword": "快电",
         "automationProfileId": "kuaidian"
+      },
+      {
+        "id": "xdt",
+        "name": "新电途",
+        "searchKeyword": "新电途",
+        "automationProfileId": "xdt"
       }
     ]
   },

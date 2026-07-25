@@ -1,4 +1,5 @@
 const db = require('../database/init');
+const { redactText, serializeRedacted } = require('../services/sensitive-redactor');
 
 class RunHistoryModel {
   static startRun(runType, payload = {}) {
@@ -6,7 +7,7 @@ class RunHistoryModel {
       INSERT INTO crawl_runs (run_type, status, request_payload)
       VALUES (?, 'running', ?)
     `);
-    const result = stmt.run(runType, JSON.stringify(payload));
+    const result = stmt.run(runType, serializeRedacted(payload, { maxBytes: 64 * 1024 }));
     return result.lastInsertRowid;
   }
 
@@ -14,7 +15,7 @@ class RunHistoryModel {
     return db.prepare(`
       INSERT INTO crawl_run_logs (run_id, level, message)
       VALUES (?, ?, ?)
-    `).run(runId, level, String(message || ''));
+    `).run(runId, level, redactText(String(message || '')).slice(0, 4000));
   }
 
   static finishRun(runId, status, summary = null, errorMessage = null) {
@@ -37,8 +38,8 @@ class RunHistoryModel {
       WHERE id = ?
     `).run(
       status,
-      summary ? JSON.stringify(summary) : null,
-      errorMessage || null,
+      serializeRedacted(summary, { maxBytes: 64 * 1024 }),
+      errorMessage ? redactText(errorMessage).slice(0, 4000) : null,
       durationMs,
       runId
     );
@@ -50,7 +51,7 @@ class RunHistoryModel {
       SET result_summary = ?
       WHERE id = ?
     `).run(
-      summary ? JSON.stringify(summary) : null,
+      serializeRedacted(summary, { maxBytes: 64 * 1024 }),
       runId
     );
   }

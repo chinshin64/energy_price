@@ -1,7 +1,7 @@
 #!/bin/bash
 # batch-city-capture.sh
 # Batch capture for all cities in city-coordinate-database.json
-# Routes traffic through 47.111.139.230:50180 (tinyproxy)
+# Routes traffic through an explicitly configured upstream proxy.
 #
 # Usage:
 #   ./scripts/batch-city-capture.sh [--start-from CITY_NAME] [--max-cities N] [--nodes-per-city N]
@@ -9,7 +9,7 @@
 # Prerequisites:
 #   1. WeChat mini program open on 172 with system proxy configured
 #   2. mitmdump + mitm-location-override.py available
-#   3. 47.111.139.230:50180 accessible from the execution host
+#   3. UPSTREAM_PROXY points to an approved proxy reachable from the execution host
 
 set -euo pipefail
 
@@ -19,17 +19,18 @@ CORPUS_FILE="$DATA_DIR/didi-signature-corpus.json"
 CITY_DB="$DATA_DIR/city-coordinate-database.json"
 CAPTURE_DIR="$DATA_DIR/capture-sessions"
 
-# Proxy config (47.111.139.230 outbound)
-UPSTREAM_PROXY="47.111.139.230:50181"
+# Proxy config is deployment-owned and must not be embedded in source.
+UPSTREAM_PROXY="${UPSTREAM_PROXY:-}"
+if [[ -z "$UPSTREAM_PROXY" ]]; then
+    echo "UPSTREAM_PROXY is required, for example http://proxy.internal:8080" >&2
+    exit 2
+fi
 
 # mitmdump config
 MITMDUMP_BIN="$PROJECT_ROOT/.venv-capture/bin/mitmdump"
 HAR_DUMP_SCRIPT="$PROJECT_ROOT/scripts/mitm-har-dump.py"
 LOCATION_OVERRIDE_SCRIPT="$PROJECT_ROOT/scripts/mitm-location-override.py"
 HAR_TO_CORPUS="$PROJECT_ROOT/scripts/har-to-corpus.py"
-
-# API config
-API_BASE="http://127.0.0.1:50080"
 
 # Defaults
 START_FROM=""
@@ -48,7 +49,7 @@ done
 
 echo "=== Batch City Capture ==="
 echo "Project: $PROJECT_ROOT"
-echo "Upstream proxy: 47.111.139.230:50180"
+echo "Upstream proxy: configured"
 echo "Max cities: $MAX_CITIES"
 echo "Nodes per city: $NODES_PER_CITY"
 echo ""
@@ -124,7 +125,7 @@ for line in $CITY_LIST; do
         > "$LOG_PATH" 2>&1 &
     
     MITMDUMP_PID=$!
-    echo "  mitmdump started (PID=$MITMDUMP_PID, upstream=47.111.139.230:50180)"
+    echo "  mitmdump started (PID=$MITMDUMP_PID, upstream=configured)"
     
     # Wait for capture duration
     sleep $CAPTURE_DURATION

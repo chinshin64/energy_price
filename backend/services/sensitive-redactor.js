@@ -2,13 +2,20 @@
 
 /**
  * 敏感字段脱敏服务
- * 用于方式二、方式三的统一脱敏处理
+ * 用于请求采集和小规模访问验证的统一脱敏处理
  */
 
 const SENSITIVE_KEY_PATTERNS = [
     /^cookie$/i,
+    /^set[-_]?cookie$/i,
     /^authorization$/i,
+    /^proxy[-_]?authorization$/i,
     /^token$/i,
+    /^auth[-_]?token$/i,
+    /^bearer[-_]?token$/i,
+    /^client[-_]?token$/i,
+    /^id[-_]?token$/i,
+    /^user[-_]?token$/i,
     /^access[-_]?token$/i,
     /^refresh[-_]?token$/i,
     /^sign$/i,
@@ -21,11 +28,14 @@ const SENSITIVE_KEY_PATTERNS = [
     /^idcard$/i,
     /^skey$/i,
     /^session$/i,
+    /^session[-_]?id$/i,
     /^wsgsig$/i,
     /^password$/i,
     /^passwd$/i,
     /^secret$/i,
     /^api[-_]?key$/i,
+    /^client[-_]?secret$/i,
+    /^app[-_]?secret$/i,
     /^private[-_]?key$/i,
     /^email$/i,
     /^real[-_]?name$/i,
@@ -40,10 +50,39 @@ const SENSITIVE_KEY_PATTERNS = [
 ];
 
 const REDACTED = '**redacted**';
+const URL_KEY_PATTERN = /(?:^|[-_])(url|uri|href)$/i;
+const BODY_TEXT_KEY_PATTERN = /(?:^|[-_])(body|payload|post[-_]?data|request[-_]?data)$/i;
+const DEFAULT_MAX_STORAGE_BYTES = 512 * 1024;
+
+function compactKey(key) {
+    return String(key || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
 
 function isSensitiveKey(key) {
     if (!key || typeof key !== 'string') return false;
-    return SENSITIVE_KEY_PATTERNS.some(p => p.test(key));
+    if (SENSITIVE_KEY_PATTERNS.some(p => p.test(key))) return true;
+
+    const compact = compactKey(key);
+    return [
+        'authtoken',
+        'bearertoken',
+        'clienttoken',
+        'idtoken',
+        'usertoken',
+        'accesstoken',
+        'refreshtoken',
+        'sessionid',
+        'sessionkey',
+        'clientsecret',
+        'appsecret',
+        'apikey',
+        'privatekey',
+        'proxyauthorization',
+        'setcookie',
+        'xwxskey',
+        'xsign',
+        'xsignature'
+    ].includes(compact);
 }
 
 function redactValue(val) {
@@ -74,6 +113,10 @@ function redactObject(obj, options = {}) {
     if (depth > 10) return REDACTED; // max depth guard
     const nextOpts = { ...options, _depth: depth + 1 };
 
+    if (obj instanceof Date) {
+        return Number.isNaN(obj.getTime()) ? null : obj.toISOString();
+    }
+
     if (Array.isArray(obj)) {
         return obj.map(item => {
             if (typeof item === 'object' && item !== null) return redactObject(item, nextOpts);
@@ -81,12 +124,20 @@ function redactObject(obj, options = {}) {
         });
     }
 
+    const namedField = typeof obj.name === 'string'
+        ? obj.name
+        : (typeof obj.key === 'string' ? obj.key : null);
+    const namedFieldIsSensitive = isSensitiveKey(namedField);
     const result = {};
     for (const [key, value] of Object.entries(obj)) {
-        if (isSensitiveKey(key)) {
+        if (isSensitiveKey(key) || (namedFieldIsSensitive && /^(value|val)$/i.test(key))) {
             result[key] = REDACTED;
         } else if (typeof value === 'object' && value !== null) {
             result[key] = redactObject(value, nextOpts);
+        } else if (typeof value === 'string' && URL_KEY_PATTERN.test(key)) {
+            result[key] = redactUrl(value);
+        } else if (typeof value === 'string' && BODY_TEXT_KEY_PATTERN.test(key)) {
+            result[key] = redactBodyText(value);
         } else {
             result[key] = redactValueByContent(value);
         }
@@ -187,11 +238,100 @@ function redactBodyText(text) {
         const obj = JSON.parse(text);
         return JSON.stringify(redactObject(obj));
     } catch {
-        return text.replace(/(")(\w+)(")\s*:\s*(")([^"]*)(")/g, (match, q1, key, q2, q3, val, q4) => {
+        const raw = String(text);
+        if (/^[^=]+=[^=]*(?:&[^=]+=[^=]*)*$/.test(raw)) {
+            const params = new URLSearchParams(raw);
+            let changed = false;
+            for (const key of Array.from(params.keys())) {
+                if (isSensitiveKey(key)) {
+                    params.set(key, REDACTED);
+                    changed = true;
+                }
+            }
+            if (changed) return params.toString();
+        }
+
+        return raw.replace(/(")([\w.-]+)(")\s*:\s*(")([^"]*)(")/g, (match, q1, key, q2, q3, val, q4) => {
             if (isSensitiveKey(key)) return `${q1}${key}${q2}:${q3}${REDACTED}${q4}`;
             return match;
         });
     }
+}
+
+function redactText(value) {
+    if (value === undefined || value === null) return value;
+    let text = String(value);
+    text = text.replace(/https?:\/\/[^\s"'<>]+/gi, url => redactUrl(url));
+    text = text.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTED}`);
+    text = text.replace(
+        /\b(cookie|set-cookie|authorization|proxy-authorization|token|auth[-_]?token|access[-_]?token|refresh[-_]?token|api[-_]?key|secret|session[-_]?key|wsgsig|signature)\b\s*[:=]\s*(?:Bearer\s+)?[^\s,;]+/gi,
+        (_match, key) => `${key}=${REDACTED}`
+    );
+    text = text.replace(/\b1[3-9]\d{9}\b/g, phone => `${phone.slice(0, 3)}****${phone.slice(7)}`);
+    text = text.replace(/\b\d{17}[\dXx]\b/g, idCard => `${idCard.slice(0, 4)}**********${idCard.slice(14)}`);
+    return text;
+}
+
+function normalizeStorageLimit(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_STORAGE_BYTES;
+    return Math.max(256, Math.min(10 * 1024 * 1024, Math.floor(parsed)));
+}
+
+function buildStoragePreview(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const preferredKeys = [
+        'source', 'sourceType', 'sourceStage', 'stage', 'snapshotMode',
+        'platform', 'city', 'stationId', 'stationName', 'address', 'meta'
+    ];
+    const preview = {};
+    for (const key of preferredKeys) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+            preview[key] = value[key];
+        }
+    }
+    return Object.keys(preview).length > 0 ? preview : null;
+}
+
+/**
+ * 生成可安全持久化的 JSON。超出上限时仅保留来源摘要，避免大报文撑大 SQLite。
+ */
+function serializeRedacted(value, options = {}) {
+    if (value === undefined || value === null || value === '') return null;
+    const maxBytes = normalizeStorageLimit(options.maxBytes);
+    const normalized = typeof value === 'string'
+        ? (() => {
+            try {
+                return redactObject(JSON.parse(value));
+            } catch {
+                return redactBodyText(value);
+            }
+        })()
+        : redactObject(value);
+    let serialized;
+    try {
+        serialized = JSON.stringify(normalized);
+    } catch {
+        serialized = JSON.stringify({
+            _storagePolicy: {
+                redacted: true,
+                serializationFailed: true
+            }
+        });
+    }
+
+    const byteLength = Buffer.byteLength(serialized, 'utf8');
+    if (byteLength <= maxBytes) return serialized;
+
+    return JSON.stringify({
+        _storagePolicy: {
+            redacted: true,
+            truncated: true,
+            originalBytes: byteLength,
+            maxBytes
+        },
+        preview: buildStoragePreview(normalized)
+    });
 }
 
 /**
@@ -255,7 +395,10 @@ module.exports = {
     redactUrl,
     redactHarEntry,
     redactBodyText,
+    redactText,
+    serializeRedacted,
     summarizeRedactedEntry,
     REDACTED,
     SENSITIVE_KEY_PATTERNS,
+    DEFAULT_MAX_STORAGE_BYTES,
 };

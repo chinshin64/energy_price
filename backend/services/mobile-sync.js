@@ -50,10 +50,14 @@ class MobileSyncService {
         return {
             platform,
             sessionId: meta.sessionId,
+            sourceAgent: meta.sourceAgent,
+            relayNode: meta.relayNode,
             pageIndex: meta.pageIndex,
             rowCount: ocrRows.length,
             stationCount: stations.length,
-            insertedCount: dbResult.successCount || 0,
+            insertedCount: (dbResult.successCount || 0) + (dbResult.yellowCount || 0),
+            reviewCount: dbResult.yellowCount || 0,
+            rejectedCount: dbResult.redCount || 0,
             skippedCount: dbResult.skipCount || 0,
             stations
         };
@@ -78,8 +82,12 @@ class MobileSyncService {
         return {
             platform,
             sessionId: meta.sessionId,
+            sourceAgent: meta.sourceAgent,
+            relayNode: meta.relayNode,
             stationCount: stations.length,
-            insertedCount: dbResult.successCount || 0,
+            insertedCount: (dbResult.successCount || 0) + (dbResult.yellowCount || 0),
+            reviewCount: dbResult.yellowCount || 0,
+            rejectedCount: dbResult.redCount || 0,
             skippedCount: dbResult.skipCount || 0,
             stations
         };
@@ -97,10 +105,15 @@ class MobileSyncService {
     }
 
     buildMeta(payload, platform) {
+        const transport = payload._transport && typeof payload._transport === 'object'
+            ? payload._transport
+            : {};
         return {
             source: 'mobile-ocr',
             sourceType: 'mobile-ocr',
             sourceStage: payload.stage || payload.sourceStage || 'phone-auto-scroll',
+            sourceAgent: this.resolveSourceAgent(payload.sourceAgent, transport.mobileAgent, payload.clientVersion),
+            relayNode: this.normalizeRelayNode(transport.relayNode),
             platform,
             sessionId: this.cleanText(payload.sessionId) || this.generateSessionId(payload),
             deviceId: this.cleanText(payload.deviceId) || null,
@@ -112,6 +125,35 @@ class MobileSyncService {
             screenshotHash: this.cleanText(payload.screenshotHash) || null,
             capturedAt: payload.capturedAt || new Date().toISOString()
         };
+    }
+
+    resolveSourceAgent(payloadAgent, headerAgent, clientVersion) {
+        const bodyValue = this.normalizeSourceAgent(payloadAgent);
+        const headerValue = this.normalizeSourceAgent(headerAgent);
+        if (bodyValue && headerValue && bodyValue !== headerValue) {
+            throw new Error('sourceAgent does not match X-Mobile-Agent');
+        }
+        if (headerValue || bodyValue) {
+            return headerValue || bodyValue;
+        }
+        const version = this.cleanText(clientVersion).toLowerCase();
+        if (version.startsWith('android')) return 'android-agent';
+        if (version.startsWith('ios')) return 'ios-agent';
+        return 'mobile-agent';
+    }
+
+    normalizeSourceAgent(value) {
+        const normalized = this.cleanText(value).toLowerCase();
+        if (!normalized) return null;
+        if (!/^[a-z0-9][a-z0-9._-]{0,54}-agent$/.test(normalized)) {
+            throw new Error('invalid sourceAgent');
+        }
+        return normalized;
+    }
+
+    normalizeRelayNode(value) {
+        const normalized = this.cleanText(value);
+        return /^[a-zA-Z0-9._:-]{1,128}$/.test(normalized) ? normalized : null;
     }
 
     generateSessionId(payload) {
@@ -176,6 +218,7 @@ class MobileSyncService {
             longitude: this.pickNullableNumber(station.longitude, station.lng, station.lon),
             sourceType: station.sourceType || 'mobile-ocr',
             sourceStage: station.sourceStage || meta.sourceStage,
+            sourceAgent: meta.sourceAgent,
             snapshotAt: station.snapshotAt || station.snapshot_at || station.capturedAt || meta.capturedAt,
             collectedAt: station.collectedAt || station.collected_at || station.capturedAt || meta.capturedAt,
             snapshotMode: station.snapshotMode || 'append',
@@ -205,6 +248,7 @@ class MobileSyncService {
 
         normalized.sourceType = 'mobile-ocr';
         normalized.sourceStage = meta.sourceStage;
+        normalized.sourceAgent = meta.sourceAgent;
         normalized.snapshotAt = station.snapshotAt || station.snapshot_at || station.capturedAt || meta.capturedAt;
         normalized.collectedAt = station.collectedAt || station.collected_at || station.capturedAt || meta.capturedAt;
         normalized.snapshotMode = station.snapshotMode || 'append';

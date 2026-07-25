@@ -3,17 +3,15 @@
 Batch City Capture - Automated corpus generation for 300+ cities.
 
 Flow per city:
-  1. Start mitmdump with upstream:47.111.139.230:50181 + location override
+  1. Start mitmdump with an approved upstream proxy + location override
   2. Enable system proxy on 172
   3. Wait for WeChat mini program to make requests (auto or manual refresh)
   4. Stop mitmdump
   5. Run har-to-corpus.py to extract signed request material
   6. Move to next city
 
-Traffic exits through 47.111.139.230 (verified outbound IP).
-
 Usage:
-  python3 scripts/batch-city-capture.py [--max-cities N] [--capture-time SECS] [--start-from CITY]
+  UPSTREAM_PROXY=http://proxy.internal:8080 python3 scripts/batch-city-capture.py [options]
 """
 
 import json
@@ -30,9 +28,6 @@ DATA_DIR = PROJECT_ROOT / "data"
 CITY_DB = DATA_DIR / "city-coordinate-database.json"
 CORPUS_FILE = DATA_DIR / "didi-signature-corpus.json"
 CAPTURE_DIR = DATA_DIR / "capture-sessions"
-
-# 47 proxy (no-auth for 172's source IP)
-UPSTREAM_PROXY = "47.111.139.230:50181"
 
 # mitmdump
 MITMDUMP_BIN = str(PROJECT_ROOT / ".venv-capture/bin/mitmdump")
@@ -96,7 +91,7 @@ def set_system_proxy(enabled, host="127.0.0.1", port=8898):
         run_cmd(f"networksetup -setsecurewebproxy Wi-Fi {host} {port}")
 
 
-def start_mitmdump(city, lat, lng, listen_port=8898):
+def start_mitmdump(city, lat, lng, upstream_proxy, listen_port=8898):
     session_id = f"batch-{int(time.time())}-{city}"
     session_dir = CAPTURE_DIR / session_id
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -110,7 +105,7 @@ def start_mitmdump(city, lat, lng, listen_port=8898):
         "--listen-host", "0.0.0.0",
         "--listen-port", str(listen_port),
         "--set", "block_global=false",
-        "--mode", f"upstream:{UPSTREAM_PROXY}",
+        "--mode", f"upstream:{upstream_proxy}",
         "-s", HAR_DUMP_SCRIPT,
         "--set", f"data_for_didi_har_path={har_path}",
         "--set", f"data_for_didi_stats_path={stats_path}",
@@ -172,13 +167,17 @@ def main():
     parser.add_argument("--nodes-per-city", type=int, default=3)
     parser.add_argument("--capture-time", type=int, default=30, help="Seconds to capture per node")
     parser.add_argument("--start-from", type=str, default=None)
+    parser.add_argument("--upstream-proxy", default=os.environ.get("UPSTREAM_PROXY", ""))
     args = parser.parse_args()
+    args.upstream_proxy = args.upstream_proxy.strip()
+    if not args.upstream_proxy:
+        parser.error("--upstream-proxy or UPSTREAM_PROXY is required")
     
     nodes = load_city_nodes(args.max_cities, args.nodes_per_city, args.start_from)
     
     print(f"=== Batch City Capture ===")
     print(f"Total tasks: {len(nodes)}")
-    print(f"Upstream proxy: {UPSTREAM_PROXY} (verified 47.111.139.230 outbound)")
+    print("Upstream proxy: configured")
     print(f"Capture time per node: {args.capture_time}s")
     print(f"")
     
@@ -197,7 +196,9 @@ def main():
         print(f"[{i+1}/{len(nodes)}] {city}/{district} (lat={lat}, lng={lng})")
         
         # Start mitmdump
-        proc, session_id, har_path, stats_path = start_mitmdump(city, lat, lng)
+        proc, session_id, har_path, stats_path = start_mitmdump(
+            city, lat, lng, args.upstream_proxy
+        )
         time.sleep(2)
         
         # Enable system proxy

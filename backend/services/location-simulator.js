@@ -1,14 +1,35 @@
 'use strict';
 
-const { execFileSync, execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path = require('path');
-const fs = require('fs');
+
+const CITY_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N}\s·._-]{0,63}$/u;
+const MAX_SCREEN_COORDINATE = 100000;
+
+function createInputError(code, message) {
+    const error = new Error(message);
+    error.code = code;
+    error.statusCode = 400;
+    return error;
+}
+
+function blockingSleep(ms) {
+    const duration = Math.max(0, Math.floor(Number(ms) || 0));
+    if (duration === 0) {
+        return;
+    }
+    const state = new Int32Array(new SharedArrayBuffer(4));
+    Atomics.wait(state, 0, 0, duration);
+}
 
 class LocationSimulator {
     constructor(options = {}) {
         this.projectRoot = options.projectRoot || path.join(__dirname, '../..');
         this.scriptsDir = path.join(this.projectRoot, 'automation');
         this.currentLocation = null;
+        this.execFile = options.execFile || execFileSync;
+        this.sleep = options.sleep || blockingSleep;
+        this.platform = options.platform || process.platform;
     }
 
     /**
@@ -23,18 +44,14 @@ class LocationSimulator {
      */
     setSimulatedLocation(options = {}) {
         const { city, lat, lng, windowId, windowBounds } = options;
-        
-        if (!city) {
-            return { success: false, reason: 'city_required' };
-        }
-
-        if (!windowId || !windowBounds) {
-            return { success: false, reason: 'window_info_required' };
-        }
-
-        const { X, Y, Width, Height } = windowBounds;
 
         try {
+            const normalizedCity = this.normalizeCity(city);
+            const normalizedWindowId = this.normalizeWindowId(windowId);
+            const bounds = this.normalizeWindowBounds(windowBounds);
+            const coordinate = this.normalizeGeoCoordinate(lat, lng);
+            const { X, Y, Width, Height } = bounds;
+
             // Step 1: Click on the search bar (middle-top of window)
             this._clickAt(X + Width * 0.5, Y + Height * 0.06);
             this._sleep(1500);
@@ -43,26 +60,31 @@ class LocationSimulator {
             // Select all (Cmd+A) then type
             this._keyCombo('cmd', 'a');
             this._sleep(200);
-            this._typeText(city);
+            this._typeText(normalizedCity);
             this._sleep(2000);
 
             // Step 3: Click on the first search result
             this._clickAt(X + Width * 0.3, Y + Height * 0.22);
             this._sleep(1500);
 
-            this.currentLocation = { city, lat, lng, updatedAt: new Date().toISOString() };
+            this.currentLocation = {
+                city: normalizedCity,
+                lat: coordinate?.lat ?? null,
+                lng: coordinate?.lng ?? null,
+                updatedAt: new Date().toISOString()
+            };
 
             return {
                 success: true,
-                city,
+                city: normalizedCity,
                 method: 'jxa_search_automation',
-                windowId,
-                bounds: windowBounds
+                windowId: normalizedWindowId,
+                bounds
             };
         } catch (error) {
             return {
                 success: false,
-                reason: 'automation_failed',
+                reason: error.code || 'automation_failed',
                 error: error.message
             };
         }
@@ -73,7 +95,10 @@ class LocationSimulator {
      * 不依赖城市入口检测，直接操作搜索框
      */
     switchCityViaSearch(city, windowId, bounds) {
-        const { X, Y, Width, Height } = bounds;
+        const normalizedCity = this.normalizeCity(city);
+        this.normalizeWindowId(windowId);
+        const normalizedBounds = this.normalizeWindowBounds(bounds);
+        const { X, Y, Width, Height } = normalizedBounds;
 
         // 1. Click search bar
         this._clickAt(X + Width * 0.5, Y + Height * 0.06);
@@ -84,7 +109,7 @@ class LocationSimulator {
         this._sleep(200);
 
         // 3. Type city name
-        this._typeText(city);
+        this._typeText(normalizedCity);
         this._sleep(2000);
 
         // 4. Press Enter to search
@@ -95,14 +120,15 @@ class LocationSimulator {
         this._clickAt(X + Width * 0.3, Y + Height * 0.25);
         this._sleep(1000);
 
-        return { success: true, city, method: 'search_bar' };
+        return { success: true, city: normalizedCity, method: 'search_bar' };
     }
 
     /**
      * 点击"去授权"按钮开启定位
      */
     clickAuthorizeButton(windowId, bounds) {
-        const { X, Y, Width, Height } = bounds;
+        this.normalizeWindowId(windowId);
+        const { X, Y, Width, Height } = this.normalizeWindowBounds(bounds);
         // "去授权>" typically at right side of the permission prompt
         this._clickAt(X + Width * 0.72, Y + Height * 0.13);
         this._sleep(2000);
@@ -112,43 +138,125 @@ class LocationSimulator {
     getStatus() {
         return {
             currentLocation: this.currentLocation,
-            available: true
+            available: this.platform === 'darwin',
+            capability: 'wechat_ui_city_switch'
         };
+    }
+
+    normalizeCity(value) {
+        const city = String(value || '').trim();
+        if (!city) {
+            throw createInputError('city_required', 'city is required');
+        }
+        if (!CITY_PATTERN.test(city)) {
+            throw createInputError('invalid_city', 'city contains unsupported characters or exceeds 64 characters');
+        }
+        return city;
+    }
+
+    normalizeWindowId(value) {
+        const windowId = Number(value);
+        if (!Number.isSafeInteger(windowId) || windowId <= 0) {
+            throw createInputError('window_info_required', 'windowId must be a positive integer');
+        }
+        return windowId;
+    }
+
+    normalizeWindowBounds(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            throw createInputError('window_info_required', 'windowBounds is required');
+        }
+        const bounds = {
+            X: Number(value.X ?? value.x),
+            Y: Number(value.Y ?? value.y),
+            Width: Number(value.Width ?? value.width),
+            Height: Number(value.Height ?? value.height)
+        };
+        const values = Object.values(bounds);
+        if (values.some(item => !Number.isFinite(item) || Math.abs(item) > MAX_SCREEN_COORDINATE)) {
+            throw createInputError('invalid_window_bounds', 'windowBounds must contain finite screen coordinates');
+        }
+        if (bounds.Width <= 0 || bounds.Height <= 0) {
+            throw createInputError('invalid_window_bounds', 'window width and height must be positive');
+        }
+        return bounds;
+    }
+
+    normalizeGeoCoordinate(lat, lng) {
+        const latMissing = lat === undefined || lat === null || lat === '';
+        const lngMissing = lng === undefined || lng === null || lng === '';
+        if (latMissing && lngMissing) {
+            return null;
+        }
+        const normalizedLat = Number(lat);
+        const normalizedLng = Number(lng);
+        if (!Number.isFinite(normalizedLat) || normalizedLat < -90 || normalizedLat > 90) {
+            throw createInputError('invalid_latitude', 'lat must be between -90 and 90');
+        }
+        if (!Number.isFinite(normalizedLng) || normalizedLng < -180 || normalizedLng > 180) {
+            throw createInputError('invalid_longitude', 'lng must be between -180 and 180');
+        }
+        return { lat: normalizedLat, lng: normalizedLng };
     }
 
     // --- Low-level helpers ---
 
     _clickAt(x, y) {
-        execSync(`osascript -l JavaScript -e '
+        const normalizedX = Number(x);
+        const normalizedY = Number(y);
+        if (
+            !Number.isFinite(normalizedX)
+            || !Number.isFinite(normalizedY)
+            || Math.abs(normalizedX) > MAX_SCREEN_COORDINATE
+            || Math.abs(normalizedY) > MAX_SCREEN_COORDINATE
+        ) {
+            throw createInputError('invalid_click_coordinate', 'click coordinates must be finite screen coordinates');
+        }
+        const script = `
             ObjC.import("Cocoa");
-            var src = $.CGEventSourceCreate($.kCGEventSourceStateHIDSystemState);
-            var down = $.CGEventCreateMouseEvent(src, $.kCGEventLeftMouseDown, $.CGPointMake(${x}, ${y}), $.kCGMouseButtonLeft);
-            var up = $.CGEventCreateMouseEvent(src, $.kCGEventLeftMouseUp, $.CGPointMake(${x}, ${y}), $.kCGMouseButtonLeft);
-            $.CGEventPost($.kCGHIDEventTap, down);
-            $.CGEventPost($.kCGHIDEventTap, up);
-        '`, { stdio: 'pipe', timeout: 5000 });
+            function run(argv) {
+                const x = Number(argv[0]);
+                const y = Number(argv[1]);
+                const src = $.CGEventSourceCreate($.kCGEventSourceStateHIDSystemState);
+                const down = $.CGEventCreateMouseEvent(src, $.kCGEventLeftMouseDown, $.CGPointMake(x, y), $.kCGMouseButtonLeft);
+                const up = $.CGEventCreateMouseEvent(src, $.kCGEventLeftMouseUp, $.CGPointMake(x, y), $.kCGMouseButtonLeft);
+                $.CGEventPost($.kCGHIDEventTap, down);
+                $.CGEventPost($.kCGHIDEventTap, up);
+            }
+        `;
+        this.execFile('/usr/bin/osascript', [
+            '-l', 'JavaScript', '-e', script, String(normalizedX), String(normalizedY)
+        ], { stdio: 'pipe', timeout: 5000 });
     }
 
     _typeText(text) {
-        // Use clipboard for reliable text input
-        execSync(`osascript -e 'set the clipboard to "${text.replace(/"/g, '\\"')}"'`, { stdio: 'pipe', timeout: 3000 });
-        this._sleep(100);
-        execSync(`osascript -e 'tell application "System Events" to keystroke "v" using command down'`, { stdio: 'pipe', timeout: 3000 });
+        const normalizedText = this.normalizeCity(text);
+        const script = [
+            'on run argv',
+            'set the clipboard to item 1 of argv',
+            'tell application "System Events" to keystroke "v" using command down',
+            'end run'
+        ].join('\n');
+        this.execFile('/usr/bin/osascript', ['-e', script, normalizedText], {
+            stdio: 'pipe',
+            timeout: 3000
+        });
     }
 
     _keyCombo(modifier, key) {
-        let cmd = 'osascript -e \'tell application "System Events"';
-        if (modifier === 'cmd') {
-            cmd += ` to keystroke "${key}" using command down`;
+        let script;
+        if (modifier === 'cmd' && key === 'a') {
+            script = 'tell application "System Events" to keystroke "a" using command down';
+        } else if (!modifier && key === 'return') {
+            script = 'tell application "System Events" to key code 36';
         } else {
-            cmd += ` to key code ${key === 'return' ? 36 : 36}`;
+            throw createInputError('invalid_key_action', 'unsupported keyboard action');
         }
-        cmd += "'";
-        execSync(cmd, { stdio: 'pipe', timeout: 3000 });
+        this.execFile('/usr/bin/osascript', ['-e', script], { stdio: 'pipe', timeout: 3000 });
     }
 
     _sleep(ms) {
-        execSync(`sleep ${Math.ceil(ms / 1000)}`, { stdio: 'pipe', timeout: ms + 2000 });
+        this.sleep(ms);
     }
 }
 

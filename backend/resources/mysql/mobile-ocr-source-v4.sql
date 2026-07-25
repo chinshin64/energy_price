@@ -1,0 +1,20 @@
+-- Mobile OCR source physical schema v4 reference.
+--
+-- The executable migration is:
+--   backend/scripts/migrate-mobile-source-mysql.js
+--
+-- The runner uses mysql2 with multipleStatements=false, inspects
+-- information_schema, and adds the following nullable snapshot columns:
+--   mobile_ocr_station_snapshots.busy_ports INT UNSIGNED NULL
+--   mobile_ocr_station_snapshots.port_semantics VARCHAR(32) NULL
+--   mobile_ocr_station_snapshots.missing_fields JSON NULL
+--   mobile_ocr_station_snapshots.quality_status VARCHAR(32) NULL
+--
+-- v1-v3 table definitions and stored rows are not rewritten. API schema v3
+-- may store legacy NOT NULL available_ports/total_ports as zero while
+-- missing_fields preserves the distinction between missing and observed zero.
+--
+-- Use:
+--   node backend/scripts/migrate-mobile-source-mysql.js --dry-run
+--   node backend/scripts/migrate-mobile-source-mysql.js --apply
+--   node backend/scripts/migrate-mobile-source-mysql.js --validate-only

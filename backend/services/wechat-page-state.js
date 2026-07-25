@@ -53,6 +53,9 @@ class WechatPageStateDetector {
             /历史搜索/
         ]));
         const detailRows = rows.filter(row => this.matchesAny(row.text, [
+            /场站详情/,
+            /场站环境/,
+            /位置概览/,
             /扫码充电/,
             /导航/,
             /单站权益/,
@@ -158,6 +161,9 @@ class WechatPageStateDetector {
             /搜索$/
         ]) && row.x > 0.72 && row.y > 0.78);
         const backTarget = this.pickTarget(rows, row => this.matchesAny(row.text, [
+            /^<$/,
+            /^‹$/,
+            /^返回$/,
             /返回/,
             /返回首页/,
             /返回上一页/
@@ -183,6 +189,7 @@ class WechatPageStateDetector {
                 this.matchesAny(row.text, [/查找附近场站/]) && row.x > 0.65
             )
             : null;
+        const listButton = this.pickTarget(rows, row => /^列表$/.test(String(row.text || '').trim()));
         const mapButton = this.pickTarget(rows, row => this.matchesAny(row.text, [
             /地图/
         ]) && row.x < 0.28 && row.y > 0.55);
@@ -194,7 +201,12 @@ class WechatPageStateDetector {
         let state = 'unknown';
         let label = '未知页面';
 
-        const isLoginPrompt = (
+        const mapLabelRows = rows.filter(row => this.isMapAdministrativeText(row.text));
+        const isMapView = stationRows.length === 0
+            && mapLabelRows.length >= 6
+            && rows.some(row => this.matchesAny(row.text, [/目的地/, /渤海/, /东海/, /南海/]));
+        const isListPage = !isMapView && (listControlRows.length >= 3 || stationRows.length > 0);
+        const isLoginPrompt = !isListPage && (
             loginRows.length >= 2
             || (loginRows.length >= 1 && closeTarget)
             || (loginRows.length >= 1 && stationRows.length === 0 && listControlRows.length < 2 && homeRows.length < 2)
@@ -205,12 +217,26 @@ class WechatPageStateDetector {
             marketingRows.length >= 2 && stationRows.length === 0 && listControlRows.length < 2
         );
 
+        const isMediaDetailPage = rows.some(row => this.matchesAny(row.text, [/场站环境/]))
+            && rows.some(row => this.matchesAny(row.text, [/位置概览/]));
+
+        const isDetailPage = isMediaDetailPage || this.isDetailPage(detailRows, rows);
+
         if (priceExplainRows.length >= 2 && closeTarget) {
             state = 'popup';
             label = '价格说明弹窗';
         } else if (humanVerificationRows.length > 0) {
             state = 'human-verification';
             label = '安全验证页';
+        } else if (isDetailPage) {
+            state = 'station-detail';
+            label = '场站详情页';
+        } else if (isMapView) {
+            state = 'map-view';
+            label = '地图页';
+        } else if (isListPage) {
+            state = 'station-list';
+            label = '场站列表页';
         } else if (isLoginPrompt) {
             state = 'login-prompt';
             label = '登录弹窗页';
@@ -232,15 +258,6 @@ class WechatPageStateDetector {
         } else if (locationRows.length > 0 && homeRows.length >= 4 && stationRows.length === 0) {
             state = 'location-home';
             label = '定位首页';
-        } else if (listControlRows.length >= 3) {
-            state = 'station-list';
-            label = '场站列表页';
-        } else if (this.isDetailPage(detailRows, rows)) {
-            state = 'station-detail';
-            label = '场站详情页';
-        } else if (stationRows.length > 0) {
-            state = 'station-list';
-            label = '场站列表页';
         } else if (isMarketingPage) {
             state = 'marketing';
             label = '营销活动页';
@@ -256,6 +273,7 @@ class WechatPageStateDetector {
             detailCount: detailRows.length,
             listControlCount: listControlRows.length,
             searchCount: searchRows.length,
+            stationSearchCount: stationSearchHeaderRows.length,
             marketingCount: marketingRows.length,
             loginCount: loginRows.length,
             humanVerificationCount: humanVerificationRows.length,
@@ -280,6 +298,7 @@ class WechatPageStateDetector {
                 citySelector: this.toTarget(citySelector, 'city-selector'),
                 stationOption: this.toTarget(stationOption, 'station-option'),
                 nearbySearchAction: this.toTarget(nearbySearchAction, 'nearby-search-action'),
+                listButton: this.toTarget(listButton, 'list-button'),
                 mapButton: this.toTarget(mapButton, 'map-button'),
                 enableLocationButton: this.toTarget(enableLocationButton, 'enable-location'),
                 firstStation: this.toTarget(this.pickTarget(stationTargetRows), 'first-station'),
@@ -367,6 +386,9 @@ class WechatPageStateDetector {
         if (this.isControlText(text) || this.looksLikePriceOrCount(text)) {
             return false;
         }
+        if (this.isMapAdministrativeText(text)) {
+            return false;
+        }
 
         const compact = this.normalizeText(text);
         if (compact.length < 3 || compact.length > 24) {
@@ -378,6 +400,18 @@ class WechatPageStateDetector {
         }
 
         return /[\u4e00-\u9fa5]{3,}/.test(text);
+    }
+
+    isMapAdministrativeText(text) {
+        const compact = this.normalizeText(text);
+        if (!compact) return false;
+        return this.matchesAny(compact, [
+            /^(北京市|上海市|天津市|重庆市)$/,
+            /^(内蒙古|广西|宁夏|新疆|西藏)?[\u4e00-\u9fa5]{1,8}(省|自治区|特别行政区)$/,
+            /^(河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|台湾)省$/,
+            /^(渤海|东海|南海|黄海)$/,
+            /^目的地$/
+        ]);
     }
 
     isControlText(text) {
@@ -448,6 +482,10 @@ class WechatPageStateDetector {
         const text = String(row?.text || '').trim();
         if (!text) {
             return false;
+        }
+
+        if (/^附近$/.test(text) && row.y > 0.8 && row.x < 0.18) {
+            return true;
         }
 
         // 允许两种位置：搜索页底部(y>0.7) 或搜索页顶部城市名(y<0.3)
@@ -619,12 +657,22 @@ class WechatPageStateDetector {
             return null;
         }
 
-        const exact = rows.find(row => this.normalizeCity(row.text) === normalizedTarget);
+        const candidates = rows.filter(row => {
+            if (row.y > 0.82 && row.x > 0.2) {
+                return false;
+            }
+            if (this.matchesAny(row.text, [/请输入/, /搜索/, /城市中文名/, /拼音/])) {
+                return false;
+            }
+            return this.normalizeCity(row.text).includes(normalizedTarget);
+        });
+
+        const exact = candidates.find(row => this.normalizeCity(row.text) === normalizedTarget);
         if (exact) {
             return exact;
         }
 
-        return rows.find(row => this.normalizeCity(row.text).includes(normalizedTarget)) || null;
+        return candidates[0] || null;
     }
 
     normalizeCity(value) {
