@@ -20,6 +20,7 @@ public final class FuelCaptureRules {
             CURRENCY + "\\s*(\\d{1,2}\\.\\d{1,3})\\s*(?:元)?\\s*/\\s*[Ll升]",
             Pattern.CASE_INSENSITIVE
     );
+    private static final Pattern VISUAL_GRADE = Pattern.compile("__SELECTED__\\s*(92|95)\\s*[#号]?");
 
     private FuelCaptureRules() {}
 
@@ -32,9 +33,17 @@ public final class FuelCaptureRules {
         capture.providerName = null;
         capture.providerEvidenceText = null;
         capture.paymentPage = false;
-        if (!capture.gradeExplicit) {
+
+        String visuallySelected = visuallySelectedGrade(capture.rawText);
+        if (visuallySelected == null) {
+            // Grade-discount rows often contain both 92 and 95. They are not selection evidence.
             capture.gradeCode = null;
             capture.gradeLabel = null;
+            capture.gradeExplicit = false;
+        } else {
+            capture.gradeCode = visuallySelected;
+            capture.gradeLabel = visuallySelected + "号汽油";
+            capture.gradeExplicit = true;
         }
     }
 
@@ -57,10 +66,16 @@ public final class FuelCaptureRules {
         Double derivedFee = deriveServiceFee(capture.amountYuan, capture.discountAmount, capture.payableAmount);
         if (derivedFee != null) capture.serviceFee = derivedFee;
 
-        // Payment pages normally do not show the oil grade. Never trust a fallback grade there.
-        if (!capture.gradeExplicit) {
+        String visuallySelected = visuallySelectedGrade(raw);
+        if (visuallySelected == null) {
+            // Payment pages do not normally show a grade. Ignore numeric false positives.
             capture.gradeCode = null;
             capture.gradeLabel = null;
+            capture.gradeExplicit = false;
+        } else {
+            capture.gradeCode = visuallySelected;
+            capture.gradeLabel = visuallySelected + "号汽油";
+            capture.gradeExplicit = true;
         }
     }
 
@@ -92,6 +107,11 @@ public final class FuelCaptureRules {
 
     public static String priceKey(Double displayPrice) {
         return displayPrice == null ? "unknown" : String.format(Locale.US, "%.2f", displayPrice);
+    }
+
+    static String visuallySelectedGrade(String rawText) {
+        Matcher matcher = VISUAL_GRADE.matcher(rawText == null ? "" : rawText);
+        return matcher.find() ? matcher.group(1) : null;
     }
 
     private static Double firstDouble(Pattern pattern, String input) {
