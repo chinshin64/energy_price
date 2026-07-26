@@ -29,7 +29,7 @@
             android:id="@+id/captureButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="启动悬浮截屏" />
+            android:text="启动两阶段截屏" />
 
         <Button
             android:id="@+id/exportButton"
@@ -48,7 +48,7 @@
         android:paddingTop="4dp"
         android:paddingEnd="16dp"
         android:paddingBottom="12dp"
-        android:text="尚未启动悬浮截屏"
+        android:text="尚未启动两阶段截屏"
         android:textColor="@color/text_secondary"
         android:textSize="14sp" />
 
@@ -59,7 +59,7 @@
         android:paddingTop="10dp"
         android:paddingEnd="16dp"
         android:paddingBottom="4dp"
-        android:text="使用方法：启动后切换到高德，在详情页点击悬浮窗“截屏识别”；进入 200 元支付页后再点击一次。每个油号分别操作。"
+        android:text="操作：高德详情页点击悬浮窗“详情”，进入加200元支付页后点击“支付”。同一油站无明确油号时，两档外显价自动按低价92#、高价95#配对。"
         android:textColor="@color/text_secondary"
         android:textSize="13sp" />
 
@@ -135,7 +135,7 @@
         android:layout_weight="1"
         android:gravity="center"
         android:padding="24dp"
-        android:text="暂无采集记录\n启动悬浮截屏后，在高德对应页面手动点击“截屏识别”"
+        android:text="暂无采集记录\n先点详情缓存价格，再点支付补优惠、实付和CP"
         android:textColor="@color/text_secondary"
         android:textSize="16sp" />
 

@@ -35,6 +35,7 @@ public final class MobileSourcePayloadFactory {
                 : capture.screenHash;
         String idempotencyMaterial = BuildConfig.SOURCE_AGENT + ":" + deviceId + ":" + sessionId + ":" + pageIndex + ":" + screenHash;
         String idempotencyKey = FuelStationParser.sha256(idempotencyMaterial);
+        String gradeSource = capture.gradeExplicit ? "ocr-explicit" : "display-price-ranking";
 
         JSONObject quality = new JSONObject()
                 .put("status", "valid")
@@ -52,6 +53,7 @@ public final class MobileSourcePayloadFactory {
                 .put("amountYuan", 200)
                 .put("discountAmount", capture.discountAmount)
                 .put("serviceFee", capture.serviceFee)
+                .put("gradeSource", gradeSource)
                 .put("screenHash", screenHash);
         if (capture.discountPerLiter != null) rawOffer.put("discountPerLiter", capture.discountPerLiter);
         if (capture.payableAmount != null) rawOffer.put("payableAmount", capture.payableAmount);
@@ -69,6 +71,7 @@ public final class MobileSourcePayloadFactory {
                 .put("amountYuan", 200)
                 .put("discountAmount", capture.discountAmount)
                 .put("serviceFee", capture.serviceFee)
+                .put("gradeSource", gradeSource)
                 .put("screenHash", screenHash);
         if (capture.payableAmount != null) fuelRaw.put("payableAmount", capture.payableAmount);
         if (capture.rawText != null) fuelRaw.put("ocrText", limit(capture.rawText, 12000));
