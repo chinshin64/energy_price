@@ -11,7 +11,10 @@
         android:background="@color/surface"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:padding="16dp">
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
 
         <TextView
             android:layout_width="0dp"
@@ -23,10 +26,10 @@
             android:textStyle="bold" />
 
         <Button
-            android:id="@+id/accessibilityButton"
+            android:id="@+id/captureButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="开启采集权限" />
+            android:text="开始截屏采集" />
 
         <Button
             android:id="@+id/exportButton"
@@ -35,6 +38,19 @@
             android:layout_marginStart="8dp"
             android:text="导出 CSV" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/captureStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface"
+        android:paddingStart="16dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp"
+        android:text="尚未开始采集"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -107,7 +123,8 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:gravity="center"
-        android:text="暂无采集记录\n请开启无障碍权限后操作高德加油页面"
+        android:padding="24dp"
+        android:text="暂无采集记录\n点击“开始截屏采集”，允许系统截屏后操作高德加油页面"
         android:textColor="@color/text_secondary"
         android:textSize="16sp" />
 

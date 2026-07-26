@@ -25,7 +25,16 @@ jobs:
       - name: Install Android SDK
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Unit tests
-        run: gradle testDebugUnitTest --stacktrace
+        run: |
+          set -o pipefail
+          gradle testDebugUnitTest --stacktrace 2>&1 | tee test-debug.log
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-log
+          path: test-debug.log
+          if-no-files-found: ignore
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4

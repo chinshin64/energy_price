@@ -49,8 +49,10 @@ public final class FuelCapture {
         if (newer == null) return copy();
         FuelCapture out = copy();
         out.stationName = prefer(newer.stationName, out.stationName);
-        out.gradeCode = prefer(newer.gradeCode, out.gradeCode);
-        out.gradeLabel = prefer(newer.gradeLabel, out.gradeLabel);
+        if (isSupportedGrade(newer.gradeCode)) {
+            out.gradeCode = newer.gradeCode;
+            out.gradeLabel = newer.gradeCode + "号汽油";
+        }
         out.gradeExplicit = out.gradeExplicit || newer.gradeExplicit;
         out.amountYuan = newer.amountYuan != null ? newer.amountYuan : out.amountYuan;
         out.stationPrice = newer.stationPrice != null ? newer.stationPrice : out.stationPrice;
@@ -71,19 +73,20 @@ public final class FuelCapture {
 
     public boolean isCompleteForSubmission() {
         return notBlank(stationName)
-                && ("92".equals(gradeCode) || "95".equals(gradeCode))
+                && isSupportedGrade(gradeCode)
                 && amountYuan != null && amountYuan == 200
-                && resolvedDisplayPrice() != null
+                && stationPrice != null
+                && displayPrice != null
                 && discountAmount != null
                 && serviceFee != null
                 && notBlank(providerName)
+                && notBlank(providerEvidenceText)
                 && paymentPage;
     }
 
     public Double resolvedStationPrice() {
         if (stationPrice != null) return stationPrice;
-        if (listPrice != null) return listPrice;
-        return displayPrice;
+        return listPrice;
     }
 
     public Double resolvedDisplayPrice() {
@@ -96,18 +99,23 @@ public final class FuelCapture {
 
     public Double resolvedListPrice() {
         if (listPrice != null) return listPrice;
-        return resolvedStationPrice();
+        return stationPrice;
     }
 
     public String stableIdentity() {
-        return String.format(Locale.US, "%s|%s|%d|%.2f|%.2f|%.2f|%s",
+        return String.format(Locale.US, "%s|%s|%d|%.2f|%.2f|%.2f|%.2f|%s",
                 stationName == null ? "" : stationName,
                 gradeCode == null ? "" : gradeCode,
                 amountYuan == null ? 0 : amountYuan,
-                resolvedDisplayPrice() == null ? 0d : resolvedDisplayPrice(),
+                stationPrice == null ? 0d : stationPrice,
+                displayPrice == null ? 0d : displayPrice,
                 discountAmount == null ? 0d : discountAmount,
                 serviceFee == null ? 0d : serviceFee,
                 providerName == null ? "" : providerName);
+    }
+
+    private static boolean isSupportedGrade(String value) {
+        return "92".equals(value) || "95".equals(value);
     }
 
     private static String prefer(String first, String second) {

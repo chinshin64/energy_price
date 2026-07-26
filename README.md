@@ -1,14 +1,26 @@
 # energy_price
 
-Android 11+ 高德加油页面伴随采集器。用户手动操作高德时，应用通过无障碍节点和本地中文 OCR 识别加油站、油号、200 元报价、优惠、服务费和 CP，并按 mobile-source v3 协议上传。
+Android 11+ 高德加油页面截屏采集器。用户手动操作高德时，应用使用 Android MediaProjection 持续截屏和本地中文 OCR，识别油站名、92#/95#、200 元时的油站价、优惠价、立减优惠、服务费、实付金额和 CP，并按 mobile-source v3 协议上传。
 
 ## 采集边界
 
-- 只监听 `com.autonavi.minimap`。
+- 不使用无障碍权限。
+- 用户点击“开始截屏采集”后，由 Android 系统弹出截屏授权确认。
 - 不自动点击，不发起支付。
-- 仅在识别到 92# 或 95#、金额 200 元、支付页优惠/服务费/CP 后形成完整记录。
-- 每个油号单独记录和上传。
-- UI 不显示回传状态；本地 outbox 在后台重试。
+- 92# 和 95# 通过页面蓝色选中态辅助判定，每个油号单独记录。
+- CP 只从支付页提取；页面底部区域会单独放大 OCR，并要求连续两帧一致。
+- 油站价和优惠价必须分别识别，禁止用优惠价回填油站价。
+- UI 不显示数据上传状态；本地 outbox 在后台重试。
+
+## 视频回归基准
+
+`VideoSixRecordRegressionTest` 固化了用户视频中的 3 个油站 × 92#/95# 共 6 条记录：
+
+- 浙江石油塘河供能加油站：CP 团油
+- 双龙加油站：CP 易加油
+- 中化道达尔杭州留祥路加油站：CP 滴滴加油
+
+OCR 误读“滴加油”会规范为“滴滴加油”，原始证据文本仍保留在 payload 的 raw/evidence 中。
 
 ## 配置
 
@@ -28,4 +40,4 @@ Android 11+ 高德加油页面伴随采集器。用户手动操作高德时，�
 gradle testDebugUnitTest assembleDebug
 ```
 
-GitHub Actions 会生成 `energy-price-debug-apk` artifact。
+GitHub Actions 会生成 `energy-price-debug-apk` artifact，并在测试失败时保留 `android-test-log`。

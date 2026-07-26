@@ -9,19 +9,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class FuelStationParser {
+    private static final String CURRENCY = "[¥￥#Yy]?";
     private static final Pattern GRADE = Pattern.compile("(?<!\\d)(92|95|98|0)\\s*[#号]?");
-    private static final Pattern GRADE_DISCOUNT = Pattern.compile("(?<!\\d)(92|95)\\s*[#号]?.{0,12}?优惠\\s*[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)\\s*(?:元)?\\s*/?\\s*[Ll升]", Pattern.CASE_INSENSITIVE);
-    private static final Pattern STATION_PRICE = Pattern.compile("(?:加油站价|油站价|挂牌价|国标价|站价|原价)\\s*[:：]?\\s*[¥￥]?\\s*(\\d{1,2}(?:\\.\\d{1,3})?)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DISPLAY_PRICE = Pattern.compile("(?:外显价|优惠价|活动价|会员价|到手价)\\s*[:：]?\\s*[¥￥]?\\s*(\\d{1,2}(?:\\.\\d{1,3})?)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PER_LITER_PRICE = Pattern.compile("[¥￥]?\\s*(\\d{1,2}\\.\\d{1,3})\\s*(?:元)?\\s*/?\\s*[Ll升]", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SAVE_200 = Pattern.compile("200\\s*元?\\s*(?:省|立减|优惠)\\s*[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)");
-    private static final Pattern DISCOUNT = Pattern.compile("(?:立减优惠|优惠金额|合计优惠|优惠券优惠|优惠)\\s*[:：]?\\s*[-−—]?\\s*[¥￥]?\\s*[-−]?\\s*(\\d+(?:\\.\\d{1,2})?)");
-    private static final Pattern SERVICE_FEE = Pattern.compile("服务费\\s*[:：]?\\s*[+＋]?\\s*[¥￥]?\\s*(\\d+(?:\\.\\d{1,2})?)");
-    private static final Pattern PAYABLE = Pattern.compile("(?:实付金额|应付金额|合计支付|立即支付|需支付|实付)\\s*[:：]?\\s*[¥￥]?\\s*(\\d{2,3}(?:\\.\\d{1,2})?)");
-    private static final Pattern PROVIDER_1 = Pattern.compile("(?:本次[^\\n]{0,8}?由|服务商\\s*[:：]?)\\s*([^，。；;:：\\s]{1,30}?)(?:提供|服务|$)");
-    private static final Pattern PROVIDER_2 = Pattern.compile("由\\s*([^，。；;:：\\s]{1,30}?)\\s*提供");
-    private static final Pattern BARE_PRICE = Pattern.compile("^[¥￥]?\\s*(\\d{1,2}\\.\\d{1,3})\\s*(?:起)?$");
-    private static final Pattern EXACT_200 = Pattern.compile("^(?:__SELECTED__\\s*)?[¥￥]?\\s*200(?:\\.00)?\\s*$");
+    private static final Pattern GRADE_DISCOUNT = Pattern.compile("(?<!\\d)(92|95)\\s*[#号]?.{0,16}?(?:优惠|每升省)\\s*" + CURRENCY + "\\s*(\\d+(?:\\.\\d{1,2})?)\\s*(?:元)?\\s*/?\\s*[Ll升]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STATION_PRICE = Pattern.compile("(?:加油站价|油站价|挂牌价|国标价|站价|原价)\\s*[:：]?\\s*" + CURRENCY + "\\s*(\\d{1,2}(?:\\.\\d{1,3})?)\\s*(?:元)?\\s*/?\\s*[Ll升]?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DISPLAY_PRICE = Pattern.compile("(?:外显价|优惠价|活动价|会员价|到手价)\\s*[:：]?\\s*" + CURRENCY + "\\s*(\\d{1,2}(?:\\.\\d{1,3})?)\\s*(?:元)?\\s*/?\\s*[Ll升]?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PER_LITER_PRICE = Pattern.compile(CURRENCY + "\\s*(\\d{1,2}\\.\\d{1,3})\\s*(?:元)?\\s*/?\\s*[Ll升]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SAVE_200 = Pattern.compile("200\\s*元?\\s*(?:约?省|立[减碱]|优惠)\\s*" + CURRENCY + "\\s*(\\d+(?:\\.\\d{1,2})?)");
+    private static final Pattern DISCOUNT = Pattern.compile("(?:立[减碱](?:优惠)?|优惠金额|合计优惠|优惠券优惠|优惠)\\s*[:：]?\\s*[-−—]?\\s*" + CURRENCY + "\\s*[-−]?\\s*(\\d+(?:\\.\\d{1,2})?)");
+    private static final Pattern SERVICE_FEE = Pattern.compile("服务费\\s*[:：]?\\s*[+＋]?\\s*" + CURRENCY + "\\s*(\\d+(?:\\.\\d{1,2})?)");
+    private static final Pattern PAYABLE = Pattern.compile("(?:实付金额|应付金额|合计支付|立即支付|需支付|实付)\\s*[:：]?\\s*" + CURRENCY + "\\s*(\\d{2,3}(?:\\.\\d{1,2})?)");
+    private static final Pattern PROVIDER_1 = Pattern.compile("(?:本次[^\\n]{0,12}?由(?:服务商)?|服务商\\s*[:：]?)\\s*([^，。；;:：\\s]{1,30}?)(?:提供|提洪|服务|$)");
+    private static final Pattern PROVIDER_2 = Pattern.compile("由\\s*(?:服务商)?\\s*([^，。；;:：\\s]{1,30}?)\\s*(?:提供|提洪)");
+    private static final Pattern BARE_PRICE = Pattern.compile("^" + CURRENCY + "\\s*(\\d{1,2}\\.\\d{1,3})\\s*(?:起)?$");
+    private static final Pattern EXACT_200 = Pattern.compile("^(?:__SELECTED__\\s*)?" + CURRENCY + "\\s*200(?:\\.00)?\\s*(?:元)?$");
 
     private FuelStationParser() {}
 
@@ -32,7 +33,8 @@ public final class FuelStationParser {
         out.capturedAtEpochMs = capturedAtEpochMs;
         out.rawText = joined;
         out.screenHash = sha256(joined);
-        out.paymentPage = containsAny(joined, "立即支付", "支付详情", "付款明细", "立减优惠", "服务费", "应付金额", "实付金额");
+        out.paymentPage = containsAny(joined, "立即支付", "支付详情", "付款明细", "立减优惠", "立碱优惠", "服务费", "应付金额", "实付金额")
+                || (joined.contains("服务商") && containsAny(joined, "提供", "提洪"));
         out.stationName = findStationName(lines);
         out.gradeCode = findGrade(lines);
         out.gradeExplicit = isGradeExplicit(lines, out.gradeCode);
@@ -84,14 +86,22 @@ public final class FuelStationParser {
     private static String findStationName(List<String> lines) {
         return lines.stream()
                 .map(FuelStationParser::stripSelected)
+                .map(FuelStationParser::sanitizeStationTitle)
                 .filter(FuelStationParser::looksLikeStationTitle)
                 .max(Comparator.comparingInt(FuelStationParser::stationTitleScore))
                 .orElse(null);
     }
 
+    private static String sanitizeStationTitle(String value) {
+        return value
+                .replaceAll("(?:刚刚浏览|刚浏览|位置好找|距您|导航|评价).*$", "")
+                .replaceAll("^[·•|丨\\s]+|[·•|丨\\s]+$", "")
+                .trim();
+    }
+
     private static boolean looksLikeStationTitle(String line) {
         if (line.length() < 4 || line.length() > 80) return false;
-        if (containsAny(line, "有效", "可用", "优惠券", "领券", "券", "天", "附近", "导航", "评价", "服务费", "支付")) return false;
+        if (containsAny(line, "有效", "可用", "优惠券", "领券", "券", "附近", "服务费", "支付", "约省")) return false;
         return line.contains("加油站") || line.endsWith("油站") || line.endsWith("供能站") || line.endsWith("能源站");
     }
 
@@ -117,7 +127,6 @@ public final class FuelStationParser {
             Matcher matcher = GRADE.matcher(line);
             if (matcher.find()) return matcher.group(1);
         }
-        // 页面没有可识别的筛选选中态时，按需求回退到第一个油号。
         for (String line : lines) {
             Matcher matcher = GRADE.matcher(line);
             if (matcher.find()) return matcher.group(1);
@@ -138,12 +147,12 @@ public final class FuelStationParser {
 
     private static Integer findAmount(List<String> lines) {
         for (String line : lines) {
-            if (line.startsWith("__SELECTED__") && line.matches(".*[¥￥]?\\s*200(?:\\.00)?(?:元)?.*")) return 200;
+            if (line.startsWith("__SELECTED__") && line.matches(".*[¥￥#Yy]?\\s*200(?:\\.00)?(?:元)?.*")) return 200;
         }
         for (String line : lines) {
             if (EXACT_200.matcher(line).matches()) return 200;
-            if (line.matches(".*(?:油费金额|加油金额|订单金额).*?[¥￥]?\\s*200(?:\\.00)?.*")) return 200;
-            if (line.matches(".*200\\s*元\\s*(?:省|立减|优惠).*")) return 200;
+            if (line.matches(".*(?:油费金额|加油金额|订单金额).*?[¥￥#Yy]?\\s*200(?:\\.00)?.*")) return 200;
+            if (line.matches(".*200\\s*元\\s*(?:约?省|立[减碱]|优惠).*")) return 200;
         }
         return null;
     }
@@ -174,7 +183,7 @@ public final class FuelStationParser {
             Matcher matcher = PER_LITER_PRICE.matcher(plain);
             if (matcher.find()) {
                 Double value = parseDouble(matcher.group(1));
-                if (value != null && value >= 4 && value <= 15) return value;
+                if (validFuelPrice(value)) return value;
             }
         }
         for (String line : lines) {
@@ -182,16 +191,15 @@ public final class FuelStationParser {
             Matcher matcher = PER_LITER_PRICE.matcher(line);
             if (matcher.find()) {
                 Double value = parseDouble(matcher.group(1));
-                if (value != null && value >= 4 && value <= 15) return value;
+                if (validFuelPrice(value)) return value;
             }
         }
-        // 高德大号外显价经 OCR 后经常只剩一个独立数字，例如“7.19”。
         for (String line : lines) {
             if (containsAny(line, "油站价", "加油站价", "挂牌价", "原价", "站价")) continue;
             Matcher matcher = BARE_PRICE.matcher(stripSelected(line));
             if (matcher.matches()) {
                 Double value = parseDouble(matcher.group(1));
-                if (value != null && value >= 4 && value <= 15) return value;
+                if (validFuelPrice(value)) return value;
             }
         }
         return null;
@@ -200,7 +208,9 @@ public final class FuelStationParser {
     private static Provider findProvider(List<String> lines) {
         for (String line : lines) {
             String plain = stripSelected(line);
-            if (!containsAny(plain, "服务商", "本次由", "本次服务由", "提供")) continue;
+            if (!containsAny(plain, "服务商", "本次由", "本次服务由", "提供", "提洪")) continue;
+            String canonical = canonicalProvider(plain);
+            if (canonical != null) return new Provider(canonical, plain);
             Matcher m1 = PROVIDER_1.matcher(plain);
             if (m1.find()) {
                 String name = cleanProvider(m1.group(1));
@@ -217,18 +227,30 @@ public final class FuelStationParser {
 
     static String cleanProvider(String raw) {
         if (raw == null) return null;
-        String value = raw
+        String canonical = canonicalProvider(raw);
+        if (canonical != null) return canonical;
+        return raw
                 .replaceAll("^.*?(?:本次服务由|本次由|服务商)\\s*[:：]?", "")
-                .replaceAll("提供.*$", "")
+                .replaceAll("(?:提供|提洪).*$", "")
                 .replaceAll("(?:服务|平台)$", "")
-                .replaceAll("^[：:，,。\\s]+|[：:，,。\\s]+$", "")
+                .replaceAll("^[：:，,。\\s]+|[：:，,。Oo0\\s]+$", "")
                 .trim();
-        return value;
+    }
+
+    static String canonicalProvider(String raw) {
+        if (raw == null) return null;
+        String compact = raw.replaceAll("[\\s：:，,。|丨]", "")
+                .replace('由', '由');
+        if (compact.contains("团油")) return "团油";
+        if (compact.contains("易加油") || compact.contains("易加由") || compact.contains("易加袖")) return "易加油";
+        if (compact.contains("滴滴加油") || compact.contains("滴加油")
+                || compact.contains("滴滴加由") || compact.contains("滴滴加袖")) return "滴滴加油";
+        return null;
     }
 
     private static boolean isValidProvider(String value) {
         return value != null && value.length() >= 2 && value.length() <= 30
-                && !containsAny(value, "优惠", "服务费", "支付", "高德地图", "详情");
+                && !containsAny(value, "优惠", "服务费", "支付", "高德地图", "详情", "金额");
     }
 
     private static Double findFirstDouble(Pattern pattern, String text) {
@@ -243,6 +265,10 @@ public final class FuelStationParser {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private static boolean validFuelPrice(Double value) {
+        return value != null && value >= 4d && value <= 15d;
     }
 
     private static String stripSelected(String value) {
@@ -273,6 +299,7 @@ public final class FuelStationParser {
     private static final class Provider {
         final String name;
         final String evidence;
+
         Provider(String name, String evidence) {
             this.name = name;
             this.evidence = evidence;
