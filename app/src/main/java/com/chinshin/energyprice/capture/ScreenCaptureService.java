@@ -43,18 +43,17 @@ import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Screen-only collector. It uses MediaProjection and does not require AccessibilityService.
- * The user grants Android's screen-capture consent once for each running capture session.
- */
+/** Screen-only collector. No AccessibilityService is used. */
 public final class ScreenCaptureService extends Service {
     public static final String ACTION_START = "com.chinshin.energyprice.START_SCREEN_CAPTURE";
     public static final String ACTION_STOP = "com.chinshin.energyprice.STOP_SCREEN_CAPTURE";
@@ -65,13 +64,16 @@ public final class ScreenCaptureService extends Service {
 
     private static final String CHANNEL_ID = "screen_capture";
     private static final int NOTIFICATION_ID = 1001;
-    private static final long FRAME_GAP_MS = 1100L;
+    private static final long FRAME_GAP_MS = 900L;
+    private static final int PROVIDER_CONFIRM_FRAMES = 2;
 
     private static volatile boolean running;
     private static volatile String lastStatus = "未开始截屏采集";
 
     private final ExecutorService ocrExecutor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean ocrBusy = new AtomicBoolean(false);
+    private final AtomicBoolean stopping = new AtomicBoolean(false);
+    private final Map<String, Integer> providerVotes = new HashMap<>();
 
     private HandlerThread captureThread;
     private Handler captureHandler;
@@ -81,8 +83,8 @@ public final class ScreenCaptureService extends Service {
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
     private long lastFrameAt;
-    private String lastOcrHash;
     private String lastPublishedStatus;
+    private String providerVoteStation;
 
     public static boolean isRunning() {
         return running;
@@ -142,7 +144,10 @@ public final class ScreenCaptureService extends Service {
     }
 
     private void startProjection(int resultCode, Intent resultData) {
+        stopping.set(false);
         releaseProjection();
+        providerVotes.clear();
+        providerVoteStation = null;
         MediaProjectionManager manager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         projection = manager.getMediaProjection(resultCode, resultData);
         if (projection == null) throw new IllegalStateException("MediaProjection unavailable");
@@ -173,7 +178,7 @@ public final class ScreenCaptureService extends Service {
                 captureHandler
         );
         running = true;
-        publishStatus("截屏采集中，请切换到高德并操作 92#/95#、200 元及支付页");
+        publishStatus("截屏采集中，请切换到高德并依次操作 92#/95#、200 元和支付页");
     }
 
     private void onImageAvailable(ImageReader reader) {
@@ -198,21 +203,38 @@ public final class ScreenCaptureService extends Service {
         }
     }
 
-    private void analyze(Bitmap bitmap) {
-        recognizer.process(InputImage.fromBitmap(bitmap, 0))
-                .addOnSuccessListener(ocrExecutor, text -> {
-                    List<String> lines = linesFromOcr(text, bitmap);
-                    String hash = FuelStationParser.sha256(String.join("\n", lines));
-                    if (!hash.equals(lastOcrHash)) {
-                        lastOcrHash = hash;
-                        processLines(lines);
+    private void analyze(Bitmap fullBitmap) {
+        Bitmap providerCrop = createProviderCrop(fullBitmap);
+        recognizer.process(InputImage.fromBitmap(fullBitmap, 0))
+                .addOnSuccessListener(ocrExecutor, fullText -> {
+                    List<String> lines = linesFromOcr(fullText, fullBitmap);
+                    if (providerCrop == null) {
+                        finishFrame(fullBitmap, null, lines);
+                        return;
                     }
+                    recognizer.process(InputImage.fromBitmap(providerCrop, 0))
+                            .addOnSuccessListener(ocrExecutor, providerText -> lines.addAll(plainLinesFromOcr(providerText)))
+                            .addOnFailureListener(ocrExecutor, ignored -> {
+                                // Full-frame OCR remains usable when the provider crop fails.
+                            })
+                            .addOnCompleteListener(ocrExecutor, task -> finishFrame(fullBitmap, providerCrop, lines));
                 })
-                .addOnFailureListener(ocrExecutor, error -> publishStatus("OCR 失败: " + safeMessage(error)))
-                .addOnCompleteListener(ocrExecutor, task -> {
-                    bitmap.recycle();
+                .addOnFailureListener(ocrExecutor, error -> {
+                    recycle(fullBitmap);
+                    recycle(providerCrop);
                     ocrBusy.set(false);
+                    publishStatus("OCR 失败: " + safeMessage(error));
                 });
+    }
+
+    private void finishFrame(Bitmap fullBitmap, Bitmap providerCrop, List<String> lines) {
+        try {
+            processLines(lines);
+        } finally {
+            recycle(fullBitmap);
+            recycle(providerCrop);
+            ocrBusy.set(false);
+        }
     }
 
     private void processLines(List<String> source) {
@@ -222,6 +244,7 @@ public final class ScreenCaptureService extends Service {
         }
         List<String> lines = dedupe(source);
         FuelCapture partial = FuelStationParser.parse(lines, System.currentTimeMillis());
+        applyProviderConsensus(partial);
         FuelCapture merged = state.merge(partial);
         if (merged == null) {
             publishStatus("已识别文字，等待油站页面");
@@ -250,6 +273,22 @@ public final class ScreenCaptureService extends Service {
         }
     }
 
+    private void applyProviderConsensus(FuelCapture capture) {
+        if (capture == null) return;
+        if (notBlank(capture.stationName) && !capture.stationName.equals(providerVoteStation)) {
+            providerVoteStation = capture.stationName;
+            providerVotes.clear();
+        }
+        if (!notBlank(capture.providerName)) return;
+        String candidate = capture.providerName;
+        int votes = providerVotes.getOrDefault(candidate, 0) + 1;
+        providerVotes.put(candidate, votes);
+        if (votes < PROVIDER_CONFIRM_FRAMES) {
+            capture.providerName = null;
+            capture.providerEvidenceText = null;
+        }
+    }
+
     private static Bitmap imageToBitmap(Image image) {
         if (image.getPlanes().length == 0) return null;
         Image.Plane plane = image.getPlanes()[0];
@@ -265,6 +304,25 @@ public final class ScreenCaptureService extends Service {
         Bitmap cropped = Bitmap.createBitmap(padded, 0, 0, width, height);
         if (cropped != padded) padded.recycle();
         return cropped;
+    }
+
+    private static Bitmap createProviderCrop(Bitmap source) {
+        if (source == null || source.getWidth() < 2 || source.getHeight() < 2) return null;
+        int top = Math.max(0, (int) (source.getHeight() * 0.60f));
+        int bottom = Math.min(source.getHeight(), (int) (source.getHeight() * 0.985f));
+        int height = bottom - top;
+        if (height < 2) return null;
+        Bitmap crop = Bitmap.createBitmap(source, 0, top, source.getWidth(), height);
+        float scale = Math.min(2.2f, 2400f / Math.max(1f, crop.getWidth()));
+        if (scale <= 1.05f) return crop;
+        Bitmap enlarged = Bitmap.createScaledBitmap(
+                crop,
+                Math.max(1, Math.round(crop.getWidth() * scale)),
+                Math.max(1, Math.round(crop.getHeight() * scale)),
+                true
+        );
+        if (enlarged != crop) crop.recycle();
+        return enlarged;
     }
 
     private static List<String> linesFromOcr(Text text, Bitmap bitmap) {
@@ -284,40 +342,63 @@ public final class ScreenCaptureService extends Service {
                         String grade = token.startsWith("95") ? "95" : "92";
                         gradeCandidates.add(new VisualCandidate(grade, blueScore(bitmap, box, true)));
                     }
-                    if (token.matches("(?:¥|￥)?200(?:\\.00)?(?:元)?")) {
+                    if (token.matches("(?:¥|￥|#|Y)?200(?:\\.00)?(?:元)?")) {
                         amountCandidates.add(new VisualCandidate("200", blueScore(bitmap, box, false)));
                     }
                 }
             }
         }
 
-        VisualCandidate selectedGrade = bestCandidate(gradeCandidates);
-        if (selectedGrade != null && selectedGrade.score >= 3) {
-            out.add("__SELECTED__ " + selectedGrade.value + "#");
-        }
-        VisualCandidate selectedAmount = bestCandidate(amountCandidates);
-        if (selectedAmount != null && selectedAmount.score >= 3) {
-            out.add("__SELECTED__ ¥200");
+        VisualCandidate selectedGrade = selectedCandidate(gradeCandidates, 6, 3);
+        if (selectedGrade != null) out.add("__SELECTED__ " + selectedGrade.value + "#");
+        VisualCandidate selectedAmount = selectedCandidate(amountCandidates, 12, 5);
+        if (selectedAmount != null) out.add("__SELECTED__ ¥200");
+        return out;
+    }
+
+    private static List<String> plainLinesFromOcr(Text text) {
+        List<String> out = new ArrayList<>();
+        for (Text.TextBlock block : text.getTextBlocks()) {
+            for (Text.Line line : block.getLines()) {
+                String value = line.getText();
+                if (value != null && !value.trim().isEmpty()) out.add(value.trim());
+            }
         }
         return out;
     }
 
-    private static VisualCandidate bestCandidate(List<VisualCandidate> candidates) {
+    private static VisualCandidate selectedCandidate(List<VisualCandidate> candidates, int minimum, int margin) {
         VisualCandidate best = null;
+        VisualCandidate second = null;
         for (VisualCandidate candidate : candidates) {
-            if (best == null || candidate.score > best.score) best = candidate;
+            if (best == null || candidate.score > best.score) {
+                second = best;
+                best = candidate;
+            } else if (second == null || candidate.score > second.score) {
+                second = candidate;
+            }
         }
+        if (best == null || best.score < minimum) return null;
+        if (second != null && best.score < second.score + margin) return null;
         return best;
     }
 
     private static int blueScore(Bitmap bitmap, Rect source, boolean grade) {
-        int xPad = grade ? Math.max(18, source.width() / 2) : Math.max(70, source.width());
-        int topPad = grade ? 4 : Math.max(12, source.height() / 2);
-        int bottomPad = grade ? Math.max(24, source.height()) : Math.max(20, source.height());
-        int left = Math.max(0, source.left - xPad);
-        int right = Math.min(bitmap.getWidth(), source.right + xPad);
-        int top = Math.max(0, source.top - topPad);
-        int bottom = Math.min(bitmap.getHeight(), source.bottom + bottomPad);
+        int left;
+        int right;
+        int top;
+        int bottom;
+        if (grade) {
+            left = Math.max(0, source.left - Math.max(16, source.width() / 3));
+            right = Math.min(bitmap.getWidth(), source.right + Math.max(16, source.width() / 3));
+            top = Math.max(0, source.top - 4);
+            bottom = Math.min(bitmap.getHeight(), source.bottom + Math.max(30, source.height()));
+        } else {
+            left = Math.max(0, source.left - Math.max(60, source.width()));
+            right = Math.min(bitmap.getWidth(), source.right + Math.max(60, source.width()));
+            top = Math.max(0, source.top - Math.max(12, source.height() / 2));
+            bottom = Math.min(bitmap.getHeight(), source.bottom + Math.max(20, source.height()));
+        }
         int score = 0;
         for (int y = top; y < bottom; y += 2) {
             for (int x = left; x < right; x += 2) {
@@ -348,8 +429,8 @@ public final class ScreenCaptureService extends Service {
         if (notBlank(capture.stationName)) found.add(capture.stationName);
         if (notBlank(capture.gradeCode)) found.add(capture.gradeCode + "#");
         if (capture.amountYuan != null) found.add("¥" + capture.amountYuan);
-        if (capture.resolvedStationPrice() != null) found.add(String.format(Locale.CHINA, "油站价 %.2f", capture.resolvedStationPrice()));
-        if (capture.resolvedDisplayPrice() != null) found.add(String.format(Locale.CHINA, "外显价 %.2f", capture.resolvedDisplayPrice()));
+        if (capture.stationPrice != null) found.add(String.format(Locale.CHINA, "油站价 %.2f", capture.stationPrice));
+        if (capture.displayPrice != null) found.add(String.format(Locale.CHINA, "优惠价 %.2f", capture.displayPrice));
         if (capture.discountAmount != null) found.add(String.format(Locale.CHINA, "优惠 %.2f", capture.discountAmount));
         if (capture.serviceFee != null) found.add(String.format(Locale.CHINA, "服务费 %.2f", capture.serviceFee));
         if (notBlank(capture.providerName)) found.add("CP " + capture.providerName);
@@ -359,10 +440,11 @@ public final class ScreenCaptureService extends Service {
         if (!notBlank(capture.stationName)) missing.add("站名");
         if (!("92".equals(capture.gradeCode) || "95".equals(capture.gradeCode))) missing.add("油号");
         if (capture.amountYuan == null || capture.amountYuan != 200) missing.add("200元");
-        if (capture.resolvedDisplayPrice() == null) missing.add("外显价");
+        if (capture.stationPrice == null) missing.add("油站价");
+        if (capture.displayPrice == null) missing.add("优惠价");
         if (capture.discountAmount == null) missing.add("优惠金额");
         if (capture.serviceFee == null) missing.add("服务费");
-        if (!notBlank(capture.providerName)) missing.add("CP");
+        if (!notBlank(capture.providerName)) missing.add("CP（需连续两帧）");
         String suffix = missing.isEmpty() ? "" : "；待补 " + String.join("/", missing);
         return String.join(" · ", found) + suffix;
     }
@@ -418,6 +500,7 @@ public final class ScreenCaptureService extends Service {
     }
 
     private void stopCapture(String reason) {
+        if (!stopping.compareAndSet(false, true)) return;
         running = false;
         lastStatus = reason;
         releaseProjection();
@@ -462,6 +545,10 @@ public final class ScreenCaptureService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    private static void recycle(Bitmap bitmap) {
+        if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
     }
 
     private static boolean notBlank(String value) {
