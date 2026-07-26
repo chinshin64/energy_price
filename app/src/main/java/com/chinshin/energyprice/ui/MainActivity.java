@@ -22,7 +22,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
-import com.chinshin.energyprice.capture.FloatingCaptureService;
+import com.chinshin.energyprice.capture.TwoStageFloatingCaptureService;
 import com.chinshin.energyprice.data.CaptureRecord;
 import com.chinshin.energyprice.data.EnergyDatabase;
 import com.chinshin.energyprice.databinding.ActivityMainBinding;
@@ -49,8 +49,8 @@ public final class MainActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent == null) return;
-            if (FloatingCaptureService.ACTION_STATUS_CHANGED.equals(intent.getAction())) {
-                renderCaptureState(intent.getStringExtra(FloatingCaptureService.EXTRA_STATUS));
+            if (TwoStageFloatingCaptureService.ACTION_STATUS_CHANGED.equals(intent.getAction())) {
+                renderCaptureState(intent.getStringExtra(TwoStageFloatingCaptureService.EXTRA_STATUS));
             } else if (ACTION_DATA_CHANGED.equals(intent.getAction())) {
                 refresh();
             }
@@ -76,9 +76,9 @@ public final class MainActivity extends AppCompatActivity {
                     }
                     ContextCompat.startForegroundService(
                             this,
-                            FloatingCaptureService.startIntent(this, result.getResultCode(), data)
+                            TwoStageFloatingCaptureService.startIntent(this, result.getResultCode(), data)
                     );
-                    renderCaptureState("正在启动悬浮截屏");
+                    renderCaptureState("正在启动两阶段悬浮截屏");
                 }
         );
 
@@ -104,14 +104,14 @@ public final class MainActivity extends AppCompatActivity {
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_DATA_CHANGED);
-        filter.addAction(FloatingCaptureService.ACTION_STATUS_CHANGED);
+        filter.addAction(TwoStageFloatingCaptureService.ACTION_STATUS_CHANGED);
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(appReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
             registerReceiver(appReceiver, filter);
         }
         refresh();
-        renderCaptureState(FloatingCaptureService.lastStatus());
+        renderCaptureState(TwoStageFloatingCaptureService.lastStatus());
     }
 
     @Override
@@ -120,7 +120,7 @@ public final class MainActivity extends AppCompatActivity {
         if (waitingForOverlayPermission && Settings.canDrawOverlays(this)) {
             continueAfterOverlayPermission();
         } else {
-            renderCaptureState(FloatingCaptureService.lastStatus());
+            renderCaptureState(TwoStageFloatingCaptureService.lastStatus());
         }
     }
 
@@ -132,9 +132,9 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void toggleCapture() {
-        if (FloatingCaptureService.isRunning()) {
-            startService(FloatingCaptureService.stopIntent(this));
-            renderCaptureState("正在停止悬浮截屏");
+        if (TwoStageFloatingCaptureService.isRunning()) {
+            startService(TwoStageFloatingCaptureService.stopIntent(this));
+            renderCaptureState("正在停止两阶段悬浮截屏");
             return;
         }
         if (!Settings.canDrawOverlays(this)) {
@@ -154,7 +154,7 @@ public final class MainActivity extends AppCompatActivity {
         if (!waitingForOverlayPermission) return;
         waitingForOverlayPermission = false;
         if (!Settings.canDrawOverlays(this)) {
-            renderCaptureState("未获得悬浮窗权限，无法显示截屏按钮");
+            renderCaptureState("未获得悬浮窗权限，无法显示详情/支付按钮");
             return;
         }
         requestNotificationThenProjection();
@@ -177,10 +177,10 @@ public final class MainActivity extends AppCompatActivity {
 
     private void renderCaptureState(String status) {
         if (binding == null) return;
-        boolean running = FloatingCaptureService.isRunning();
-        binding.captureButton.setText(running ? "停止悬浮截屏" : "启动悬浮截屏");
+        boolean running = TwoStageFloatingCaptureService.isRunning();
+        binding.captureButton.setText(running ? "停止两阶段截屏" : "启动两阶段截屏");
         String visibleStatus = status == null || status.trim().isEmpty()
-                ? (running ? "悬浮截屏已启动" : "尚未启动悬浮截屏")
+                ? (running ? "详情页点详情，支付页点支付" : "尚未启动两阶段截屏")
                 : status;
         binding.captureStatus.setText(visibleStatus);
     }
