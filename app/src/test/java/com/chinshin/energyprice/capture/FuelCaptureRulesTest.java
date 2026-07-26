@@ -1,6 +1,8 @@
 package com.chinshin.energyprice.capture;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -26,5 +28,30 @@ public final class FuelCaptureRulesTest {
     @Test
     public void parsesNetDiscountForCrossCheck() {
         assertEquals(4.28, FuelCaptureRules.parseNetDiscount("比油站价优惠¥4.28"), 0.001);
+    }
+
+    @Test
+    public void detailGradeRowsAreNotTreatedAsSelectedGrade() {
+        FuelCapture capture = new FuelCapture();
+        capture.rawText = "92#优惠¥0.20/L\n95#优惠¥0.20/L";
+        capture.gradeCode = "92";
+        capture.gradeLabel = "92号汽油";
+        capture.gradeExplicit = true;
+
+        FuelCaptureRules.prepareDetail(capture);
+
+        assertNull(capture.gradeCode);
+        assertFalse(capture.gradeExplicit);
+    }
+
+    @Test
+    public void visualSelectedMarkerRemainsAuthoritative() {
+        FuelCapture capture = new FuelCapture();
+        capture.rawText = "92#优惠¥0.20/L\n95#优惠¥0.20/L\n__SELECTED__ 95#";
+
+        FuelCaptureRules.prepareDetail(capture);
+
+        assertEquals("95", capture.gradeCode);
+        assertTrue(capture.gradeExplicit);
     }
 }
