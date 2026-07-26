@@ -11,6 +11,7 @@ import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.View;
 import android.widget.Toast;
 
@@ -21,7 +22,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
-import com.chinshin.energyprice.capture.ScreenCaptureService;
+import com.chinshin.energyprice.capture.FloatingCaptureService;
 import com.chinshin.energyprice.data.CaptureRecord;
 import com.chinshin.energyprice.data.EnergyDatabase;
 import com.chinshin.energyprice.databinding.ActivityMainBinding;
@@ -39,16 +40,17 @@ public final class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private RecordAdapter adapter;
     private ActivityResultLauncher<Intent> projectionLauncher;
+    private ActivityResultLauncher<Intent> overlayPermissionLauncher;
     private ActivityResultLauncher<String> notificationPermissionLauncher;
+    private boolean waitingForOverlayPermission;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private final BroadcastReceiver appReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent == null) return;
-            if (ScreenCaptureService.ACTION_STATUS_CHANGED.equals(intent.getAction())) {
-                String status = intent.getStringExtra(ScreenCaptureService.EXTRA_STATUS);
-                renderCaptureState(status);
+            if (FloatingCaptureService.ACTION_STATUS_CHANGED.equals(intent.getAction())) {
+                renderCaptureState(intent.getStringExtra(FloatingCaptureService.EXTRA_STATUS));
             } else if (ACTION_DATA_CHANGED.equals(intent.getAction())) {
                 refresh();
             }
@@ -74,11 +76,17 @@ public final class MainActivity extends AppCompatActivity {
                     }
                     ContextCompat.startForegroundService(
                             this,
-                            ScreenCaptureService.startIntent(this, result.getResultCode(), data)
+                            FloatingCaptureService.startIntent(this, result.getResultCode(), data)
                     );
-                    renderCaptureState("正在启动截屏采集");
+                    renderCaptureState("正在启动悬浮截屏");
                 }
         );
+
+        overlayPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> continueAfterOverlayPermission()
+        );
+
         notificationPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
                 granted -> launchProjectionConsent()
@@ -96,20 +104,24 @@ public final class MainActivity extends AppCompatActivity {
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_DATA_CHANGED);
-        filter.addAction(ScreenCaptureService.ACTION_STATUS_CHANGED);
+        filter.addAction(FloatingCaptureService.ACTION_STATUS_CHANGED);
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(appReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
             registerReceiver(appReceiver, filter);
         }
         refresh();
-        renderCaptureState(ScreenCaptureService.lastStatus());
+        renderCaptureState(FloatingCaptureService.lastStatus());
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        renderCaptureState(ScreenCaptureService.lastStatus());
+        if (waitingForOverlayPermission && Settings.canDrawOverlays(this)) {
+            continueAfterOverlayPermission();
+        } else {
+            renderCaptureState(FloatingCaptureService.lastStatus());
+        }
     }
 
     @Override
@@ -120,11 +132,35 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void toggleCapture() {
-        if (ScreenCaptureService.isRunning()) {
-            startService(ScreenCaptureService.stopIntent(this));
-            renderCaptureState("正在停止截屏采集");
+        if (FloatingCaptureService.isRunning()) {
+            startService(FloatingCaptureService.stopIntent(this));
+            renderCaptureState("正在停止悬浮截屏");
             return;
         }
+        if (!Settings.canDrawOverlays(this)) {
+            waitingForOverlayPermission = true;
+            renderCaptureState("请允许油价采集显示悬浮窗");
+            Intent intent = new Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())
+            );
+            overlayPermissionLauncher.launch(intent);
+            return;
+        }
+        requestNotificationThenProjection();
+    }
+
+    private void continueAfterOverlayPermission() {
+        if (!waitingForOverlayPermission) return;
+        waitingForOverlayPermission = false;
+        if (!Settings.canDrawOverlays(this)) {
+            renderCaptureState("未获得悬浮窗权限，无法显示截屏按钮");
+            return;
+        }
+        requestNotificationThenProjection();
+    }
+
+    private void requestNotificationThenProjection() {
         if (Build.VERSION.SDK_INT >= 33
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -141,10 +177,10 @@ public final class MainActivity extends AppCompatActivity {
 
     private void renderCaptureState(String status) {
         if (binding == null) return;
-        boolean running = ScreenCaptureService.isRunning();
-        binding.captureButton.setText(running ? "停止截屏采集" : "开始截屏采集");
+        boolean running = FloatingCaptureService.isRunning();
+        binding.captureButton.setText(running ? "停止悬浮截屏" : "启动悬浮截屏");
         String visibleStatus = status == null || status.trim().isEmpty()
-                ? (running ? "截屏采集中" : "尚未开始采集")
+                ? (running ? "悬浮截屏已启动" : "尚未启动悬浮截屏")
                 : status;
         binding.captureStatus.setText(visibleStatus);
     }
