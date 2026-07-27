@@ -147,8 +147,33 @@ public class StationResultPresenterTest {
         assertEquals(1, fuelOnly.fuelOfferCount);
         assertEquals(0, fuelOnly.withGuns);
         assertTrue(StationDisplayFormatter.fuelOfferSummary(fuel).contains("元/升"));
+        assertTrue(StationDisplayFormatter.fuelDetails(fuel).contains("95#  油价7.5/升"));
         assertFalse(StationDisplayFormatter.fuelOfferSummary(fuel).contains("枪"));
         assertFalse(StationDisplayFormatter.fuelOfferSummary(fuel).contains("元/度"));
+    }
+
+    @Test
+    public void fuelCardKeepsQuoteOnlyGradeAndFiltersJsonNullStrings() throws Exception {
+        JSONObject fuel = new JSONObject()
+                .put("stationType", "fuel")
+                .put("stationName", "仅报价测试加油站")
+                .put("fuelObservation", new JSONObject()
+                        .put("providerName", JSONObject.NULL)
+                        .put("fuelQuotes", new JSONArray().put(new JSONObject()
+                                .put("gradeCode", "95")
+                                .put("gradeLabel", JSONObject.NULL)
+                                .put("gunLabel", JSONObject.NULL)
+                                .put("grossDiscount", 5.09)
+                                .put("serviceFee", 0.81)
+                                .put("payableAmount", 195.72))));
+
+        String details = StationDisplayFormatter.fuelDetails(fuel);
+
+        assertTrue(details.startsWith("95#"));
+        assertTrue(details.contains("优惠5.09"));
+        assertTrue(details.contains("服务费0.81"));
+        assertTrue(details.contains("实付195.72"));
+        assertFalse(details.toLowerCase().contains("null"));
     }
 
     @Test
@@ -165,16 +190,124 @@ public class StationResultPresenterTest {
         assertEquals(1, fuelOnly.fuelQuoteCount);
         String details = StationDisplayFormatter.fuelDetails(row);
         assertTrue(details.contains("服务商：测试服务商"));
-        assertTrue(details.contains("外显 6.63 元/升"));
-        assertTrue(details.contains("油站 7.86 元/升"));
-        assertTrue(details.contains("国标 8.12 元/升"));
+        assertTrue(details.contains("外显6.63/升"));
+        assertFalse(details.contains("油站 7.86 元/升"));
+        assertFalse(details.contains("国标 8.12 元/升"));
         assertFalse(details.contains("优惠价 6.63 元/升"));
         assertFalse(details.contains("挂牌价 7.86 元/升"));
-        assertTrue(details.contains("优惠 ¥20.65"));
-        assertTrue(details.contains("服务费 ¥3.30"));
-        assertTrue(details.contains("预计实付 ¥182.65"));
+        assertTrue(details.contains("优惠20.65"));
+        assertTrue(details.contains("服务费3.30"));
+        assertTrue(details.contains("实付182.65"));
+        assertFalse(details.toLowerCase().contains("null"));
+        assertFalse(StationDisplayFormatter.showFeaturedPrice(row));
         assertFalse(details.contains("元/度"));
         assertFalse(details.contains("枪：闲"));
+    }
+
+    @Test
+    public void combines92And95FromSameFuelIdentityIntoOneCard() throws Exception {
+        JSONObject grade92 = fuelRow(
+                "统一测试加油站",
+                "same-fuel-context",
+                "92",
+                7.19,
+                "2026-07-26T10:00:00Z",
+                1
+        );
+        JSONObject grade95 = fuelRow(
+                "统一测试加油站",
+                "same-fuel-context",
+                "95",
+                7.66,
+                "2026-07-26T10:01:00Z",
+                2
+        );
+
+        List<JSONObject> latest = StationResultPresenter.latestByStableIdentity(
+                Arrays.asList(grade92, grade95)
+        );
+
+        assertEquals(1, latest.size());
+        JSONArray offers = latest.get(0)
+                .getJSONObject("fuelObservation")
+                .getJSONArray("fuelOffers");
+        assertEquals(2, offers.length());
+        assertTrue(StationDisplayFormatter.fuelOfferSummary(latest.get(0)).contains("92#"));
+        assertTrue(StationDisplayFormatter.fuelOfferSummary(latest.get(0)).contains("95#"));
+        String details = StationDisplayFormatter.fuelDetails(latest.get(0));
+        String[] gradeLines = details.split("\\n");
+        assertEquals(2, gradeLines.length);
+        assertTrue(gradeLines[0].startsWith("92#"));
+        assertTrue(gradeLines[0].contains("外显7.19/升"));
+        assertTrue(gradeLines[0].contains("优惠5.00"));
+        assertTrue(gradeLines[0].contains("服务费0.80"));
+        assertTrue(gradeLines[0].contains("实付195.80"));
+        assertTrue(gradeLines[1].startsWith("95#"));
+        assertFalse(details.toLowerCase().contains("null"));
+        assertFalse(StationDisplayFormatter.showFeaturedPrice(latest.get(0)));
+    }
+
+    @Test
+    public void keepsDifferentFuelContextsSeparateEvenWhenNamesAreSimilarInSameSession()
+            throws Exception {
+        JSONObject grade92 = fuelRow(
+                "浙江石油塘河供能加油站",
+                "context-from-92",
+                "92",
+                7.19,
+                "2026-07-26T10:00:00Z",
+                1
+        );
+        JSONObject grade95 = fuelRow(
+                "在浙江石油石马供能加油站附近搜",
+                "context-from-95",
+                "95",
+                7.66,
+                "2026-07-26T10:01:00Z",
+                2
+        );
+
+        List<JSONObject> latest = StationResultPresenter.latestByStableIdentity(
+                Arrays.asList(grade92, grade95)
+        );
+
+        assertEquals(2, latest.size());
+    }
+
+    @Test
+    public void keepsFuelAliasesFromDifferentSessionsSeparate() throws Exception {
+        JSONObject grade92 = fuelRow(
+                "浙江石油塘河供能加油站",
+                "context-from-92",
+                "92",
+                7.19,
+                "2026-07-26T10:00:00Z",
+                1
+        );
+        JSONObject grade95 = fuelRow(
+                "在浙江石油石马供能加油站附近搜",
+                "context-from-95",
+                "95",
+                7.66,
+                "2026-07-26T10:01:00Z",
+                2
+        );
+        String otherSession = "another-guided-session";
+        String base = LocalStationStore.buildFuelKey(
+                "amap-fuel",
+                "杭州",
+                grade95.getString("stationName"),
+                "context-from-95"
+        );
+        grade95.put("sessionId", otherSession)
+                .put("localKey", base + "|" + otherSession + "|2");
+
+        assertEquals(
+                2,
+                StationResultPresenter.latestByStableIdentity(
+                        Arrays.asList(grade92, grade95)
+                ).size()
+        );
     }
 
     private static JSONObject row(
@@ -194,5 +327,42 @@ public class StationResultPresenterTest {
                 .put("pageIndex", page)
                 .put("capturedAt", capturedAt)
                 .put("localKey", base + "|" + session + "|" + page);
+    }
+
+    private static JSONObject fuelRow(
+            String name,
+            String context,
+            String grade,
+            double displayPrice,
+            String capturedAt,
+            int page
+    ) throws Exception {
+        String session = "guided-fuel-session";
+        String base = LocalStationStore.buildFuelKey("amap-fuel", "杭州", name, context);
+        JSONObject offer = new JSONObject()
+                .put("gradeCode", grade)
+                .put("gradeLabel", grade + "#")
+                .put("displayPrice", displayPrice);
+        JSONObject quote = new JSONObject()
+                .put("gradeCode", grade)
+                .put("gradeLabel", grade + "#")
+                .put("gunLabel", JSONObject.NULL)
+                .put("grossDiscount", 5.00)
+                .put("serviceFee", 0.80)
+                .put("payableAmount", 195.80);
+        return new JSONObject()
+                .put("schemaVersion", 3)
+                .put("stationType", "fuel")
+                .put("platform", "amap-fuel")
+                .put("city", "杭州")
+                .put("stationName", name)
+                .put("sessionId", session)
+                .put("pageIndex", page)
+                .put("capturedAt", capturedAt)
+                .put("localKey", base + "|" + session + "|" + page)
+                .put("fuelObservation", new JSONObject()
+                        .put("sourceStationKey", context)
+                        .put("fuelOffers", new JSONArray().put(offer))
+                        .put("fuelQuotes", new JSONArray().put(quote)));
     }
 }

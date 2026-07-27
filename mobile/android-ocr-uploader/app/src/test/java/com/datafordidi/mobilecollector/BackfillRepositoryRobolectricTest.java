@@ -9,6 +9,7 @@ import androidx.work.WorkManager;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.testing.WorkManagerTestInitHelper;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
@@ -43,7 +44,8 @@ public class BackfillRepositoryRobolectricTest {
                 "standalone_ocr_outbox",
                 "standalone_ocr_backfill_drafts",
                 "standalone_ocr_backfill_transactions",
-                "standalone_ocr_settings"
+                "standalone_ocr_settings",
+                "standalone_ocr_outbox_recovery"
         }) {
             context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit();
         }
@@ -221,6 +223,77 @@ public class BackfillRepositoryRobolectricTest {
 
         assertEquals(0, scheduled.get());
         assertEquals(1, OutboxStore.pending(context).size());
+    }
+
+    @Test
+    public void appUpgradeRequeuesValidatedLegacyHttp400OnlyOnce() throws Exception {
+        Saved saved = save("场站历史400", "ctx-legacy-400", 1, 4);
+        String batchId = saved.batch.getString("batchId");
+        OutboxStore.markFailed(
+                context,
+                batchId,
+                "HTTP 400",
+                UploadFailure.Disposition.MANUAL_REVIEW
+        );
+        assertEquals(1, OutboxRecoveryPolicy.recoverAfterUpgrade(context, true, 25));
+        JSONObject recovered = OutboxStore.findBatch(context, batchId);
+        assertNotNull(recovered);
+        assertFalse(OutboxStore.requiresManualReview(recovered));
+        assertEquals(0, recovered.optInt("attempts", -1));
+
+        OutboxStore.markFailed(
+                context,
+                batchId,
+                "HTTP 400",
+                UploadFailure.Disposition.MANUAL_REVIEW
+        );
+        assertEquals(0, OutboxRecoveryPolicy.recoverAfterUpgrade(context, true, 25));
+        assertTrue(OutboxStore.requiresManualReview(OutboxStore.findBatch(context, batchId)));
+    }
+
+    @Test
+    public void recoveryKeepsInvalidAndNonLegacyManualReviewBatches() throws Exception {
+        Saved invalid = save("场站非法历史数据", "ctx-invalid", 1, 4);
+        Saved permanent = save("场站明确拒绝", "ctx-permanent", 1, 4);
+        OutboxStore.markFailed(
+                context,
+                invalid.batch.getString("batchId"),
+                "HTTP 400",
+                UploadFailure.Disposition.MANUAL_REVIEW
+        );
+        OutboxStore.markFailed(
+                context,
+                permanent.batch.getString("batchId"),
+                "HTTP 422 field_required",
+                UploadFailure.Disposition.MANUAL_REVIEW
+        );
+        JSONArray raw = new JSONArray(context.getSharedPreferences(
+                "standalone_ocr_outbox",
+                Context.MODE_PRIVATE
+        ).getString("batches", "[]"));
+        for (int index = 0; index < raw.length(); index++) {
+            JSONObject batch = raw.getJSONObject(index);
+            if (!invalid.batch.getString("batchId").equals(batch.optString("batchId"))) continue;
+            batch.getJSONArray("observations")
+                    .getJSONObject(0)
+                    .getJSONObject("stationObservation")
+                    .remove("stationName");
+        }
+        context.getSharedPreferences("standalone_ocr_outbox", Context.MODE_PRIVATE)
+                .edit()
+                .putString("batches", raw.toString())
+                .commit();
+
+        assertEquals(0, OutboxStore.requeueValidatedLegacyHttp400(context));
+        JSONArray retained = new JSONArray(context.getSharedPreferences(
+                "standalone_ocr_outbox",
+                Context.MODE_PRIVATE
+        ).getString("batches", "[]"));
+        assertEquals(2, retained.length());
+        for (int index = 0; index < retained.length(); index++) {
+            assertEquals("manual-review", retained.getJSONObject(index)
+                    .optString("failureDisposition"));
+        }
     }
 
     @Test

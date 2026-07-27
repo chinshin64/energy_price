@@ -17,11 +17,18 @@ const service = new MobileSourceNodeService({
 });
 const app = createMobileSourceNodeApp({
     service,
-    mobileToken: process.env.MOBILE_SOURCE_INGEST_TOKEN,
+    mobileToken: (process.env.MOBILE_SOURCE_INGEST_TOKEN || '')
+        .split(',')
+        .map(value => value.trim())
+        .filter(value => value.length > 0),
     sourceSyncToken: process.env.MOBILE_SOURCE_SYNC_TOKEN,
     requireAuth: true,
     bodyLimit: process.env.MOBILE_SOURCE_BODY_LIMIT || '8mb',
     trustProxy: process.env.MOBILE_SOURCE_TRUST_PROXY || false,
+    updateProxyUrl: process.env.MOBILE_UPDATE_PROXY_URL,
+    updateProxyHost: process.env.MOBILE_UPDATE_PROXY_HOST || '127.0.0.1',
+    updateProxyPort: process.env.MOBILE_UPDATE_PROXY_PORT || 50082,
+    updateProxyTimeoutMs: process.env.MOBILE_UPDATE_PROXY_TIMEOUT_MS || 15000,
 });
 
 const server = app.listen(port, host, () => {

@@ -86,15 +86,57 @@ public class FuelQuoteTest {
         quote.finalizeIdentity("amap-fuel", "station-key", offer, "测试服务商");
 
         assertEquals("2026-07-23T12:00:00.000Z", quote.capturedAt);
-        // dedupKey 不再含 platform（跨渠道去重），golden vector 已更新。
+        // 服务端 v3 去重契约包含 platform，避免跨平台使用不同归一化规则时发生冲突。
         assertEquals(
-                "2c20d600e4f677c502f872ac6dbb4d09579a950cc573e52ebfca60cd146893f8",
+                "435a6daa85e31d6942f1763c6f1e78694a281d1b160b33f1d6a8919c877c5c4f",
                 quote.quoteDedupKey
         );
         assertEquals(
-                "d3a82d51292c1c22e7cf9ba16f43e7091e009899da8846e4706b3ef490e9bff1",
+                "ba2c4a355035c0504c632c6dfde4d3571f83c5210680da9118e57c630a5a5261",
                 quote.quoteObservationId
         );
+    }
+
+    @Test
+    public void repairsLegacyJsonIdentityUsingServerV3Seed() throws Exception {
+        JSONObject offer = new JSONObject()
+                .put("gradeCode", "92")
+                .put("displayPrice", "6.630")
+                .put("stationPrice", JSONObject.NULL)
+                .put("nationalPrice", JSONObject.NULL);
+        JSONObject quote = new JSONObject()
+                .put("quoteObservationId", "a".repeat(64))
+                .put("quoteDedupKey", "b".repeat(64))
+                .put("gradeCode", "92")
+                .put("gunCode", JSONObject.NULL)
+                .put("selectedAmount", "200.00")
+                .put("grossDiscount", "20.65")
+                .put("serviceFee", "3.30")
+                .put("payableAmount", "182.65")
+                .put("capturedAt", CAPTURED_AT);
+
+        assertTrue(FuelQuote.repairJsonIdentity(
+                "amap-fuel",
+                "station-key",
+                offer,
+                quote,
+                "测试服务商"
+        ));
+        assertEquals(
+                "435a6daa85e31d6942f1763c6f1e78694a281d1b160b33f1d6a8919c877c5c4f",
+                quote.getString("quoteDedupKey")
+        );
+        assertEquals(
+                "ba2c4a355035c0504c632c6dfde4d3571f83c5210680da9118e57c630a5a5261",
+                quote.getString("quoteObservationId")
+        );
+        assertFalse(FuelQuote.repairJsonIdentity(
+                "amap-fuel",
+                "station-key",
+                offer,
+                quote,
+                "测试服务商"
+        ));
     }
 
     @Test

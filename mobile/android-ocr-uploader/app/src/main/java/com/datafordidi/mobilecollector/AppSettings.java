@@ -31,6 +31,14 @@ final class AppSettings {
         return !getUploadUrl(context).isEmpty() && !getUploadToken(context).isEmpty();
     }
 
+    static String getUpdateBaseUrl(Context context) {
+        String uploadUrl = getUploadUrl(context);
+        if (uploadUrl.isEmpty()) return "";
+        return UploadEndpointPolicy.requireHttpsBaseUrl(uploadUrl)
+                .resolve("api/mobile-update/")
+                .toString();
+    }
+
     static void provision(Context context, String url, String token) {
         String normalizedUrl = compact(url).replaceAll("/+$", "");
         String normalizedToken = compact(token);

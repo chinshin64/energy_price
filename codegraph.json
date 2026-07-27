@@ -1,0 +1,24 @@
+{
+  "exclude": [
+    ".env",
+    ".env.*",
+    "**/.env",
+    "**/.env.*",
+    "**/*.key",
+    "**/*.pem",
+    "**/*.p12",
+    "**/*.pfx",
+    "**/*.crt",
+    "**/*.cer",
+    "**/*.db",
+    "**/*.sqlite",
+    "**/*.sqlite3",
+    "**/*.har",
+    "**/*.apk",
+    "**/*.aab",
+    "logs/",
+    "outputs/",
+    ".codex_tmp/",
+    "data/"
+  ]
+}

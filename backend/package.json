@@ -16,6 +16,9 @@
     "migrate:database": "node scripts/migrate-database.js",
     "migrate:secrets": "node scripts/migrate-secrets.js",
     "migrate:mobile-source-mysql": "node scripts/migrate-mobile-source-mysql.js",
+    "migrate:mobile-source-fuel-wide": "node scripts/migrate-mobile-source-fuel-wide.js",
+    "migrate:mobile-source-fuel-view": "node scripts/migrate-mobile-source-fuel-view.js",
+    "patch:mobile-source-v4-queue": "node scripts/patch-mobile-source-v4-queue.js",
     "start:mobile-source": "node scripts/start-mobile-source-node.js"
   },
   "keywords": [

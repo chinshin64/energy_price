@@ -1,5 +1,7 @@
 package com.datafordidi.mobilecollector;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -31,8 +33,18 @@ final class ScreenContextResolver {
         }
         String fuelPlatform = FuelPlatformDetector.detect(rows, packageName);
         if (!fuelPlatform.isEmpty()) {
-            List<FuelStationRecord> fuelStations = FuelStationParser.extract(rows, fuelPlatform, sourceStage);
-            return ParsedScreen.fuel(fuelPlatform, city(rows), fuelStations);
+            FuelStationParser.ParseOutcome fuel = FuelStationParser.extractDetailed(
+                    rows,
+                    fuelPlatform,
+                    sourceStage
+            );
+            return ParsedScreen.fuel(
+                    fuelPlatform,
+                    city(rows),
+                    fuel.stations,
+                    fuel.rejectionReasons,
+                    fuel.priceEvidence
+            );
         }
         if (isAmapContext(packageName, pageText)
                 && FuelPlatformDetector.chargingEvidence(pageText) < 2) {
@@ -78,8 +90,18 @@ final class ScreenContextResolver {
         }
         String platform = compact(userPlatform);
         if (FuelPlatformHint.isFuel(platform)) {
-            List<FuelStationRecord> fuelStations = FuelStationParser.extract(rows, platform, sourceStage);
-            return ParsedScreen.fuel(platform, city(rows), fuelStations);
+            FuelStationParser.ParseOutcome fuel = FuelStationParser.extractDetailed(
+                    rows,
+                    platform,
+                    sourceStage
+            );
+            return ParsedScreen.fuel(
+                    platform,
+                    city(rows),
+                    fuel.stations,
+                    fuel.rejectionReasons,
+                    fuel.priceEvidence
+            );
         }
         List<DidiLocalStationParser.StationRecord> generic = GenericStationParser.extract(rows, platform, sourceStage);
         for (DidiLocalStationParser.StationRecord station : generic) {
@@ -144,21 +166,41 @@ final class ScreenContextResolver {
 
     static boolean isBlockedPage(List<OcrRow> rows) {
         String text = compact(join(rows));
-        return text.contains("输入密码")
+        boolean strongSensitive = text.contains("输入密码")
                 || text.contains("短信验证码")
                 || text.contains("支付密码")
-                || text.contains("收银台")
-                || text.contains("确认支付")
-                || text.contains("确认付款")
-                || text.contains("提交订单")
-                || text.contains("创建订单")
-                || text.contains("确认下单")
                 || text.contains("银行卡支付")
                 || text.contains("授权登录")
                 || text.contains("人脸识别")
                 || text.contains("银行卡号")
                 || text.contains("身份验证")
                 || text.contains("登录后使用");
+        if (strongSensitive) return true;
+        boolean orderAction = text.contains("收银台")
+                || text.contains("确认支付")
+                || text.contains("确认付款")
+                || text.contains("提交订单")
+                || text.contains("创建订单")
+                || text.contains("确认下单");
+        return orderAction && !isSafeAmapFuelQuotePage(rows);
+    }
+
+    private static boolean isSafeAmapFuelQuotePage(List<OcrRow> rows) {
+        boolean station = false;
+        boolean amountDiscount = false;
+        boolean payable = false;
+        boolean provider = false;
+        for (OcrRow row : rows == null ? new ArrayList<OcrRow>() : rows) {
+            String text = compact(row.text);
+            station |= FuelCardParser.Utilities.looksLikeStationName(text);
+            amountDiscount |= text.matches(".*(?:加|充)200.*(?:省|减|优惠).*")
+                    || text.contains("立减优惠");
+            payable |= text.contains("实付") || text.contains("应付")
+                    || text.matches("^[¥￥]?1\\d{2}(?:[.,]\\d{1,2})$");
+            provider |= (text.contains("服务商") || text.contains("本次由"))
+                    && text.contains("提供");
+        }
+        return station && amountDiscount && payable && provider;
     }
 
     static boolean isCollectorPage(List<OcrRow> rows) {
@@ -195,19 +237,25 @@ final class ScreenContextResolver {
         final String stationType;
         final List<DidiLocalStationParser.StationRecord> stations;
         final List<FuelStationRecord> fuelStations;
+        final List<String> rejectionReasons;
+        final List<JSONObject> priceEvidence;
 
         private ParsedScreen(
                 String platform,
                 String city,
                 String stationType,
                 List<DidiLocalStationParser.StationRecord> stations,
-                List<FuelStationRecord> fuelStations
+                List<FuelStationRecord> fuelStations,
+                List<String> rejectionReasons,
+                List<JSONObject> priceEvidence
         ) {
             this.platform = platform;
             this.city = city;
             this.stationType = stationType;
             this.stations = stations;
             this.fuelStations = fuelStations;
+            this.rejectionReasons = rejectionReasons == null ? new ArrayList<>() : rejectionReasons;
+            this.priceEvidence = priceEvidence == null ? new ArrayList<>() : priceEvidence;
         }
 
         static ParsedScreen charging(
@@ -215,19 +263,33 @@ final class ScreenContextResolver {
                 String city,
                 List<DidiLocalStationParser.StationRecord> stations
         ) {
-            return new ParsedScreen(platform, city, "charging", stations, new ArrayList<>());
+            return new ParsedScreen(platform, city, "charging", stations, new ArrayList<>(),
+                    new ArrayList<>(), new ArrayList<>());
+        }
+
+        static ParsedScreen fuel(
+                String platform,
+                String city,
+                List<FuelStationRecord> stations,
+                List<String> rejectionReasons,
+                List<JSONObject> priceEvidence
+        ) {
+            return new ParsedScreen(platform, city, "fuel", new ArrayList<>(), stations,
+                    rejectionReasons, priceEvidence);
         }
 
         static ParsedScreen fuel(String platform, String city, List<FuelStationRecord> stations) {
-            return new ParsedScreen(platform, city, "fuel", new ArrayList<>(), stations);
+            return fuel(platform, city, stations, new ArrayList<>(), new ArrayList<>());
         }
 
         static ParsedScreen conflict(String city) {
-            return new ParsedScreen("", city, "conflict", new ArrayList<>(), new ArrayList<>());
+            return new ParsedScreen("", city, "conflict", new ArrayList<>(), new ArrayList<>(),
+                    new ArrayList<>(), new ArrayList<>());
         }
 
         static ParsedScreen uncertain(String city) {
-            return new ParsedScreen("", city, "uncertain", new ArrayList<>(), new ArrayList<>());
+            return new ParsedScreen("", city, "uncertain", new ArrayList<>(), new ArrayList<>(),
+                    new ArrayList<>(), new ArrayList<>());
         }
 
         int size() {

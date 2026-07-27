@@ -46,6 +46,11 @@ final class CaptureTime {
         return new DisplayValue("未知", true);
     }
 
+    static Long capturedAtEpochMillis(JSONObject row) {
+        Instant captured = parse(value(row, "capturedAt"));
+        return captured == null ? null : captured.toEpochMilli();
+    }
+
     private static Object value(JSONObject row, String key) {
         return row == null ? null : row.opt(key);
     }

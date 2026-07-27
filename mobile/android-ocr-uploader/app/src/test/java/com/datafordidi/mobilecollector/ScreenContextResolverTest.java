@@ -125,6 +125,24 @@ public class ScreenContextResolverTest {
         assertTrue(parsed.isEmpty());
     }
 
+    @Test
+    public void completeAmapFuelQuotePreviewMayContainOrderButtonButSecretsRemainBlocked() {
+        assertFalse(ScreenContextResolver.isBlockedPage(Arrays.asList(
+                row("浙江石油塘河供能加油站"),
+                row("¥7.66/L 加200省¥5.09"),
+                row("¥195.72"),
+                row("本次油服务商团油提供"),
+                row("确认支付")
+        )));
+        assertTrue(ScreenContextResolver.isBlockedPage(Arrays.asList(
+                row("浙江石油塘河供能加油站"),
+                row("¥7.66/L 加200省¥5.09"),
+                row("¥195.72"),
+                row("本次油服务商团油提供"),
+                row("支付密码")
+        )));
+    }
+
     private static OcrRow row(String value) {
         return new OcrRow(value, 1f, 0.1f, 0.3f, 0.8f, 0.04f);
     }

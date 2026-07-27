@@ -1,5 +1,6 @@
 package com.datafordidi.mobilecollector;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -74,11 +75,26 @@ final class StationResultPresenter {
         if (snapshots != null) {
             for (int index = 0; index < snapshots.size(); index++) {
                 JSONObject row = snapshots.get(index);
-                if (row == null || compact(row.optString("stationName")).isEmpty()) continue;
+                if (row == null || compact(StationRecordFilter.stationName(row)).isEmpty()) continue;
                 String key = stableIdentity(row, index);
                 IndexedRow candidate = new IndexedRow(row, index);
                 IndexedRow current = latest.get(key);
-                if (current == null || candidate.isNewerThan(current)) latest.put(key, candidate);
+                if (current == null) {
+                    latest.put(key, candidate);
+                } else if (candidate.isNewerThan(current)) {
+                    JSONObject value = candidate.manualBackfill == current.manualBackfill
+                            ? mergeFuelRows(candidate.value, current.value)
+                            : candidate.value;
+                    latest.put(key, new IndexedRow(value, candidate.index));
+                } else if (candidate.manualBackfill == current.manualBackfill) {
+                    latest.put(
+                            key,
+                            new IndexedRow(
+                                    mergeFuelRows(current.value, candidate.value),
+                                    current.index
+                            )
+                    );
+                }
             }
         }
         List<IndexedRow> ordered = new ArrayList<>(latest.values());
@@ -88,6 +104,73 @@ final class StationResultPresenter {
         List<JSONObject> output = new ArrayList<>();
         for (IndexedRow row : ordered) output.add(row.value);
         return output;
+    }
+
+    private static JSONObject mergeFuelRows(JSONObject primary, JSONObject supplement) {
+        JSONObject output = AddressFreePayload.copyObject(primary);
+        if (!"fuel".equals(output.optString("stationType"))
+                || supplement == null
+                || !"fuel".equals(supplement.optString("stationType"))) {
+            return output;
+        }
+        JSONObject fuel = output.optJSONObject("fuelObservation");
+        JSONObject otherFuel = supplement.optJSONObject("fuelObservation");
+        if (fuel == null || otherFuel == null) return output;
+        try {
+            fuel.put(
+                    "fuelOffers",
+                    mergeGradeArrays(
+                            fuel.optJSONArray("fuelOffers"),
+                            otherFuel.optJSONArray("fuelOffers")
+                    )
+            );
+            fuel.put(
+                    "fuelQuotes",
+                    mergeGradeArrays(
+                            fuel.optJSONArray("fuelQuotes"),
+                            otherFuel.optJSONArray("fuelQuotes")
+                    )
+            );
+            if (fuel.optString("providerName").trim().isEmpty()
+                    && !otherFuel.optString("providerName").trim().isEmpty()) {
+                fuel.put("providerName", otherFuel.optString("providerName"));
+                if (otherFuel.has("providerEvidence")) {
+                    fuel.put("providerEvidence", otherFuel.opt("providerEvidence"));
+                }
+            }
+        } catch (Exception ignored) {
+            return AddressFreePayload.copyObject(primary);
+        }
+        return output;
+    }
+
+    private static JSONArray mergeGradeArrays(JSONArray primary, JSONArray supplement) {
+        Map<String, JSONObject> values = new LinkedHashMap<>();
+        addGrades(values, primary, true);
+        addGrades(values, supplement, false);
+        JSONArray output = new JSONArray();
+        for (JSONObject value : values.values()) {
+            output.put(AddressFreePayload.copyObject(value));
+        }
+        return output;
+    }
+
+    private static void addGrades(
+            Map<String, JSONObject> target,
+            JSONArray source,
+            boolean replace
+    ) {
+        if (source == null) return;
+        for (int index = 0; index < source.length(); index++) {
+            JSONObject value = source.optJSONObject(index);
+            if (value == null) continue;
+            String grade = compact(value.optString("gradeCode"));
+            if (grade.isEmpty()) grade = compact(value.optString("gradeLabel"));
+            if (grade.isEmpty()) grade = "unknown-" + index;
+            if (replace || !target.containsKey(grade)) {
+                target.put(grade, AddressFreePayload.copyObject(value));
+            }
+        }
     }
 
     static String stableIdentity(JSONObject row, int fallbackIndex) {

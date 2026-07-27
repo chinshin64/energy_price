@@ -2,7 +2,29 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { MysqlMobileSourceStore } = require('../services/mysql-mobile-source-store');
+const mysql = require('mysql2/promise');
+const {
+    DEFAULT_MYSQL_QUEUE_LIMIT,
+    MAX_MYSQL_QUEUE_LIMIT,
+    MysqlMobileSourceStore,
+    boundedPositiveInteger,
+    createMysqlPool,
+} = require('../services/mysql-mobile-source-store');
+
+test('MySQL source store uses a bounded configurable waiting queue', (t) => {
+    assert.equal(DEFAULT_MYSQL_QUEUE_LIMIT, 500);
+    assert.equal(MAX_MYSQL_QUEUE_LIMIT, 5000);
+    assert.equal(boundedPositiveInteger(undefined, DEFAULT_MYSQL_QUEUE_LIMIT, MAX_MYSQL_QUEUE_LIMIT), 500);
+    assert.equal(boundedPositiveInteger('750', DEFAULT_MYSQL_QUEUE_LIMIT, MAX_MYSQL_QUEUE_LIMIT), 750);
+    assert.equal(boundedPositiveInteger('0', DEFAULT_MYSQL_QUEUE_LIMIT, MAX_MYSQL_QUEUE_LIMIT), 500);
+    assert.equal(boundedPositiveInteger('5001', DEFAULT_MYSQL_QUEUE_LIMIT, MAX_MYSQL_QUEUE_LIMIT), 500);
+    assert.equal(boundedPositiveInteger('1.5', DEFAULT_MYSQL_QUEUE_LIMIT, MAX_MYSQL_QUEUE_LIMIT), 500);
+
+    t.mock.method(mysql, 'createPool', config => config);
+    assert.equal(createMysqlPool({ MOBILE_SOURCE_MYSQL_QUEUE_LIMIT: '750' }).queueLimit, 750);
+    assert.equal(createMysqlPool({ MOBILE_SOURCE_MYSQL_QUEUE_LIMIT: '5001' }).queueLimit, 500);
+    assert.equal(createMysqlPool({}).connectionLimit, 10);
+});
 
 function batch() {
     return {

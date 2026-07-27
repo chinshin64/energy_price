@@ -100,8 +100,17 @@ config/sync-nodes.json
 
 # Local debug artifacts and caches
 .codex_tmp/
+.codegraph/
 __pycache__/
 *.pyc
 
 # Stray APK build artifacts at repo root
 /*.apk
+
+# Deployment / ops scripts and production fixtures (contain infra details,
+# kept out of the public mirror — operators configure their own)
+deploy/apply-167-agent-ip-v2.sh
+deploy/verify-167-agent-ip-v2.sh
+deploy/data-for-didi-mobile-source-agent-ip-v2.service
+scripts/verify-167-multi-token.js
+backend/test/fixtures/mysql-mobile-source-store-v4-production-excerpt.txt

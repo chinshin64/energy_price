@@ -18,6 +18,8 @@ final class FuelStationRecord {
     String captureContextId = "";
     String providerName;
     JSONObject providerEvidence;
+    String observedStationName;
+    String stationNameMatchMethod;
     final List<FuelOffer> fuelOffers = new ArrayList<>();
     final List<FuelQuote> fuelQuotes = new ArrayList<>();
 
@@ -65,6 +67,10 @@ final class FuelStationRecord {
         put(diagnostics, "mode", clean(captureMode));
         put(diagnostics, "packageCategory", clean(packageCategory));
         put(diagnostics, "quality", quotes.length() > 0 ? "fuel-quote-observed" : "fuel-price-observed");
+        if (!clean(observedStationName).isEmpty()) {
+            put(diagnostics, "observedStationName", clean(observedStationName));
+            put(diagnostics, "stationNameMatchMethod", clean(stationNameMatchMethod));
+        }
         JSONObject raw = new JSONObject();
         put(raw, "sourceType", "mobile-ocr");
         put(raw, "sourceAgent", LocalStationStore.SOURCE_AGENT);

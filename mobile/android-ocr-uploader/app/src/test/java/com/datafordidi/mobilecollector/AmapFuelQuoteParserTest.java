@@ -273,6 +273,21 @@ public class AmapFuelQuoteParserTest {
         assertTrue(unsafeProvider.providerEvidence == null);
     }
 
+    @Test
+    public void providerOcrDuplicateCharacterIsNormalizedOnlyWithAttributionEvidence() {
+        FuelProviderExtractor.Result attributed = FuelProviderExtractor.extract(Arrays.asList(
+                row("本次油服务商滴加油提供", .05f, .82f)
+        ));
+        assertTrue(attributed.present());
+        assertEquals("滴滴加油", attributed.name);
+        assertEquals("滴滴加油", attributed.evidence.optString("text"));
+
+        FuelProviderExtractor.Result unrelated = FuelProviderExtractor.extract(Arrays.asList(
+                row("滴加油", .05f, .82f)
+        ));
+        assertFalse(unrelated.present());
+    }
+
     private static OcrRow row(String value, float x, float y) {
         return new OcrRow(value, .98f, x, y, .72f, .04f);
     }

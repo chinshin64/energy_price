@@ -5,10 +5,24 @@ const { MobileSourceMysqlMigrator } = require('./mobile-source-mysql-migrator');
 const { MobileSourceSplitMigrator } = require('./mobile-source-split-migrator');
 
 const SOURCE_NODE = '47-mysql';
+const DEFAULT_MYSQL_QUEUE_LIMIT = 500;
+const MAX_MYSQL_QUEUE_LIMIT = 5000;
+
+function boundedPositiveInteger(value, fallback, maximum) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 && parsed <= maximum
+        ? parsed
+        : fallback;
+}
 
 function createMysqlPool(env = process.env) {
     const port = Number(env.MOBILE_SOURCE_MYSQL_PORT || env.MYSQL_PORT || 3306);
     const connectionLimit = Number(env.MOBILE_SOURCE_MYSQL_POOL_SIZE || 10);
+    const queueLimit = boundedPositiveInteger(
+        env.MOBILE_SOURCE_MYSQL_QUEUE_LIMIT,
+        DEFAULT_MYSQL_QUEUE_LIMIT,
+        MAX_MYSQL_QUEUE_LIMIT
+    );
     return mysql.createPool({
         host: env.MOBILE_SOURCE_MYSQL_HOST || env.MYSQL_HOST || '127.0.0.1',
         port: Number.isInteger(port) && port > 0 ? port : 3306,
@@ -20,7 +34,7 @@ function createMysqlPool(env = process.env) {
         dateStrings: true,
         waitForConnections: true,
         connectionLimit: Number.isInteger(connectionLimit) && connectionLimit > 0 ? connectionLimit : 10,
-        queueLimit: 100,
+        queueLimit,
         enableKeepAlive: true,
         keepAliveInitialDelay: 0,
     });
@@ -666,7 +680,10 @@ class MysqlMobileSourceStore {
 }
 
 module.exports = {
+    DEFAULT_MYSQL_QUEUE_LIMIT,
+    MAX_MYSQL_QUEUE_LIMIT,
     MysqlMobileSourceStore,
     SOURCE_NODE,
+    boundedPositiveInteger,
     createMysqlPool,
 };

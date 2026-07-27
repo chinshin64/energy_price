@@ -47,16 +47,18 @@ final class StationObservationV3 {
     }
 
     static JSONObject fuel(FuelStationRecord station, boolean fuelQuoteFeature) {
-        // 燃油侧无枪数据：common 信封不携带 ports。
+        // 燃油侧无地址、无枪数据：common 信封不携带 address/ports。
         JSONObject common = common(
                 "fuel",
                 station.stationName,
-                station.address,
+                null,
                 null,
                 null,
                 null,
                 station.capturedAt
         );
+        // 燃油质量不硬编码为 valid，由领域策略根据站名与有效 offer 决定。
+        put(common, "quality", FuelQualityPolicy.evaluate(station));
         JSONObject fuel = station.typeSpecificJson(fuelQuoteFeature);
         return envelope("fuel", common, "fuelObservation", fuel);
     }
@@ -118,19 +120,17 @@ final class StationObservationV3 {
         String safeAddress = sanitizeAddress(address);
         JSONObject common = new JSONObject();
         put(common, "stationName", name);
-        put(common, "address", safeAddress == null ? JSONObject.NULL : safeAddress);
+        // 燃油侧业务模型不要求地址，直接不生成 address 键；充电侧仍可选。
+        if (!"fuel".equals(stationType)) {
+            put(common, "address", safeAddress == null ? JSONObject.NULL : safeAddress);
+        }
         put(common, "capturedAt", CaptureTime.requireUtc(capturedAt));
         JSONArray missing = new JSONArray();
-        if (safeAddress == null) missing.put("address");
         if ("fuel".equals(stationType)) {
-            // 燃油侧无枪数据：不写 ports/portSemantics，不做 ports 校验。
-            JSONObject quality = new JSONObject();
-            put(quality, "status", missing.length() > 0 ? "incomplete" : "valid");
-            put(quality, "needsReview", missing.length() > 0);
-            put(quality, "missingFields", missing);
-            put(common, "quality", quality);
+            // 燃油侧 common 不生成 address/ports 键，质量由 FuelQualityPolicy 单独计算。
             return common;
         }
+        if (safeAddress == null) missing.put("address");
         validatePorts(availablePorts, busyPorts, totalPorts);
         putNullable(common, "availablePorts", availablePorts);
         putNullable(common, "busyPorts", busyPorts);

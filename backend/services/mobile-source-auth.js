@@ -10,6 +10,24 @@ function safeEqual(left, right) {
     return crypto.timingSafeEqual(digest(left), digest(right));
 }
 
+function normalizeConfiguredToken(token) {
+    if (Array.isArray(token)) {
+        const tokens = token
+            .map(value => String(value || '').trim())
+            .filter(value => value.length > 0);
+        return tokens.length > 0 ? tokens : '';
+    }
+    const value = String(token || '').trim();
+    return value.length > 0 ? value : '';
+}
+
+function matchesConfiguredToken(supplied, configuredToken) {
+    if (Array.isArray(configuredToken)) {
+        return configuredToken.some(candidate => safeEqual(supplied, candidate));
+    }
+    return safeEqual(supplied, configuredToken);
+}
+
 function readBearer(req, alternateHeader) {
     const authorization = String(req.headers?.authorization || '').trim();
     if (authorization.toLowerCase().startsWith('bearer ')) {
@@ -19,13 +37,13 @@ function readBearer(req, alternateHeader) {
 }
 
 function createMachineAuth(options = {}) {
-    const configuredToken = String(options.token || '').trim();
+    const configuredToken = normalizeConfiguredToken(options.token);
     const header = String(options.header || 'x-machine-token').toLowerCase();
     const realm = String(options.realm || 'mobile-source');
     const required = options.required !== false;
 
     return function machineAuth(req, res, next) {
-        if (!configuredToken) {
+        if (!configuredToken || (Array.isArray(configuredToken) && configuredToken.length === 0)) {
             if (!required) return next();
             return res.status(503).json({
                 success: false,
@@ -35,7 +53,7 @@ function createMachineAuth(options = {}) {
             });
         }
         const supplied = readBearer(req, header);
-        if (!supplied || !safeEqual(supplied, configuredToken)) {
+        if (!supplied || !matchesConfiguredToken(supplied, configuredToken)) {
             res.setHeader('WWW-Authenticate', `Bearer realm="${realm}"`);
             return res.status(401).json({
                 success: false,

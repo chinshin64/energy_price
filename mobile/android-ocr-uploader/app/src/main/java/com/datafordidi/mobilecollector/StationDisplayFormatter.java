@@ -4,8 +4,12 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.math.BigDecimal;
-import java.util.Locale;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 final class StationDisplayFormatter {
     private StationDisplayFormatter() {
@@ -39,7 +43,7 @@ final class StationDisplayFormatter {
     }
 
     static boolean incomplete(JSONObject row) {
-        return !hasAddress(row) || !hasPrice(row) || !hasPorts(row);
+        return StationCompletenessPolicy.evaluate(row) != StationCompletenessPolicy.Level.COMPLETE;
     }
 
     static boolean canEditBackfill(JSONObject row) {
@@ -104,6 +108,10 @@ final class StationDisplayFormatter {
         return "待补价格";
     }
 
+    static boolean showFeaturedPrice(JSONObject row) {
+        return !isFuel(row);
+    }
+
     static String fastPorts(JSONObject row) {
         return typedPorts(row, "快", "fastIdlePorts", "fastTotalPorts");
     }
@@ -114,8 +122,8 @@ final class StationDisplayFormatter {
 
     static String portSummary(JSONObject row) {
         if (isFuel(row)) {
-            String fuel = fuelDetails(row);
-            return (hasPorts(row) ? "枪：" + ports(row) + "\n" : "枪状态待补全\n") + fuel;
+            // 燃油侧无枪数据，不再提示「枪状态待补全」
+            return fuelDetails(row);
         }
         StringBuilder output = new StringBuilder();
         appendTypedPorts(output, row, "快", "fastIdlePorts", "fastTotalPorts");
@@ -142,6 +150,8 @@ final class StationDisplayFormatter {
     }
 
     static String address(JSONObject row) {
+        // 燃油侧地址不是采集项，不展示也不提示缺失。
+        if (row != null && isFuel(row)) return "";
         if (row == null) return "地址待补全";
         String value = row.isNull("address") ? "" : row.optString("address").trim();
         if (value.isEmpty()) {
@@ -152,6 +162,8 @@ final class StationDisplayFormatter {
     }
 
     static boolean hasAddress(JSONObject row) {
+        // 燃油侧地址不是采集项，视为不缺；充电侧按实际内容判断。
+        if (row != null && isFuel(row)) return true;
         return !"地址待补全".equals(address(row));
     }
 
@@ -166,6 +178,10 @@ final class StationDisplayFormatter {
 
     static String missingSummary(JSONObject row) {
         StringBuilder output = new StringBuilder();
+        if (isFuel(row)) {
+            if (!hasPrice(row)) appendMissing(output, "油价");
+            return output.length() == 0 ? "字段完整" : "待补：" + output;
+        }
         if (!hasAddress(row)) appendMissing(output, "地址");
         if (!hasPorts(row)) appendMissing(output, "枪状态");
         if (!hasPrice(row)) appendMissing(output, "价格");
@@ -286,10 +302,11 @@ final class StationDisplayFormatter {
                 continue;
             }
             if (output.length() > 0) output.append("\n");
-            output.append(offer.optString("gradeLabel", offer.optString("gradeCode")));
+            output.append(gradeLabel(offer, index));
             if (display > 0d) output.append("  外显 ").append(decimal(display)).append(" 元/升");
-            if (station > 0d) output.append("  油站 ").append(decimal(station)).append(" 元/升");
-            if (national > 0d) output.append("  国标 ").append(decimal(national)).append(" 元/升");
+            // 油站价/国标价只在数据中存在，不在 UI 展示层显示，避免用户误解为优惠后价格。
+            // if (station > 0d) output.append("  油站 ").append(decimal(station)).append(" 元/升");
+            // if (national > 0d) output.append("  国标 ").append(decimal(national)).append(" 元/升");
             if (!hasRolePrices && discount > 0d) {
                 output.append("  优惠价 ").append(decimal(discount)).append(" 元/升");
             }
@@ -319,10 +336,9 @@ final class StationDisplayFormatter {
             JSONObject quote = quotes.optJSONObject(index);
             if (quote == null) continue;
             if (output.length() > 0) output.append("\n");
-            output.append(quote.optString("gradeLabel", quote.optString("gradeCode")));
-            String gun = quote.optString("gunLabel");
+            output.append(gradeLabel(quote, index));
+            String gun = displayText(quote, "gunLabel");
             if (!gun.isEmpty()) output.append(" ").append(gun);
-            appendMoney(output, "金额", quote, "selectedAmount");
             appendMoney(output, "优惠", quote, "grossDiscount");
             appendMoney(output, "服务费", quote, "serviceFee");
             appendMoney(output, "预计实付", quote, "payableAmount");
@@ -334,21 +350,97 @@ final class StationDisplayFormatter {
     static String fuelDetails(JSONObject row) {
         StringBuilder output = new StringBuilder();
         JSONObject fuel = row == null ? null : row.optJSONObject("fuelObservation");
-        String provider = fuel == null || fuel.isNull("providerName")
-                ? ""
-                : fuel.optString("providerName").trim();
+        String provider = displayText(fuel, "providerName");
         if (!provider.isEmpty()) output.append("服务商：").append(provider);
-        String offers = fuelOfferSummary(row);
-        if (!"待补油价".equals(offers)) {
+        String grades = combinedFuelGradeSummary(fuel);
+        if (!grades.isEmpty()) {
             if (output.length() > 0) output.append("\n");
-            output.append(offers);
-        }
-        String quotes = fuelQuoteSummary(row);
-        if (!quotes.isEmpty()) {
-            if (output.length() > 0) output.append("\n");
-            output.append(quotes);
+            output.append(grades);
         }
         return output.length() == 0 ? "待补油价或报价" : output.toString();
+    }
+
+    private static String combinedFuelGradeSummary(JSONObject fuel) {
+        if (fuel == null) return "";
+        Map<String, FuelGradeDisplay> grades = new LinkedHashMap<>();
+        addFuelGradeItems(grades, fuel.optJSONArray("fuelOffers"), true);
+        addFuelGradeItems(grades, fuel.optJSONArray("fuelQuotes"), false);
+        List<String> ordered = new ArrayList<>();
+        if (grades.containsKey("92")) ordered.add("92");
+        if (grades.containsKey("95")) ordered.add("95");
+        for (String grade : grades.keySet()) {
+            if (!ordered.contains(grade)) ordered.add(grade);
+        }
+        StringBuilder output = new StringBuilder();
+        for (String grade : ordered) {
+            FuelGradeDisplay item = grades.get(grade);
+            if (item == null) continue;
+            String line = combinedFuelGradeLine(item);
+            if (line.isEmpty()) continue;
+            if (output.length() > 0) output.append("\n");
+            output.append(line);
+        }
+        return output.toString();
+    }
+
+    private static void addFuelGradeItems(
+            Map<String, FuelGradeDisplay> grades,
+            JSONArray values,
+            boolean offer
+    ) {
+        if (values == null) return;
+        for (int index = 0; index < values.length(); index++) {
+            JSONObject value = values.optJSONObject(index);
+            if (value == null) continue;
+            String grade = gradeKey(value, index);
+            FuelGradeDisplay item = grades.get(grade);
+            if (item == null) {
+                item = new FuelGradeDisplay(gradeLabel(value, index));
+                grades.put(grade, item);
+            }
+            if (offer) item.offer = value;
+            else item.quote = value;
+        }
+    }
+
+    private static String combinedFuelGradeLine(FuelGradeDisplay item) {
+        StringBuilder output = new StringBuilder(item.label);
+        JSONObject offer = item.offer;
+        double display = positiveNumber(offer, "displayPrice");
+        if (display > 0d) {
+            output.append("  外显").append(decimal(display)).append("/升");
+        } else {
+            double fallback = fuelPrice(offer);
+            if (fallback > 0d) output.append("  油价").append(decimal(fallback)).append("/升");
+        }
+        appendCompactMoney(output, "优惠", item.quote, "grossDiscount");
+        appendCompactMoney(output, "服务费", item.quote, "serviceFee");
+        appendCompactMoney(output, "实付", item.quote, "payableAmount");
+        return output.length() == item.label.length() ? "" : output.toString();
+    }
+
+    private static String gradeKey(JSONObject value, int index) {
+        String code = displayText(value, "gradeCode").replace("#", "");
+        if (!code.isEmpty()) return code;
+        String label = displayText(value, "gradeLabel").replace("#", "");
+        return label.isEmpty() ? "unknown-" + index : label;
+    }
+
+    private static String gradeLabel(JSONObject value, int index) {
+        String label = displayText(value, "gradeLabel");
+        if (!label.isEmpty()) return label;
+        String code = displayText(value, "gradeCode");
+        return code.isEmpty() ? "油号待补" : code + (code.endsWith("#") ? "" : "#");
+    }
+
+    private static String displayText(JSONObject value, String key) {
+        if (value == null || value.isNull(key)) return "";
+        String text = value.optString(key, "").trim();
+        return text.isEmpty()
+                || "null".equalsIgnoreCase(text)
+                || "undefined".equalsIgnoreCase(text)
+                ? ""
+                : text;
     }
 
     private static JSONObject firstFuelOffer(JSONObject row) {
@@ -394,7 +486,33 @@ final class StationDisplayFormatter {
         }
     }
 
+    private static void appendCompactMoney(
+            StringBuilder output,
+            String label,
+            JSONObject value,
+            String key
+    ) {
+        if (value == null || value.isNull(key)) return;
+        try {
+            BigDecimal amount = new BigDecimal(value.optString(key));
+            output.append("  ").append(label)
+                    .append(amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString());
+        } catch (NumberFormatException ignored) {
+            // Invalid display-only values are omitted.
+        }
+    }
+
     private static String decimal(double value) {
         return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+    }
+
+    private static final class FuelGradeDisplay {
+        final String label;
+        JSONObject offer;
+        JSONObject quote;
+
+        FuelGradeDisplay(String label) {
+            this.label = label;
+        }
     }
 }

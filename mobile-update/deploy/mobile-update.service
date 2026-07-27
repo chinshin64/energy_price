@@ -1,0 +1,22 @@
+[Unit]
+Description=Mobile APK update service
+After=network.target
+
+[Service]
+Type=simple
+User=mobile-update
+Group=mobile-update
+WorkingDirectory=/opt/data-for-didi-mobile-update
+Environment=MOBILE_UPDATE_ROOT=/opt/data-for-didi-mobile-update/releases
+Environment=MOBILE_UPDATE_HOST=127.0.0.1
+Environment=MOBILE_UPDATE_PORT=50082
+ExecStart=/usr/bin/node /opt/data-for-didi-mobile-update/server.js
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/data-for-didi-mobile-update/releases
+
+[Install]
+WantedBy=multi-user.target

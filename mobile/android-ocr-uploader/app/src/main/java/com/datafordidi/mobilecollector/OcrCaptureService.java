@@ -46,12 +46,14 @@ public final class OcrCaptureService extends Service {
     static final String ACTION_RESULT_UPDATED = "com.datafordidi.ocruploader.RESULT_UPDATED";
     static final String ACTION_CAPTURE_READY = "com.datafordidi.ocruploader.CAPTURE_READY";
     static final String ACTION_CAPTURE_FAILED = "com.datafordidi.ocruploader.CAPTURE_FAILED";
+    static final String ACTION_MANUAL_CAPTURE = "com.datafordidi.ocruploader.MANUAL_CAPTURE";
     static final String EXTRA_STATUS = "status";
     static final String EXTRA_RESULT_CODE = "resultCode";
     static final String EXTRA_RESULT_DATA = "resultData";
     static final String EXTRA_START_NONCE = "startNonce";
     static final String EXTRA_SESSION_ID = "sessionId";
     static final String EXTRA_SELECTED_PLATFORM = "selectedPlatform";
+    static final String EXTRA_MANUAL_PLATFORM = "manualPlatform";
 
     private static final String TAG = "StandaloneOcr";
     private static final String CHANNEL_ID = "standalone_ocr_capture";
@@ -75,9 +77,12 @@ public final class OcrCaptureService extends Service {
 
     private final StationSyncClient syncClient = new StationSyncClient();
     private final ExecutorService uploadExecutor = Executors.newSingleThreadExecutor();
+    private final AmapFuelSessionReconciler amapFuelSessionReconciler =
+            new AmapFuelSessionReconciler();
     private final AtomicBoolean uploadRunning = new AtomicBoolean();
     private final StationObservationTracker observationTracker = new StationObservationTracker();
     private final FuelObservationTracker fuelObservationTracker = new FuelObservationTracker();
+    private boolean manualSingleShot;
     private final OwnAppResumeGate ownAppResumeGate = new OwnAppResumeGate();
     private HandlerThread workerThread;
     private Handler worker;
@@ -144,6 +149,9 @@ public final class OcrCaptureService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
+        if (intent != null && ACTION_MANUAL_CAPTURE.equals(intent.getAction())) {
+            return runManualSingleCapture(intent, startId);
+        }
         String startNonce = intent == null ? "" : intent.getStringExtra(EXTRA_START_NONCE);
         selectedPlatform = intent == null ? "" : intent.getStringExtra(EXTRA_SELECTED_PLATFORM);
         if (selectedPlatform == null) selectedPlatform = "";
@@ -206,6 +214,34 @@ public final class OcrCaptureService extends Service {
         }
     }
 
+    private int runManualSingleCapture(Intent intent, int startId) {
+        manualSingleShot = true;
+        try {
+            startForeground(NOTIFICATION_ID, notification());
+            int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
+            Intent resultData = intent.getParcelableExtra(EXTRA_RESULT_DATA);
+            selectedPlatform = intent.getStringExtra(EXTRA_MANUAL_PLATFORM);
+            if (selectedPlatform == null) selectedPlatform = "";
+            if (resultCode == 0 || resultData == null) {
+                throw new IllegalArgumentException("missing capture authorization");
+            }
+            MediaProjectionManager manager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+            if (manager == null) throw new IllegalStateException("projection manager unavailable");
+            mediaProjection = manager.getMediaProjection(resultCode, resultData);
+            if (mediaProjection == null) throw new IllegalStateException("projection unavailable");
+            sessionId = "manual-ocr-" + UUID.randomUUID();
+            setupDisplay();
+            announceOcr("手动识别中");
+            worker.postDelayed(() -> captureForOcr(), 400L);
+            return START_NOT_STICKY;
+        } catch (RuntimeException error) {
+            Log.e(TAG, "manual capture failed", error);
+            sendCaptureEvent(ACTION_CAPTURE_FAILED, "");
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+    }
+
     @Override
     public void onDestroy() {
         stopping = true;
@@ -219,6 +255,7 @@ public final class OcrCaptureService extends Service {
         if (mediaProjection != null) mediaProjection.stop();
         mediaProjection = null;
         if (recognizer != null) recognizer.close();
+        manualSingleShot = false;
         recognizer = null;
         uploadExecutor.shutdownNow();
         if (workerThread != null) workerThread.quitSafely();
@@ -347,6 +384,23 @@ public final class OcrCaptureService extends Service {
                             CaptureContextPolicy.parserPackage(automaticScrollSession, packageAtCapture),
                             sourceStage
                     );
+            boolean waitingForAmapPair = false;
+            if ("fuel".equals(parsed.stationType) && "amap-fuel".equals(parsed.platform)) {
+                AmapFuelSessionReconciler.Result reconciliation = amapFuelSessionReconciler.reconcile(
+                        parsed.platform,
+                        rows,
+                        parsed.fuelStations
+                );
+                waitingForAmapPair = reconciliation.waitingForPair;
+                parsed = ScreenContextResolver.ParsedScreen.fuel(
+                        parsed.platform,
+                        parsed.city,
+                        reconciliation.stations,
+                        parsed.rejectionReasons,
+                        parsed.priceEvidence
+                );
+            }
+            emitOcrDiagnostics(rows, parsed, sourceStage);
             if ("fuel".equals(parsed.stationType)) {
                 for (FuelStationRecord station : parsed.fuelStations) {
                     station.capturedAt = CaptureTime.requireUtc(capturedAt);
@@ -378,7 +432,11 @@ public final class OcrCaptureService extends Service {
             lastRecognizedHash = screenHash;
             int currentPage = pageIndex++;
             if (parsed.isEmpty()) {
-                pauseAndMonitor(screenHash, rawHash, "未识别到场站");
+                pauseAndMonitor(
+                        screenHash,
+                        rawHash,
+                        waitingForAmapPair ? "已缓存·等待支付页或另一档价格" : "未识别到场站"
+                );
                 return;
             }
 
@@ -463,6 +521,14 @@ public final class OcrCaptureService extends Service {
                 else pauseAndMonitor(screenHash, rawHash, "页面已变化");
                 return;
             }
+            if (manualSingleShot) {
+                announceOcr(parsed.isEmpty() ? "未识别到场站" : "已识别" + parsed.size() + "条");
+                sendBroadcast(new Intent(ACTION_RESULT_UPDATED)
+                        .setPackage(getPackageName())
+                        .putExtra(EXTRA_STATUS, parsed.isEmpty() ? "未识别到场站" : "已识别" + parsed.size() + "条"));
+                stopSelf();
+                return;
+            }
             if ("fuel".equals(parsed.stationType)) {
                 pauseAndMonitor(
                         screenHash,
@@ -474,7 +540,14 @@ public final class OcrCaptureService extends Service {
             }
         } catch (Exception error) {
             Log.e(TAG, "result persistence failed", error);
-            pauseAndMonitor(screenHash, rawHash, "结果保存失败");
+            if (manualSingleShot) {
+                sendBroadcast(new Intent(ACTION_RESULT_UPDATED)
+                        .setPackage(getPackageName())
+                        .putExtra(EXTRA_STATUS, "结果保存失败"));
+                stopSelf();
+            } else {
+                pauseAndMonitor(screenHash, rawHash, "结果保存失败");
+            }
         } finally {
             bitmap.recycle();
         }
@@ -894,6 +967,23 @@ public final class OcrCaptureService extends Service {
         }
         output.sort(Comparator.comparingDouble((OcrRow row) -> row.y).thenComparingDouble(row -> row.x));
         return output;
+    }
+
+    private void emitOcrDiagnostics(
+            List<OcrRow> rows,
+            ScreenContextResolver.ParsedScreen parsed,
+            String sourceStage
+    ) {
+        OcrDiagnostics.Builder builder = new OcrDiagnostics.Builder()
+                .rowCount(rows == null ? 0 : rows.size())
+                .platform(parsed == null ? "" : parsed.platform)
+                .stationType(parsed == null ? "" : parsed.stationType)
+                .stationCount(parsed == null ? 0 : parsed.size());
+        if (parsed != null) {
+            for (String reason : parsed.rejectionReasons) builder.addRejectionReason(reason);
+            for (JSONObject evidence : parsed.priceEvidence) builder.addPriceEvidence(evidence);
+        }
+        Log.i(TAG, builder.build().toShortLog() + " stage=" + sourceStage);
     }
 
     private Bitmap bitmapFromImage(Image image) {

@@ -218,6 +218,52 @@ public class FuelQuotePersistenceRobolectricTest {
         ObservationEnvelope.requireValidBatch(batch);
     }
 
+    @Test
+    public void recoveryRepairsServerV3QuoteIdentityBeforeRequeue() throws Exception {
+        FuelStationRecord station = FuelQuoteTest.stationWithQuote();
+        FuelQuote quote = station.fuelQuotes.get(0);
+        String expectedDedupKey = quote.quoteDedupKey;
+        String expectedObservationId = quote.quoteObservationId;
+        quote.quoteDedupKey = "b".repeat(64);
+        quote.quoteObservationId = "a".repeat(64);
+        List<String> keys = LocalStationStore.upsertFuel(
+                context,
+                "legacy-quote-session",
+                8,
+                "西安",
+                Collections.singletonList(station)
+        );
+        JSONObject batch = OutboxStore.enqueueFuel(
+                context,
+                "legacy-quote-session",
+                8,
+                "legacy-quote-screen",
+                "amap-fuel",
+                "西安",
+                keys,
+                Collections.singletonList(station),
+                true
+        );
+        String batchId = batch.getString("batchId");
+        OutboxStore.markFailed(
+                context,
+                batchId,
+                "HTTP 400 mobile_source_quote_dedup_mismatch",
+                UploadFailure.Disposition.MANUAL_REVIEW
+        );
+
+        assertEquals(1, OutboxStore.requeueValidatedLegacyHttp400(context));
+        JSONObject recoveredQuote = OutboxStore.findBatch(context, batchId)
+                .getJSONArray("observations")
+                .getJSONObject(0)
+                .getJSONObject("fuelObservation")
+                .getJSONArray("fuelQuotes")
+                .getJSONObject(0);
+        assertEquals(expectedDedupKey, recoveredQuote.getString("quoteDedupKey"));
+        assertEquals(expectedObservationId, recoveredQuote.getString("quoteObservationId"));
+        assertFalse(OutboxStore.requiresManualReview(OutboxStore.findBatch(context, batchId)));
+    }
+
     private void clear() {
         for (String name : new String[]{
                 "standalone_ocr_results",

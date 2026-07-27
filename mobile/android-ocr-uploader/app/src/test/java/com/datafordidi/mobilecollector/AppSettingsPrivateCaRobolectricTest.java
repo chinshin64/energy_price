@@ -12,6 +12,7 @@ import org.robolectric.annotation.Config;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 28)
@@ -56,6 +57,22 @@ public class AppSettingsPrivateCaRobolectricTest {
                 "https://managed-ingest.example:5443",
                 preferences.getString("uploadUrl", "")
         );
+    }
+
+    @Test
+    public void updateEndpointIsDerivedWithoutBeingStoredOrShown() {
+        preferences.edit().putString("uploadUrl", "https://managed-ingest.example:5443").commit();
+        assertEquals(
+                "https://managed-ingest.example:5443/api/mobile-update/",
+                AppSettings.getUpdateBaseUrl(context)
+        );
+        assertFalse(preferences.contains("updateUrl"));
+    }
+
+    @Test
+    public void updateEndpointRejectsLegacyCleartextConfiguration() {
+        preferences.edit().putString("uploadUrl", "http://managed-ingest.example:5443").commit();
+        assertThrows(IllegalStateException.class, () -> AppSettings.getUpdateBaseUrl(context));
     }
 
     @Test

@@ -122,7 +122,8 @@ public class StationObservationV3ContractTest {
 
         JSONObject common = observation.optJSONObject("stationObservation");
         assertNotNull(common);
-        assertEquals(station.address, common.optString("address"));
+        // 燃油侧不采集地址：common 不生成 address 键。
+        assertFalse(common.has("address"));
         // 燃油侧无枪数据：common 不携带 ports/portSemantics。
         assertFalse(common.has("availablePorts"));
         assertFalse(common.has("busyPorts"));

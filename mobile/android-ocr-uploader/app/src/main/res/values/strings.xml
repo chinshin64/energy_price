@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">信息自动识别</string>
-    <string name="source_agent_format">来源：%1$s</string>
     <string name="accessibility_service_name">信息自动识别</string>
     <string name="accessibility_service_description">用于信息页面自动下滑</string>
+    <string name="filter_match_count">找到 %1$d 条</string>
+    <string name="filter_time_value">%1$s\n%2$s</string>
 </resources>

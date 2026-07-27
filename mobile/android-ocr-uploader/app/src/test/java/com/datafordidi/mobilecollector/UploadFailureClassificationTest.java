@@ -1,5 +1,6 @@
 package com.datafordidi.mobilecollector;
 
+import org.json.JSONObject;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,6 +47,29 @@ public class UploadFailureClassificationTest {
         assertAckDisposition(409, "{}", UploadFailure.Disposition.MANUAL_REVIEW);
         assertAckDisposition(401, "{}", UploadFailure.Disposition.MANUAL_REVIEW);
         assertAckDisposition(200, "not-json", UploadFailure.Disposition.MANUAL_REVIEW);
+    }
+
+    @Test
+    public void non2xxAckRetainsOnlySafeServerErrorCode() throws Exception {
+        String response = new JSONObject()
+                .put("success", false)
+                .put("error", new JSONObject()
+                        .put("code", "schema_version_invalid")
+                        .put("message", "do not persist this detail"))
+                .toString();
+        try {
+            StationSyncClient.parseAcknowledgement(400, response, false, 1);
+            fail("acknowledgement must be rejected");
+        } catch (Exception error) {
+            assertEquals("HTTP 400 schema_version_invalid", error.getMessage());
+        }
+
+        assertEquals("", StationSyncClient.serverErrorCode(
+                "{\"error\":{\"code\":\"https://secret.example/token\"}}"
+        ));
+        assertEquals("", StationSyncClient.serverErrorCode(
+                "{\"error\":{\"code\":\"invalid code with spaces\"}}"
+        ));
     }
 
     private static void assertAckDisposition(

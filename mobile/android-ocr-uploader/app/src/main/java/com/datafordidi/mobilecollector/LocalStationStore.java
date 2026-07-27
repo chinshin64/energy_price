@@ -321,6 +321,47 @@ public final class LocalStationStore {
         }
     }
 
+    static int normalizeFuelStationNames(Context context) {
+        synchronized (LOCK) {
+            List<JSONObject> rows = readObjects(context);
+            int changed = 0;
+            for (JSONObject row : rows) {
+                if (!"fuel".equals(row.optString("stationType"))) continue;
+                String observed = row.optString("stationName").trim();
+                String normalized = FuelStationNameNormalizer.normalize(observed);
+                if (normalized.isEmpty() || normalized.equals(observed)) continue;
+                try {
+                    row.put("stationName", normalized);
+                    JSONObject common = row.optJSONObject("stationObservation");
+                    if (common != null) common.put("stationName", normalized);
+                    JSONObject fuel = row.optJSONObject("fuelObservation");
+                    if (fuel != null) {
+                        fuel.put("stationName", normalized);
+                        JSONObject raw = fuel.optJSONObject("raw");
+                        if (raw == null) {
+                            raw = new JSONObject();
+                            fuel.put("raw", raw);
+                        }
+                        JSONObject diagnostics = raw.optJSONObject("diagnostics");
+                        if (diagnostics == null) {
+                            diagnostics = new JSONObject();
+                            raw.put("diagnostics", diagnostics);
+                        }
+                        if (diagnostics.optString("observedStationName").trim().isEmpty()) {
+                            diagnostics.put("observedStationName", observed);
+                        }
+                        diagnostics.put("stationNameMatchMethod", "local-search-shell-normalized");
+                    }
+                    changed++;
+                } catch (Exception error) {
+                    throw new IllegalStateException("无法净化历史燃油站名", error);
+                }
+            }
+            if (changed > 0) persist(context, rows, true);
+            return changed;
+        }
+    }
+
     static String key(String platform, String city, String stationName) {
         return compact(platform) + "|" + compact(city) + "|" + compact(stationName);
     }

@@ -400,6 +400,40 @@ final class OutboxStore {
         return batch != null && MANUAL_REVIEW.equals(batch.optString(FAILURE_DISPOSITION));
     }
 
+    static int requeueValidatedLegacyHttp400(Context context) {
+        int recovered = 0;
+        synchronized (LOCK) {
+            List<JSONObject> batches = read(context);
+            for (JSONObject batch : batches) {
+                String lastError = batch.optString("lastError").trim();
+                if (!requiresManualReview(batch)
+                        || !("HTTP 400".equals(lastError)
+                        || "HTTP 400 mobile_source_quote_dedup_mismatch".equals(lastError))) {
+                    continue;
+                }
+                try {
+                    if (lastError.endsWith("mobile_source_quote_dedup_mismatch")) {
+                        FuelQuoteIdentityPolicy.repairBatch(batch);
+                    }
+                    ObservationEnvelope.requireValidBatch(batch);
+                    StationSensitiveDataPolicy.requireSafeBatch(batch);
+                } catch (RuntimeException invalid) {
+                    continue;
+                }
+                batch.remove(FAILURE_DISPOSITION);
+                batch.remove("lastError");
+                try {
+                    batch.put("attempts", 0);
+                } catch (Exception impossible) {
+                    throw new IllegalStateException("无法恢复历史回传事务", impossible);
+                }
+                recovered++;
+            }
+            if (recovered > 0) persist(context, batches);
+        }
+        return recovered;
+    }
+
     static void markSynced(Context context, String batchId) {
         synchronized (LOCK) {
             List<JSONObject> batches = read(context);

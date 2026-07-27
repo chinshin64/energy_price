@@ -42,6 +42,7 @@ final class FuelQuote {
     BigDecimal payableAmount;
     String quoteEntry = "inline";
     boolean needsReview;
+    boolean gradeInferred;
     String capturedAt;
 
     boolean valid() {
@@ -58,8 +59,15 @@ final class FuelQuote {
     }
 
     void validateFormula() {
-        needsReview = false;
+        needsReview = gradeInferred;
         netDiscount = null;
+
+        // 若三个金额齐全但缺少 grossDiscount，用公式反推：200 = 实付 + 优惠 - 服务费。
+        if (grossDiscount == null && selectedAmount != null && payableAmount != null && serviceFee != null) {
+            BigDecimal inferred = money(selectedAmount.subtract(payableAmount).add(serviceFee));
+            if (inferred.signum() >= 0) grossDiscount = inferred;
+        }
+
         if (grossDiscount == null || serviceFee == null) {
             needsReview = true;
             return;
@@ -81,23 +89,60 @@ final class FuelQuote {
             String providerName
     ) {
         capturedAt = CaptureTime.requireUtc(capturedAt);
-        String display = offer == null ? "" : normalized(offer.displayPrice, 4);
-        String station = offer == null ? "" : normalized(offer.stationPrice, 4);
-        String national = offer == null ? "" : normalized(offer.nationalPrice, 4);
-        String seed = "2|" + clean(sourceStationKey)
-                + "|" + clean(gradeCode)
-                + "|" + clean(gunCode)
-                + "|" + minor(selectedAmount)
-                + "|" + capturedAt
-                + "|" + display
-                + "|" + station
-                + "|" + national
-                + "|" + minor(grossDiscount)
-                + "|" + minor(serviceFee)
-                + "|" + minor(payableAmount)
-                + "|" + clean(providerName);
+        String seed = identitySeed(
+                platform,
+                sourceStationKey,
+                gradeCode,
+                gunCode,
+                selectedAmount,
+                capturedAt,
+                offer == null ? null : offer.displayPrice,
+                offer == null ? null : offer.stationPrice,
+                offer == null ? null : offer.nationalPrice,
+                grossDiscount,
+                serviceFee,
+                payableAmount,
+                providerName
+        );
         quoteDedupKey = DeviceIdentity.sha256(seed);
         quoteObservationId = DeviceIdentity.sha256("fuel-quote-observation|" + seed);
+    }
+
+    static boolean repairJsonIdentity(
+            String platform,
+            String sourceStationKey,
+            JSONObject offer,
+            JSONObject quote,
+            String providerName
+    ) {
+        if (quote == null) return false;
+        String capturedAt = CaptureTime.requireUtc(quote.optString("capturedAt"));
+        String seed = identitySeed(
+                platform,
+                sourceStationKey,
+                quote.optString("gradeCode"),
+                nullable(quote, "gunCode"),
+                decimal(quote, "selectedAmount"),
+                capturedAt,
+                priceDecimal(offer, "displayPrice"),
+                priceDecimal(offer, "stationPrice"),
+                priceDecimal(offer, "nationalPrice"),
+                decimal(quote, "grossDiscount"),
+                decimal(quote, "serviceFee"),
+                decimal(quote, "payableAmount"),
+                providerName
+        );
+        String dedupKey = DeviceIdentity.sha256(seed);
+        String observationId = DeviceIdentity.sha256("fuel-quote-observation|" + seed);
+        boolean changed = !dedupKey.equals(quote.optString("quoteDedupKey"))
+                || !observationId.equals(quote.optString("quoteObservationId"))
+                || !capturedAt.equals(quote.optString("capturedAt"));
+        if (changed) {
+            put(quote, "quoteDedupKey", dedupKey);
+            put(quote, "quoteObservationId", observationId);
+            put(quote, "capturedAt", capturedAt);
+        }
+        return changed;
     }
 
     String businessDedupKey() {
@@ -189,6 +234,18 @@ final class FuelQuote {
         return money(value.optString(key));
     }
 
+    private static BigDecimal priceDecimal(JSONObject value, String key) {
+        if (value == null || value.isNull(key)) return null;
+        String text = value.optString(key, "").trim();
+        if (text.isEmpty()) return null;
+        try {
+            BigDecimal price = new BigDecimal(text);
+            return price.signum() > 0 && price.scale() <= 4 ? price : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private static String nullable(JSONObject value, String key) {
         return value == null || value.isNull(key) ? null : clean(value.optString(key));
     }
@@ -216,6 +273,36 @@ final class FuelQuote {
         return value == null
                 ? ""
                 : value.setScale(scale, RoundingMode.UNNECESSARY).toPlainString();
+    }
+
+    private static String identitySeed(
+            String platform,
+            String sourceStationKey,
+            String gradeCode,
+            String gunCode,
+            BigDecimal selectedAmount,
+            String capturedAt,
+            BigDecimal displayPrice,
+            BigDecimal stationPrice,
+            BigDecimal nationalPrice,
+            BigDecimal grossDiscount,
+            BigDecimal serviceFee,
+            BigDecimal payableAmount,
+            String providerName
+    ) {
+        return "2|" + clean(platform)
+                + "|" + clean(sourceStationKey)
+                + "|" + clean(gradeCode)
+                + "|" + clean(gunCode)
+                + "|" + minor(selectedAmount)
+                + "|" + CaptureTime.requireUtc(capturedAt)
+                + "|" + normalized(displayPrice, 4)
+                + "|" + normalized(stationPrice, 4)
+                + "|" + normalized(nationalPrice, 4)
+                + "|" + minor(grossDiscount)
+                + "|" + minor(serviceFee)
+                + "|" + minor(payableAmount)
+                + "|" + clean(providerName);
     }
 
     private static void putMoney(JSONObject target, String key, BigDecimal value) {

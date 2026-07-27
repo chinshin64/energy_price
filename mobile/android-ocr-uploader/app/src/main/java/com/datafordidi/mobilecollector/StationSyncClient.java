@@ -28,6 +28,7 @@ final class StationSyncClient {
             .build();
 
     UploadResult upload(Context context, JSONObject batch) throws Exception {
+        FuelQuoteIdentityPolicy.repairBatch(batch);
         ObservationEnvelope.requireValidBatch(batch);
         StationSensitiveDataPolicy.requireSafeBatch(batch);
         String token = AppSettings.getUploadToken(context);
@@ -269,7 +270,9 @@ final class StationSyncClient {
             int quoteCount,
             boolean fuelV2
     ) throws Exception {
-        if (statusCode < 200 || statusCode >= 300) throw UploadFailure.forHttpStatus(statusCode);
+        if (statusCode < 200 || statusCode >= 300) {
+            throw UploadFailure.forHttpStatus(statusCode, serverErrorCode(responseText));
+        }
         JSONObject acknowledgement;
         try {
             acknowledgement = new JSONObject(responseText == null ? "" : responseText);
@@ -348,6 +351,19 @@ final class StationSyncClient {
             if (quotes != null) count += quotes.length();
         }
         return count;
+    }
+
+    static String serverErrorCode(String responseText) {
+        try {
+            JSONObject root = new JSONObject(responseText == null ? "" : responseText);
+            JSONObject error = root.optJSONObject("error");
+            String code = error == null ? "" : error.optString("code", "");
+            if (code.trim().isEmpty()) code = root.optString("code", "");
+            code = code == null ? "" : code.trim();
+            return code.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,63}") ? code : "";
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private static String required(JSONObject value, String key) {

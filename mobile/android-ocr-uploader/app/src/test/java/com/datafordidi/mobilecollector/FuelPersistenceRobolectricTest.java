@@ -70,7 +70,8 @@ public class FuelPersistenceRobolectricTest {
                 StationDisplayFormatter.fuelOfferSummary(row)
         );
         String serialized = row.toString();
-        assertTrue(serialized.contains("\"address\":null"));
+        // 燃油侧不生成 address 键（既不是 null 也不是字符串）。
+        assertFalse(serialized.contains("\"address\""));
         // 燃油侧无枪数据：row 不含 ports 字段。
         assertFalse(serialized.contains("availablePorts"));
         assertFalse(serialized.contains("priceFast"));
@@ -160,6 +161,37 @@ public class FuelPersistenceRobolectricTest {
         assertEquals("synced", rows.get(0).optString("syncState"));
         assertTrue(OutboxStore.pending(context).isEmpty());
         assertTrue(BackfillTransactionStore.entries(context).isEmpty());
+    }
+
+    @Test
+    public void historicalFuelNameMigrationKeepsRawEvidenceAndNormalizesNestedNames()
+            throws Exception {
+        FuelStationRecord station = station();
+        station.stationName = "|在浙江石油塘河供加油站附近搜..";
+        LocalStationStore.upsertFuel(
+                context,
+                "historical-name-session",
+                1,
+                "杭州",
+                Collections.singletonList(station)
+        );
+
+        assertEquals(1, LocalStationStore.normalizeFuelStationNames(context));
+        JSONObject row = LocalStationStore.list(context).get(0);
+        assertEquals("浙江石油塘河供能加油站", row.getString("stationName"));
+        assertEquals(
+                "浙江石油塘河供能加油站",
+                row.getJSONObject("stationObservation").getString("stationName")
+        );
+        JSONObject fuel = row.getJSONObject("fuelObservation");
+        assertEquals("浙江石油塘河供能加油站", fuel.getString("stationName"));
+        assertEquals(
+                "|在浙江石油塘河供加油站附近搜..",
+                fuel.getJSONObject("raw")
+                        .getJSONObject("diagnostics")
+                        .getString("observedStationName")
+        );
+        assertEquals(0, LocalStationStore.normalizeFuelStationNames(context));
     }
 
     private FuelStationRecord station() {

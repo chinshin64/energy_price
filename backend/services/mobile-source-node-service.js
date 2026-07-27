@@ -7,6 +7,7 @@ const {
     hasNestedField,
     normalizeFuelPrice,
 } = require('./fuel-payload-policy');
+const { normalizeIpAddress } = require('./mobile-source-agent-report-ip');
 
 const SOURCE_AGENT_PATTERN = /^[a-z0-9][a-z0-9._-]{0,54}-agent$/;
 const PLATFORM_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
@@ -318,6 +319,7 @@ class MobileSourceNodeService {
                 appPackage: this.optionalText(payload.appPackage, 191),
                 currentPackageName: this.optionalText(payload.currentPackageName, 191),
                 currentClassName: this.optionalText(payload.currentClassName, 255),
+                agentReportIp: normalizeIpAddress(transport.agentReportIp),
                 remoteAddress: this.optionalText(transport.remoteAddress, 128),
                 userAgent: this.optionalText(transport.userAgent, 255),
                 feature,

@@ -27,10 +27,21 @@ final class UploadFailure extends IllegalStateException {
     }
 
     static UploadFailure forHttpStatus(int statusCode) {
+        return forHttpStatus(statusCode, "");
+    }
+
+    static UploadFailure forHttpStatus(int statusCode, String serverCode) {
+        String code = safeServerCode(serverCode);
+        String message = "HTTP " + statusCode + (code.isEmpty() ? "" : " " + code);
         if (statusCode == 408 || statusCode == 429 || statusCode >= 500 && statusCode <= 599) {
-            return retryable("HTTP " + statusCode);
+            return retryable(message);
         }
-        return manualReview("HTTP " + statusCode);
+        return manualReview(message);
+    }
+
+    private static String safeServerCode(String value) {
+        String code = value == null ? "" : value.trim();
+        return code.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,63}") ? code : "";
     }
 
     static Disposition disposition(Throwable error) {

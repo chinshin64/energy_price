@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const http = require('node:http');
 const test = require('node:test');
 const { createMobileSourceNodeApp } = require('../mobile-source-node');
 const { MobileSourceNodeService } = require('../services/mobile-source-node-service');
@@ -78,6 +79,33 @@ async function withServer(run, serviceOptions = {}) {
         await run({ baseUrl: `http://127.0.0.1:${address.port}`, store });
     } finally {
         await new Promise(resolve => server.close(resolve));
+    }
+}
+
+async function withUpdateProxy(upstreamHandler, run, proxyOptions = {}) {
+    const upstream = http.createServer(upstreamHandler);
+    await new Promise((resolve, reject) => {
+        upstream.listen(0, '127.0.0.1', resolve);
+        upstream.once('error', reject);
+    });
+    const store = new MemorySourceStore();
+    const service = new MobileSourceNodeService({ store });
+    const app = createMobileSourceNodeApp({
+        service,
+        mobileToken: 'mobile-secret',
+        sourceSyncToken: 'sync-secret',
+        requireAuth: true,
+        updateProxyUrl: `http://127.0.0.1:${upstream.address().port}`,
+        ...proxyOptions,
+    });
+    const server = await new Promise(resolve => {
+        const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+    });
+    try {
+        await run(`http://127.0.0.1:${server.address().port}`);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        await new Promise(resolve => upstream.close(resolve));
     }
 }
 
@@ -275,6 +303,206 @@ test('47 source node protects ingest and source export with separate tokens', as
         });
         assert.equal(exported.status, 200);
     });
+});
+
+test('47 source node accepts any token from a comma-separated ingest allowlist', async () => {
+    const store = new MemorySourceStore();
+    const service = new MobileSourceNodeService({ store });
+    const app = createMobileSourceNodeApp({
+        service,
+        mobileToken: ['mobile-secret', 'new-apk-secret'],
+        sourceSyncToken: 'sync-secret',
+        requireAuth: true,
+    });
+    const server = await new Promise(resolve => {
+        const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+    });
+    try {
+        const address = server.address();
+        const baseUrl = `http://127.0.0.1:${address.port}`;
+
+        const rejected = await fetch(`${baseUrl}/api/mobile-sync/stations`, {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer not-in-allowlist',
+                'Content-Type': 'application/json',
+                'X-Mobile-Agent': 'android-agent',
+                'Idempotency-Key': 'allowlist-rejected',
+            },
+            body: JSON.stringify(payload()),
+        });
+        assert.equal(rejected.status, 401);
+
+        const firstAccepted = await fetch(`${baseUrl}/api/mobile-sync/stations`, {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer mobile-secret',
+                'Content-Type': 'application/json',
+                'X-Mobile-Agent': 'android-agent',
+                'Idempotency-Key': 'allowlist-first',
+            },
+            body: JSON.stringify(payload()),
+        });
+        assert.equal(firstAccepted.status, 201);
+
+        const secondPayload = payload();
+        secondPayload.sessionId = 'session-new-apk';
+        const secondAccepted = await fetch(`${baseUrl}/api/mobile-sync/stations`, {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer new-apk-secret',
+                'Content-Type': 'application/json',
+                'X-Mobile-Agent': 'android-agent',
+                'Idempotency-Key': 'allowlist-second',
+            },
+            body: JSON.stringify(secondPayload),
+        });
+        assert.equal(secondAccepted.status, 201);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+    }
+});
+
+test('mobile update proxy preserves query and never forwards client credentials', async () => {
+    let captured = null;
+    await withUpdateProxy((req, res) => {
+        captured = { method: req.method, url: req.url, headers: req.headers };
+        const body = JSON.stringify({ versionCode: 37, apkPath: 'apk/release.apk' });
+        res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            'Cache-Control': 'no-store',
+            ETag: '"manifest-v37"',
+            'X-Upstream-Secret': 'must-not-pass',
+        });
+        res.end(body);
+    }, async baseUrl => {
+        const response = await fetch(
+            `${baseUrl}/api/mobile-update/latest?packageName=app&versionCode=36&abi=arm64-v8a`,
+            {
+                headers: {
+                    Authorization: 'Bearer must-not-pass',
+                    Cookie: 'session=must-not-pass',
+                    'X-Mobile-Token': 'must-not-pass',
+                    'X-Source-Sync-Token': 'must-not-pass',
+                    'X-Custom-Header': 'must-not-pass',
+                },
+            }
+        );
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('cache-control'), 'no-store');
+        assert.equal(response.headers.get('etag'), '"manifest-v37"');
+        assert.equal(response.headers.get('x-upstream-secret'), null);
+        assert.equal((await response.json()).versionCode, 37);
+    });
+    assert.equal(captured.method, 'GET');
+    assert.equal(
+        captured.url,
+        '/api/mobile-update/latest?packageName=app&versionCode=36&abi=arm64-v8a'
+    );
+    assert.equal(captured.headers.authorization, undefined);
+    assert.equal(captured.headers.cookie, undefined);
+    assert.equal(captured.headers['x-mobile-token'], undefined);
+    assert.equal(captured.headers['x-source-sync-token'], undefined);
+    assert.equal(captured.headers['x-custom-header'], undefined);
+    assert.equal(captured.headers['user-agent'], 'mobile-source-update-proxy/1.0');
+});
+
+test('mobile update proxy streams only a safe apk GET and rejects other methods', async () => {
+    const artifact = Buffer.alloc(256 * 1024, 0x5a);
+    let upstreamCalls = 0;
+    await withUpdateProxy((req, res) => {
+        upstreamCalls += 1;
+        res.writeHead(200, {
+            'Content-Type': 'application/vnd.android.package-archive',
+            'Content-Length': artifact.length,
+            ETag: '"sha256-fixture"',
+        });
+        res.end(artifact);
+    }, async baseUrl => {
+        const response = await fetch(
+            `${baseUrl}/api/mobile-update/apk/information-auto-recognition-v2.3.1.apk`
+        );
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('content-length'), String(artifact.length));
+        assert.deepEqual(Buffer.from(await response.arrayBuffer()), artifact);
+
+        const rejectedMethod = await fetch(
+            `${baseUrl}/api/mobile-update/apk/information-auto-recognition-v2.3.1.apk`,
+            { method: 'POST' }
+        );
+        assert.equal(rejectedMethod.status, 405);
+        assert.equal(rejectedMethod.headers.get('allow'), 'GET');
+
+        const traversal = await fetch(
+            `${baseUrl}/api/mobile-update/apk/%2e%2e%2fsecret.apk`
+        );
+        assert.equal(traversal.status, 404);
+    });
+    assert.equal(upstreamCalls, 1);
+});
+
+test('mobile update proxy fails closed for unsafe upstreams and returns 502 on failure', async () => {
+    const service = new MobileSourceNodeService({ store: new MemorySourceStore() });
+    assert.throws(
+        () => createMobileSourceNodeApp({
+            service,
+            updateProxyUrl: 'http://169.254.169.254:50082',
+            requireAuth: false,
+        }),
+        /HTTP loopback root URL/
+    );
+
+    const unavailable = http.createServer();
+    await new Promise((resolve, reject) => {
+        unavailable.listen(0, '127.0.0.1', resolve);
+        unavailable.once('error', reject);
+    });
+    const port = unavailable.address().port;
+    await new Promise(resolve => unavailable.close(resolve));
+    const app = createMobileSourceNodeApp({
+        service,
+        updateProxyUrl: `http://127.0.0.1:${port}`,
+        requireAuth: false,
+    });
+    const server = await new Promise(resolve => {
+        const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+    });
+    try {
+        const response = await fetch(
+            `http://127.0.0.1:${server.address().port}/api/mobile-update/latest`
+        );
+        assert.equal(response.status, 502);
+        assert.equal((await response.json()).code, 'update_upstream_unavailable');
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+    }
+});
+
+test('source node marks server failures as retryable without exposing internals', async () => {
+    const service = {
+        async health() {
+            const error = new Error('simulated database overload');
+            error.statusCode = 503;
+            error.code = 'source_store_overloaded';
+            throw error;
+        },
+    };
+    const app = createMobileSourceNodeApp({ service, requireAuth: false });
+    const server = await new Promise(resolve => {
+        const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+    });
+    try {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/health`);
+        const body = await response.json();
+        assert.equal(response.status, 503);
+        assert.equal(response.headers.get('retry-after'), '30');
+        assert.equal(body.code, 'source_store_overloaded');
+        assert.equal(body.error, 'mobile source node internal error');
+        assert.equal(JSON.stringify(body).includes('simulated database overload'), false);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+    }
 });
 
 test('47 source export returns an authorized empty page with bounded cursor parameters', async () => {
