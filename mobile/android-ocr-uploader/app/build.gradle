@@ -2,8 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
-def outputVersion = providers.gradleProperty('appVersionName').getOrElse('2.3.3').trim()
-def outputVersionCodeText = providers.gradleProperty('appVersionCode').getOrElse('39').trim()
+def outputVersion = providers.gradleProperty('appVersionName').getOrElse('2.5.14').trim()
+def outputVersionCodeText = providers.gradleProperty('appVersionCode').getOrElse('54').trim()
 if (outputVersion.isEmpty() || !(outputVersionCodeText ==~ /[1-9][0-9]*/)) {
     throw new GradleException('appVersionName/appVersionCode build properties are invalid')
 }

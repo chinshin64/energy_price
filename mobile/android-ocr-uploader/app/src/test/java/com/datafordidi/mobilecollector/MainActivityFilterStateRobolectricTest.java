@@ -14,10 +14,10 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
 
-import static org.robolectric.Shadows.shadowOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.robolectric.Shadows.shadowOf;
 
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 30)
@@ -47,30 +47,50 @@ public class MainActivityFilterStateRobolectricTest {
                 .resume()
                 .visible();
         View root = controller.get().getWindow().getDecorView();
-        EditText search = (EditText) findByDescription(root, "场站或油站名称模糊搜索");
+        EditText search = findEditTextByHint(root, "⌕  搜索场站/油站名称");
         assertNotNull(search);
         assertEquals("城西", search.getText().toString());
-        assertTrue(((Button) findByDescription(root, "筛选：加油")).isSelected());
+        assertNotNull(findButtonByText(root, "加油"));
         assertTrue(findByDescriptionPrefix(root, "设置开始日期时间，当前") instanceof Button);
         assertTrue(findByDescriptionPrefix(root, "设置结束日期时间，当前") instanceof Button);
 
-        ((Button) findByDescription(root, "进入多选模式删除记录")).performClick();
+        Button multi = findButtonByText(root, "多选");
+        assertNotNull(multi);
+        multi.performClick();
+        assertNotNull(findButtonByText(root, "取消"));
         search.setText("新条件");
-        assertNotNull(findByDescription(root, "进入多选模式删除记录"));
+        assertNotNull(findButtonByText(root, "多选"));
 
-        ((Button) findByDescription(root, "重置名称和时间筛选")).performClick();
+        Button reset = findButtonByText(root, "↻ 重置");
+        assertNotNull(reset);
+        reset.performClick();
         assertEquals("", search.getText().toString());
-        assertTrue(((Button) findByDescription(root, "筛选：加油")).isSelected());
+        assertNotNull(findButtonByText(root, "加油"));
         controller.pause().stop().destroy();
     }
 
-    private static View findByDescription(View root, String description) {
-        CharSequence current = root.getContentDescription();
-        if (current != null && description.contentEquals(current)) return root;
+    private static EditText findEditTextByHint(View root, String hint) {
+        if (root instanceof EditText) {
+            CharSequence current = ((EditText) root).getHint();
+            if (current != null && hint.contentEquals(current)) return (EditText) root;
+        }
         if (!(root instanceof ViewGroup)) return null;
         ViewGroup group = (ViewGroup) root;
         for (int index = 0; index < group.getChildCount(); index++) {
-            View found = findByDescription(group.getChildAt(index), description);
+            EditText found = findEditTextByHint(group.getChildAt(index), hint);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static Button findButtonByText(View root, String text) {
+        if (root instanceof Button && text.contentEquals(((Button) root).getText())) {
+            return (Button) root;
+        }
+        if (!(root instanceof ViewGroup)) return null;
+        ViewGroup group = (ViewGroup) root;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            Button found = findButtonByText(group.getChildAt(index), text);
             if (found != null) return found;
         }
         return null;

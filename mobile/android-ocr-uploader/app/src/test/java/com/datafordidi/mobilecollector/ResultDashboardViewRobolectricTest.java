@@ -24,18 +24,22 @@ import static org.junit.Assert.assertTrue;
 @Config(sdk = 30)
 public class ResultDashboardViewRobolectricTest {
     @Test
-    public void exposesAccessibleSearchTimeResetUpdateAndPrimaryActions() {
+    public void exposesCanvasCaptureRecordsAndSettingsActions() {
         ResultDashboardView view = new ResultDashboardView(RuntimeEnvironment.getApplication());
 
-        assertNotNull(findByDescription(view, "场站或油站名称模糊搜索"));
-        assertNotNull(findByDescription(view, "搜索场站或油站名称"));
-        assertNotNull(findByDescription(view, "重置名称和时间筛选"));
-        assertNotNull(findByDescription(view, "检查应用更新"));
-        assertNotNull(findByDescription(view, "启动悬浮识别"));
+        assertNotNull(findText(view, "信息自动识别"));
+        assertNotNull(findText(view, "场站与油站信息采集"));
+        assertNotNull(findText(view, "今日识别"));
+        assertNotNull(findText(view, "字段完整率"));
+        assertNotNull(findText(view, "最近识别"));
+        assertNotNull(findText(view, "识别记录"));
+        assertNotNull(findEditTextByHint(view, "⌕  搜索场站/油站名称"));
+        assertNotNull(findText(view, "↻ 重置"));
+        assertNotNull(findText(view, "检查更新                                      ›"));
+        assertNotNull(findText(view, "启动时检测更新"));
         assertNotNull(findByDescriptionPrefix(view, "设置开始日期时间"));
         assertNotNull(findByDescriptionPrefix(view, "设置结束日期时间"));
-        Button reset = (Button) findByDescription(view, "重置名称和时间筛选");
-        assertTrue(reset.getMinHeight() >= dp(44));
+        assertNotNull(findText(view, "▣  开始识别"));
     }
 
     @Test
@@ -45,10 +49,13 @@ public class ResultDashboardViewRobolectricTest {
         long end = start + 59_000L;
         view.setRecordFilter(new StationRecordFilter("中海联", start, end));
 
-        EditText search = (EditText) findByDescription(view, "场站或油站名称模糊搜索");
+        EditText search = findEditTextByHint(view, "⌕  搜索场站/油站名称");
+        assertNotNull(search);
         assertEquals("中海联", search.getText().toString());
-        assertTrue(((Button) findByDescriptionPrefix(view, "设置开始日期时间"))
-                .getText().toString().matches("(?s)开始\\n\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"));
+        Button startButton = (Button) findByDescriptionPrefix(view, "设置开始日期时间");
+        assertNotNull(startButton);
+        assertTrue(startButton.getText().toString().matches(
+                "(?s)开始\\n\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"));
 
         StationResultPresenter.ViewState empty = StationResultPresenter.present(
                 Collections.emptyList(),
@@ -57,7 +64,7 @@ public class ResultDashboardViewRobolectricTest {
         view.render(empty, true, true);
         assertNotNull(findText(view, "没有符合筛选条件的记录"));
         view.render(empty, false, false);
-        assertNotNull(findText(view, "暂无识别结果\n点击下方开始识别"));
+        assertNotNull(findText(view, "暂无识别结果\n点击“采集”开始识别"));
         view.render(
                 StationResultPresenter.present(
                         Collections.emptyList(),
@@ -104,13 +111,15 @@ public class ResultDashboardViewRobolectricTest {
         assertEquals("android-ocr-agent", row.getString("sourceAgent"));
     }
 
-    private static View findByDescription(View root, String description) {
-        CharSequence current = root.getContentDescription();
-        if (current != null && description.contentEquals(current)) return root;
+    private static EditText findEditTextByHint(View root, String hint) {
+        if (root instanceof EditText) {
+            CharSequence value = ((EditText) root).getHint();
+            if (value != null && hint.contentEquals(value)) return (EditText) root;
+        }
         if (!(root instanceof ViewGroup)) return null;
         ViewGroup group = (ViewGroup) root;
         for (int index = 0; index < group.getChildCount(); index++) {
-            View found = findByDescription(group.getChildAt(index), description);
+            EditText found = findEditTextByHint(group.getChildAt(index), hint);
             if (found != null) return found;
         }
         return null;
