@@ -129,4 +129,11 @@ tasks.withType(Test).configureEach {
     if (fixtureOutput != null && !fixtureOutput.toString().trim().isEmpty()) {
         systemProperty 'mobile.contract.fixtureOutput', fixtureOutput.toString().trim()
     }
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+        showCauses true
+        showExceptions true
+        showStackTraces true
+    }
 }
