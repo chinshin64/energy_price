@@ -28,15 +28,16 @@ public class ResultDashboardViewRobolectricTest {
         ResultDashboardView view = new ResultDashboardView(RuntimeEnvironment.getApplication());
 
         assertNotNull(findText(view, "信息自动识别"));
-        assertNotNull(findText(view, "场站与油站信息采集"));
+        assertNotNull(findText(view, "高德加油信息采集"));
         assertNotNull(findText(view, "今日识别"));
         assertNotNull(findText(view, "字段完整率"));
         assertNotNull(findText(view, "最近识别"));
-        assertNotNull(findText(view, "识别记录"));
+        assertNotNull(findText(view, "记录查询"));
         assertNotNull(findEditTextByHint(view, "⌕  搜索场站/油站名称"));
         assertNotNull(findText(view, "↻ 重置"));
         assertNotNull(findText(view, "检查更新                                      ›"));
         assertNotNull(findText(view, "启动时检测更新"));
+        assertNotNull(findText(view, "上传配置                                      ›"));
         assertNotNull(findByDescriptionPrefix(view, "设置开始日期时间"));
         assertNotNull(findByDescriptionPrefix(view, "设置结束日期时间"));
         assertNotNull(findText(view, "▣  开始识别"));
@@ -58,23 +59,16 @@ public class ResultDashboardViewRobolectricTest {
                 "(?s)开始\\n\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"));
 
         StationResultPresenter.ViewState empty = StationResultPresenter.present(
-                Collections.emptyList(),
-                StationResultPresenter.Filter.ALL
-        );
+                Collections.emptyList(), StationResultPresenter.Filter.ALL);
         view.render(empty, true, true);
         assertNotNull(findText(view, "没有符合筛选条件的记录"));
         view.render(empty, false, false);
         assertNotNull(findText(view, "暂无识别结果\n点击“采集”开始识别"));
         view.render(
                 StationResultPresenter.present(
-                        Collections.emptyList(),
-                        StationResultPresenter.Filter.FUEL
-                ),
-                true,
-                true
-        );
-        assertNotNull(findText(view, "有油号"));
-        assertNotNull(findText(view, "有报价"));
+                        Collections.emptyList(), StationResultPresenter.Filter.FUEL),
+                true, true);
+        assertNotNull(findText(view, "加油"));
     }
 
     @Test
@@ -93,12 +87,8 @@ public class ResultDashboardViewRobolectricTest {
                 .put("fastTotalPorts", 2);
         view.render(
                 StationResultPresenter.present(
-                        Collections.singletonList(row),
-                        StationResultPresenter.Filter.ALL
-                ),
-                true,
-                false
-        );
+                        Collections.singletonList(row), StationResultPresenter.Filter.ALL),
+                true, false);
         int width = View.MeasureSpec.makeMeasureSpec(dp(400), View.MeasureSpec.EXACTLY);
         int height = View.MeasureSpec.makeMeasureSpec(dp(720), View.MeasureSpec.EXACTLY);
         view.measure(width, height);
