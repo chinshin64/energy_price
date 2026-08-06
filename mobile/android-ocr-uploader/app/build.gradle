@@ -2,8 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
-def outputVersion = providers.gradleProperty('appVersionName').getOrElse('2.5.14').trim()
-def outputVersionCodeText = providers.gradleProperty('appVersionCode').getOrElse('54').trim()
+def outputVersion = providers.gradleProperty('appVersionName').getOrElse('2.5.15').trim()
+def outputVersionCodeText = providers.gradleProperty('appVersionCode').getOrElse('55').trim()
 if (outputVersion.isEmpty() || !(outputVersionCodeText ==~ /[1-9][0-9]*/)) {
     throw new GradleException('appVersionName/appVersionCode build properties are invalid')
 }
@@ -118,15 +118,7 @@ dependencies {
     implementation 'androidx.work:work-runtime:2.10.0'
     implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.json:json:20240303'
-    testImplementation 'org.robolectric:robolectric:4.14.1'
-    testImplementation 'androidx.work:work-testing:2.10.0'
-}
 
-tasks.withType(Test).configureEach {
-    def fixtureOutput = project.findProperty('contractFixtureOutput')
-    if (fixtureOutput != null && !fixtureOutput.toString().trim().isEmpty()) {
-        systemProperty 'mobile.contract.fixtureOutput', fixtureOutput.toString().trim()
-    }
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
 }
