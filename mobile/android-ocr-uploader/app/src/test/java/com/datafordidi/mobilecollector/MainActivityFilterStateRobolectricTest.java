@@ -5,7 +5,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.TextView;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -58,8 +57,9 @@ public class MainActivityFilterStateRobolectricTest {
         Button multi = findButtonByText(root, "多选");
         assertNotNull(multi);
         multi.performClick();
-        search.setText("新条件");
         assertNotNull(findButtonByText(root, "取消"));
+        search.setText("新条件");
+        assertNotNull(findButtonByText(root, "多选"));
 
         Button reset = findButtonByText(root, "↻ 重置");
         assertNotNull(reset);
