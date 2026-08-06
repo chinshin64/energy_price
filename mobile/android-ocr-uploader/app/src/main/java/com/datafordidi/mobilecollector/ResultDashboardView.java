@@ -27,19 +27,24 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.datafordidi.ocruploader.BuildConfig;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
- * Dashboard UI based on the supplied four-screen canvas:
- * capture home, floating capture, record query, and settings.
+ * Canvas-style application shell. The floating recognition window intentionally
+ * remains owned by ManualOcrService and is not changed by this view.
  */
 final class ResultDashboardView extends LinearLayout {
     interface Listener {
@@ -52,7 +57,7 @@ final class ResultDashboardView extends LinearLayout {
         void onEndTimeRequested();
         void onResetRecordFilters();
         void onEditBackfill(JSONObject row);
-        void onDeleteSelected(java.util.Set<String> stableIdentities);
+        void onDeleteSelected(Set<String> stableIdentities);
     }
 
     private static final int TAB_CAPTURE = 0;
@@ -72,36 +77,34 @@ final class ResultDashboardView extends LinearLayout {
     private final LinearLayout settingsPanel;
     private final Button[] navigationButtons = new Button[3];
 
-    private final TextView statusView;
-    private final TextView todayValue;
-    private final TextView completenessValue;
-    private final TextView latestValue;
-    private final Button homePrimaryButton;
-    private final LinearLayout recentCard;
-    private final TextView recentName;
-    private final TextView recentTime;
-    private final TextView recentSummary;
+    private TextView statusView;
+    private TextView todayValue;
+    private TextView completenessValue;
+    private TextView latestValue;
+    private Button homePrimaryButton;
+    private LinearLayout recentCard;
+    private TextView recentName;
+    private TextView recentTime;
+    private LinearLayout recentBody;
     private JSONObject recentRow;
 
-    private final TextView[] statisticValues = new TextView[4];
-    private final TextView[] statisticLabels = new TextView[4];
     private final Button[] filterButtons = new Button[3];
-    private final EditText nameSearch;
-    private final Button startTimeButton;
-    private final Button endTimeButton;
-    private final TextView matchCountView;
-    private final Button recordActionButton;
-    private final Button multiSelectButton;
-    private final Button selectAllButton;
-    private final StationAdapter adapter;
-    private final TextView emptyView;
-    private final Switch autoUpdateSwitch;
+    private EditText nameSearch;
+    private Button startTimeButton;
+    private Button endTimeButton;
+    private TextView matchCountView;
+    private Button recordActionButton;
+    private Button multiSelectButton;
+    private Button selectAllButton;
+    private StationAdapter adapter;
+    private TextView emptyView;
+    private Switch autoUpdateSwitch;
 
     private Listener listener;
     private boolean selectionMode;
     private boolean settingFilterState;
     private CaptureUiState captureUiState = CaptureUiState.STOPPED;
-    private final java.util.Set<String> selectedKeys = new java.util.LinkedHashSet<>();
+    private final Set<String> selectedKeys = new LinkedHashSet<>();
 
     ResultDashboardView(Context context) {
         super(context);
@@ -112,43 +115,73 @@ final class ResultDashboardView extends LinearLayout {
         contentFrame = new FrameLayout(context);
         addView(contentFrame, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
 
-        capturePanel = new LinearLayout(context);
-        capturePanel.setOrientation(VERTICAL);
-        capturePanel.setPadding(dp(18), dp(18), dp(18), dp(14));
+        capturePanel = buildCapturePanel();
+        recordsPanel = buildRecordsPanel();
+        settingsPanel = buildSettingsPanel();
+        contentFrame.addView(capturePanel, frameParams());
+        contentFrame.addView(recordsPanel, frameParams());
+        contentFrame.addView(settingsPanel, frameParams());
 
-        ScrollView captureScroll = new ScrollView(context);
-        captureScroll.setFillViewport(true);
-        LinearLayout captureBody = new LinearLayout(context);
-        captureBody.setOrientation(VERTICAL);
-        captureScroll.addView(captureBody, new ScrollView.LayoutParams(
+        LinearLayout navigation = new LinearLayout(context);
+        navigation.setGravity(Gravity.CENTER);
+        navigation.setPadding(dp(10), dp(4), dp(10), dp(5));
+        navigation.setBackground(roundRect(palette.card, 0, 1, palette.border));
+        String[] icons = {"▣", "▤", "⚙"};
+        String[] labels = {"采集", "记录", "设置"};
+        for (int index = 0; index < labels.length; index++) {
+            final int tab = index;
+            Button button = button(icons[index] + "\n" + labels[index], 12, true);
+            button.setGravity(Gravity.CENTER);
+            button.setPadding(0, 0, 0, 0);
+            button.setBackgroundColor(Color.TRANSPARENT);
+            button.setOnClickListener(view -> switchTab(tab));
+            navigationButtons[index] = button;
+            navigation.addView(button, new LayoutParams(0, dp(58), 1f));
+        }
+        addView(navigation, new LayoutParams(LayoutParams.MATCH_PARENT, dp(66)));
+
+        selectFilter(StationResultPresenter.Filter.ALL);
+        switchTab(TAB_CAPTURE);
+    }
+
+    private LinearLayout buildCapturePanel() {
+        LinearLayout panel = new LinearLayout(getContext());
+        panel.setOrientation(VERTICAL);
+        panel.setPadding(dp(18), dp(18), dp(18), dp(14));
+
+        ScrollView scroll = new ScrollView(getContext());
+        scroll.setFillViewport(true);
+        LinearLayout body = new LinearLayout(getContext());
+        body.setOrientation(VERTICAL);
+        scroll.addView(body, new ScrollView.LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
-        LinearLayout captureHeader = new LinearLayout(context);
-        captureHeader.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout captureTitles = new LinearLayout(context);
-        captureTitles.setOrientation(VERTICAL);
-        TextView captureTitle = text("信息自动识别", 25, true, palette.textPrimary);
-        TextView captureSubtitle = text("场站与油站信息采集", 14, false, palette.textSecondary);
-        captureSubtitle.setPadding(0, dp(4), 0, 0);
-        captureTitles.addView(captureTitle);
-        captureTitles.addView(captureSubtitle);
-        captureHeader.addView(captureTitles, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout header = new LinearLayout(getContext());
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout titles = new LinearLayout(getContext());
+        titles.setOrientation(VERTICAL);
+        titles.addView(text("信息自动识别", 25, true, palette.textPrimary));
+        TextView subtitle = text("高德加油信息采集", 14, false, palette.textSecondary);
+        subtitle.setPadding(0, dp(4), 0, 0);
+        titles.addView(subtitle);
+        header.addView(titles, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
 
         statusView = text("已停止", 12, true, palette.primary);
         statusView.setGravity(Gravity.CENTER);
         statusView.setPadding(dp(12), dp(7), dp(12), dp(7));
-        statusView.setBackground(roundRect(palette.statusBackground, 18, 0, Color.TRANSPARENT));
-        captureHeader.addView(statusView, new LayoutParams(LayoutParams.WRAP_CONTENT, dp(38)));
-        captureBody.addView(captureHeader);
+        statusView.setBackground(roundRect(palette.primarySoft, 18, 0, Color.TRANSPARENT));
+        header.addView(statusView, new LayoutParams(LayoutParams.WRAP_CONTENT, dp(38)));
+        body.addView(header);
 
-        LinearLayout metrics = new LinearLayout(context);
+        LinearLayout metrics = new LinearLayout(getContext());
         metrics.setOrientation(HORIZONTAL);
-        LayoutParams metricsParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        metricsParams.topMargin = dp(18);
-        captureBody.addView(metrics, metricsParams);
-        todayValue = addMetric(metrics, "▣", "今日识别", "0", 0);
-        completenessValue = addMetric(metrics, "✓", "字段完整率", "0%", 1);
-        latestValue = addMetric(metrics, "◷", "最近识别", "--:--", 2);
+        LayoutParams metricRowParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        metricRowParams.topMargin = dp(20);
+        body.addView(metrics, metricRowParams);
+        todayValue = addMetric(metrics, "◆", "今日识别", "0", palette.primary, 0);
+        completenessValue = addMetric(metrics, "✓", "字段完整率", "0%", palette.success, 1);
+        latestValue = addMetric(metrics, "◷", "最近识别", "--:--", palette.primary, 2);
 
         homePrimaryButton = button("▣  开始识别", 17, true);
         homePrimaryButton.setTextColor(Color.WHITE);
@@ -156,76 +189,87 @@ final class ResultDashboardView extends LinearLayout {
         homePrimaryButton.setOnClickListener(view -> {
             if (listener != null) listener.onPrimaryAction();
         });
-        LayoutParams homePrimaryParams = new LayoutParams(LayoutParams.MATCH_PARENT, dp(58));
-        homePrimaryParams.topMargin = dp(20);
-        captureBody.addView(homePrimaryButton, homePrimaryParams);
+        LayoutParams primaryParams = new LayoutParams(LayoutParams.MATCH_PARENT, dp(58));
+        primaryParams.topMargin = dp(20);
+        body.addView(homePrimaryButton, primaryParams);
 
-        LinearLayout recentHeader = new LinearLayout(context);
+        LinearLayout recentHeader = new LinearLayout(getContext());
         recentHeader.setGravity(Gravity.CENTER_VERTICAL);
-        TextView recentTitle = text("最近采集", 17, true, palette.textPrimary);
-        recentHeader.addView(recentTitle, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
-        Button viewAll = textButton("查看全部");
-        viewAll.setOnClickListener(view -> switchTab(TAB_RECORDS));
-        recentHeader.addView(viewAll, new LayoutParams(LayoutParams.WRAP_CONTENT, dp(44)));
-        LayoutParams recentHeaderParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        recentHeaderParams.topMargin = dp(20);
-        captureBody.addView(recentHeader, recentHeaderParams);
+        recentHeader.addView(text("最近采集", 17, true, palette.textPrimary),
+                new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+        TextView clock = text("◷", 18, false, palette.textSecondary);
+        clock.setGravity(Gravity.CENTER);
+        recentHeader.addView(clock, new LayoutParams(dp(36), dp(42)));
+        LayoutParams recentHeaderParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        recentHeaderParams.topMargin = dp(18);
+        body.addView(recentHeader, recentHeaderParams);
 
-        recentCard = new LinearLayout(context);
+        recentCard = new LinearLayout(getContext());
         recentCard.setOrientation(VERTICAL);
         recentCard.setPadding(dp(15), dp(14), dp(15), dp(14));
         recentCard.setBackground(roundRect(palette.card, 16, 1, palette.border));
+        recentCard.setElevation(dp(1));
         recentCard.setOnClickListener(view -> {
             if (listener != null && recentRow != null) {
                 listener.onEditBackfill(AddressFreePayload.copyObject(recentRow));
             }
         });
-        LinearLayout recentTop = new LinearLayout(context);
+
+        LinearLayout recentTop = new LinearLayout(getContext());
         recentTop.setGravity(Gravity.TOP);
         recentName = text("暂无识别记录", 16, true, palette.textPrimary);
         recentName.setMaxLines(2);
         recentName.setEllipsize(TextUtils.TruncateAt.END);
         recentTop.addView(recentName, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
-        recentTime = text("", 12, false, palette.textSecondary);
+        recentTime = text("", 11, false, palette.textSecondary);
         recentTop.addView(recentTime);
         recentCard.addView(recentTop);
-        recentSummary = text("完成识别后，最近一条结果会显示在这里", 13, false, palette.textSecondary);
-        recentSummary.setLineSpacing(dp(3), 1f);
-        LayoutParams recentSummaryParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        recentSummaryParams.topMargin = dp(12);
-        recentCard.addView(recentSummary, recentSummaryParams);
-        LayoutParams recentCardParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        recentCardParams.topMargin = dp(8);
-        captureBody.addView(recentCard, recentCardParams);
 
-        TextView captureHint = text(
-                "在目标页面点击悬浮识别按钮。高德加油支持 92#/95# 引导采集和支付页字段合并。",
+        recentBody = new LinearLayout(getContext());
+        recentBody.setOrientation(VERTICAL);
+        LayoutParams recentBodyParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        recentBodyParams.topMargin = dp(10);
+        recentCard.addView(recentBody, recentBodyParams);
+        showRecentPlaceholder();
+
+        LayoutParams recentCardParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        recentCardParams.topMargin = dp(6);
+        body.addView(recentCard, recentCardParams);
+
+        TextView hint = text(
+                "启动后切换到高德，在目标页面使用现有悬浮窗完成详情页与支付页识别。",
                 12, false, palette.textSecondary);
-        captureHint.setLineSpacing(dp(2), 1f);
-        LayoutParams hintParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        hintParams.topMargin = dp(14);
-        captureBody.addView(captureHint, hintParams);
+        hint.setLineSpacing(dp(2), 1f);
+        LayoutParams hintParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        hintParams.topMargin = dp(13);
+        body.addView(hint, hintParams);
 
-        capturePanel.addView(captureScroll, new LayoutParams(
+        panel.addView(scroll, new LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        contentFrame.addView(capturePanel, frameParams());
+        return panel;
+    }
 
-        recordsPanel = new LinearLayout(context);
-        recordsPanel.setOrientation(VERTICAL);
-        recordsPanel.setPadding(dp(14), dp(15), dp(14), dp(8));
+    private LinearLayout buildRecordsPanel() {
+        LinearLayout panel = new LinearLayout(getContext());
+        panel.setOrientation(VERTICAL);
+        panel.setPadding(dp(14), dp(15), dp(14), dp(8));
 
-        TextView recordsTitle = text("识别记录", 23, true, palette.textPrimary);
-        recordsPanel.addView(recordsTitle);
+        panel.addView(text("记录查询", 23, true, palette.textPrimary));
 
-        LinearLayout filterCard = new LinearLayout(context);
-        filterCard.setOrientation(VERTICAL);
-        filterCard.setPadding(dp(11), dp(10), dp(11), dp(9));
-        filterCard.setBackground(roundRect(palette.card, 15, 1, palette.border));
-        LayoutParams filterCardParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        filterCardParams.topMargin = dp(12);
-        recordsPanel.addView(filterCard, filterCardParams);
+        LinearLayout filters = new LinearLayout(getContext());
+        filters.setOrientation(VERTICAL);
+        filters.setPadding(dp(11), dp(10), dp(11), dp(9));
+        filters.setBackground(roundRect(palette.card, 15, 1, palette.border));
+        LayoutParams filtersParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        filtersParams.topMargin = dp(12);
+        panel.addView(filters, filtersParams);
 
-        nameSearch = new EditText(context);
+        nameSearch = new EditText(getContext());
         nameSearch.setSingleLine(true);
         nameSearch.setTextSize(14);
         nameSearch.setTextColor(palette.textPrimary);
@@ -249,209 +293,209 @@ final class ResultDashboardView extends LinearLayout {
             if (listener != null) listener.onNameQueryChanged(nameSearch.getText().toString());
             return true;
         });
-        filterCard.addView(nameSearch, new LayoutParams(LayoutParams.MATCH_PARENT, dp(46)));
+        filters.addView(nameSearch, new LayoutParams(LayoutParams.MATCH_PARENT, dp(46)));
 
-        LinearLayout timeRow = new LinearLayout(context);
+        LinearLayout timeRow = new LinearLayout(getContext());
         timeRow.setGravity(Gravity.CENTER_VERTICAL);
-        startTimeButton = timeButton("开始时间", "设置开始日期时间");
+        startTimeButton = timeButton("开始日期", "设置开始日期时间");
         startTimeButton.setOnClickListener(view -> {
             if (listener != null) listener.onStartTimeRequested();
         });
-        endTimeButton = timeButton("结束时间", "设置结束日期时间");
+        endTimeButton = timeButton("结束日期", "设置结束日期时间");
         endTimeButton.setOnClickListener(view -> {
             if (listener != null) listener.onEndTimeRequested();
         });
         timeRow.addView(startTimeButton, new LayoutParams(0, dp(48), 1f));
-        TextView range = text("~", 15, false, palette.textSecondary);
-        range.setGravity(Gravity.CENTER);
-        timeRow.addView(range, new LayoutParams(dp(28), dp(48)));
+        TextView separator = text("~", 15, false, palette.textSecondary);
+        separator.setGravity(Gravity.CENTER);
+        timeRow.addView(separator, new LayoutParams(dp(28), dp(48)));
         timeRow.addView(endTimeButton, new LayoutParams(0, dp(48), 1f));
-        LayoutParams timeParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        LayoutParams timeParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         timeParams.topMargin = dp(7);
-        filterCard.addView(timeRow, timeParams);
+        filters.addView(timeRow, timeParams);
 
-        LinearLayout filterRow = new LinearLayout(context);
-        filterRow.setGravity(Gravity.CENTER_VERTICAL);
-        String[] filterLabels = {"全部", "充电", "加油"};
-        StationResultPresenter.Filter[] filterValues = {
+        LinearLayout chipRow = new LinearLayout(getContext());
+        chipRow.setGravity(Gravity.CENTER_VERTICAL);
+        String[] labels = {"全部", "充电", "加油"};
+        StationResultPresenter.Filter[] values = {
                 StationResultPresenter.Filter.ALL,
                 StationResultPresenter.Filter.CHARGING,
                 StationResultPresenter.Filter.FUEL
         };
-        for (int index = 0; index < filterLabels.length; index++) {
-            final StationResultPresenter.Filter value = filterValues[index];
-            Button filter = button(filterLabels[index], 13, true);
-            filter.setOnClickListener(view -> {
+        for (int index = 0; index < labels.length; index++) {
+            final StationResultPresenter.Filter value = values[index];
+            Button chip = button(labels[index], 13, true);
+            chip.setOnClickListener(view -> {
                 if (listener != null) listener.onFilterSelected(value);
             });
-            filterButtons[index] = filter;
-            LayoutParams p = new LayoutParams(0, dp(42), 1f);
-            if (index > 0) p.leftMargin = dp(7);
-            filterRow.addView(filter, p);
+            filterButtons[index] = chip;
+            LayoutParams params = new LayoutParams(0, dp(40), 1f);
+            if (index > 0) params.leftMargin = dp(7);
+            chipRow.addView(chip, params);
         }
         Button reset = textButton("↻ 重置");
         reset.setOnClickListener(view -> {
             if (listener != null) listener.onResetRecordFilters();
         });
-        LayoutParams resetParams = new LayoutParams(LayoutParams.WRAP_CONTENT, dp(42));
-        resetParams.leftMargin = dp(8);
-        filterRow.addView(reset, resetParams);
-        LayoutParams filterRowParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        filterRowParams.topMargin = dp(7);
-        filterCard.addView(filterRow, filterRowParams);
+        LayoutParams resetParams = new LayoutParams(LayoutParams.WRAP_CONTENT, dp(40));
+        resetParams.leftMargin = dp(7);
+        chipRow.addView(reset, resetParams);
+        LayoutParams chipParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        chipParams.topMargin = dp(8);
+        filters.addView(chipRow, chipParams);
 
         matchCountView = text("找到 0 条", 12, false, palette.textSecondary);
-        LayoutParams matchParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        matchParams.topMargin = dp(5);
-        filterCard.addView(matchCountView, matchParams);
+        LayoutParams countParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        countParams.topMargin = dp(7);
+        filters.addView(matchCountView, countParams);
 
-        LinearLayout compactStats = new LinearLayout(context);
-        compactStats.setOrientation(HORIZONTAL);
-        String[] labels = {"有效场站", "有价", "有枪/报价", "待补充"};
-        for (int index = 0; index < labels.length; index++) {
-            LinearLayout cell = new LinearLayout(context);
-            cell.setOrientation(VERTICAL);
-            cell.setGravity(Gravity.CENTER);
-            cell.setPadding(dp(2), dp(5), dp(2), dp(5));
-            cell.setBackground(roundRect(palette.card, 12, 1, palette.border));
-            statisticValues[index] = text("0", 16, true, palette.textPrimary);
-            statisticLabels[index] = text(labels[index], 9, false, palette.textSecondary);
-            cell.addView(statisticValues[index]);
-            cell.addView(statisticLabels[index]);
-            LayoutParams cellParams = new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
-            if (index > 0) cellParams.leftMargin = dp(5);
-            compactStats.addView(cell, cellParams);
-        }
-        LayoutParams compactStatsParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        compactStatsParams.topMargin = dp(8);
-        recordsPanel.addView(compactStats, compactStatsParams);
-
-        FrameLayout resultFrame = new FrameLayout(context);
-        RecyclerView results = new RecyclerView(context);
-        results.setLayoutManager(new LinearLayoutManager(context));
+        FrameLayout resultsFrame = new FrameLayout(getContext());
+        RecyclerView results = new RecyclerView(getContext());
+        results.setLayoutManager(new LinearLayoutManager(getContext()));
         results.setClipToPadding(false);
-        results.setPadding(0, dp(8), 0, dp(8));
+        results.setPadding(0, dp(9), 0, dp(9));
         adapter = new StationAdapter();
         results.setAdapter(adapter);
-        resultFrame.addView(results, new FrameLayout.LayoutParams(
+        resultsFrame.addView(results, new FrameLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
         emptyView = text("暂无识别结果\n点击“采集”开始识别", 15, false, palette.textSecondary);
         emptyView.setGravity(Gravity.CENTER);
-        resultFrame.addView(emptyView, new FrameLayout.LayoutParams(
+        resultsFrame.addView(emptyView, new FrameLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        recordsPanel.addView(resultFrame, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
+        panel.addView(resultsFrame, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
 
-        LinearLayout recordActions = new LinearLayout(context);
-        recordActions.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout actions = new LinearLayout(getContext());
+        actions.setGravity(Gravity.CENTER_VERTICAL);
         recordActionButton = button("开始识别", 15, true);
         recordActionButton.setTextColor(Color.WHITE);
         recordActionButton.setBackground(roundRect(palette.primary, 12, 0, Color.TRANSPARENT));
         recordActionButton.setOnClickListener(view -> {
             if (selectionMode) {
                 if (listener != null && !selectedKeys.isEmpty()) {
-                    listener.onDeleteSelected(new java.util.LinkedHashSet<>(selectedKeys));
+                    listener.onDeleteSelected(new LinkedHashSet<>(selectedKeys));
                 }
             } else if (listener != null) {
                 listener.onPrimaryAction();
             }
         });
-        recordActions.addView(recordActionButton, new LayoutParams(0, dp(50), 1f));
+        actions.addView(recordActionButton, new LayoutParams(0, dp(50), 1f));
+
         multiSelectButton = outlineButton("多选", palette.textSecondary, palette.border);
         multiSelectButton.setOnClickListener(view -> toggleSelectionMode());
         LayoutParams multiParams = new LayoutParams(LayoutParams.WRAP_CONTENT, dp(50));
         multiParams.leftMargin = dp(8);
-        recordActions.addView(multiSelectButton, multiParams);
+        actions.addView(multiSelectButton, multiParams);
+
         selectAllButton = outlineButton("全选", palette.textSecondary, palette.border);
         selectAllButton.setVisibility(GONE);
         selectAllButton.setOnClickListener(view -> toggleSelectAll());
         LayoutParams allParams = new LayoutParams(LayoutParams.WRAP_CONTENT, dp(50));
         allParams.leftMargin = dp(8);
-        recordActions.addView(selectAllButton, allParams);
-        recordsPanel.addView(recordActions);
-        contentFrame.addView(recordsPanel, frameParams());
+        actions.addView(selectAllButton, allParams);
+        panel.addView(actions);
 
-        settingsPanel = new LinearLayout(context);
-        settingsPanel.setOrientation(VERTICAL);
-        settingsPanel.setPadding(dp(16), dp(16), dp(16), dp(16));
-        ScrollView settingsScroll = new ScrollView(context);
-        LinearLayout settingsBody = new LinearLayout(context);
-        settingsBody.setOrientation(VERTICAL);
-        settingsScroll.addView(settingsBody);
+        return panel;
+    }
 
-        TextView settingsTitle = text("设置", 23, true, palette.textPrimary);
-        settingsBody.addView(settingsTitle);
+    private LinearLayout buildSettingsPanel() {
+        LinearLayout panel = new LinearLayout(getContext());
+        panel.setOrientation(VERTICAL);
+        panel.setPadding(dp(16), dp(16), dp(16), dp(16));
 
-        LinearLayout versionCard = card();
-        TextView versionLabel = text("应用与更新", 17, true, palette.textPrimary);
-        versionCard.addView(versionLabel);
-        LinearLayout versionRow = settingRow("当前版本", BuildConfig.VERSION_NAME);
-        LayoutParams versionRowParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        versionRowParams.topMargin = dp(8);
-        versionCard.addView(versionRow, versionRowParams);
+        ScrollView scroll = new ScrollView(getContext());
+        LinearLayout body = new LinearLayout(getContext());
+        body.setOrientation(VERTICAL);
+        scroll.addView(body);
+
+        body.addView(text("设置", 23, true, palette.textPrimary));
+
+        TextView generalLabel = sectionLabel("通用");
+        LayoutParams generalLabelParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        generalLabelParams.topMargin = dp(16);
+        body.addView(generalLabel, generalLabelParams);
+
+        LinearLayout generalCard = card();
         Button update = settingAction("检查更新", "›");
         update.setOnClickListener(view -> {
             if (listener != null) listener.onCheckUpdate();
         });
-        versionCard.addView(update, new LayoutParams(LayoutParams.MATCH_PARENT, dp(52)));
-        LinearLayout autoRow = new LinearLayout(context);
+        generalCard.addView(update, new LayoutParams(LayoutParams.MATCH_PARENT, dp(52)));
+        generalCard.addView(divider());
+        generalCard.addView(settingRow("当前版本", BuildConfig.VERSION_NAME),
+                new LayoutParams(LayoutParams.MATCH_PARENT, dp(52)));
+        generalCard.addView(divider());
+
+        LinearLayout autoRow = new LinearLayout(getContext());
         autoRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView autoLabel = text("启动时检测更新", 14, false, palette.textPrimary);
-        autoRow.addView(autoLabel, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
-        autoUpdateSwitch = new Switch(context);
-        autoUpdateSwitch.setChecked(isAutoUpdateEnabled(context));
+        autoRow.setPadding(dp(2), 0, dp(2), 0);
+        autoRow.addView(text("启动时检测更新", 14, false, palette.textPrimary),
+                new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+        autoUpdateSwitch = new Switch(getContext());
+        autoUpdateSwitch.setChecked(isAutoUpdateEnabled(getContext()));
         autoUpdateSwitch.setOnCheckedChangeListener((buttonView, checked) ->
-                context.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE)
+                getContext().getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE)
                         .edit().putBoolean(PREF_AUTO_UPDATE, checked).apply());
         autoRow.addView(autoUpdateSwitch);
-        versionCard.addView(autoRow, new LayoutParams(LayoutParams.MATCH_PARENT, dp(52)));
-        LayoutParams versionCardParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        versionCardParams.topMargin = dp(14);
-        settingsBody.addView(versionCard, versionCardParams);
+        generalCard.addView(autoRow, new LayoutParams(LayoutParams.MATCH_PARENT, dp(52)));
+        body.addView(generalCard);
 
-        LinearLayout captureSettings = card();
-        captureSettings.addView(text("识别设置", 17, true, palette.textPrimary));
-        captureSettings.addView(settingInfo("识别方式", "悬浮窗手动截屏"));
-        captureSettings.addView(settingInfo("加油采集", "92#/95# 引导识别"));
-        captureSettings.addView(settingInfo("记录操作", "点击记录可查看与回填"));
-        LayoutParams captureSettingsParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-        captureSettingsParams.topMargin = dp(12);
-        settingsBody.addView(captureSettings, captureSettingsParams);
+        TextView dataLabel = sectionLabel("数据");
+        LayoutParams dataLabelParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        dataLabelParams.topMargin = dp(16);
+        body.addView(dataLabel, dataLabelParams);
 
-        Button clear = outlineButton("删除全部本地记录", palette.danger, palette.danger);
+        LinearLayout dataCard = card();
+        Button upload = settingAction("上传配置", "›");
+        upload.setOnClickListener(view -> {
+            statusView.setText("上传配置已由 provisioning 管理");
+            switchTab(TAB_CAPTURE);
+        });
+        dataCard.addView(upload, new LayoutParams(LayoutParams.MATCH_PARENT, dp(52)));
+        dataCard.addView(divider());
+        Button clear = settingAction("清除已完成记录", "›");
         clear.setOnClickListener(view -> {
             if (listener != null) listener.onClearCompleted();
         });
-        LayoutParams clearParams = new LayoutParams(LayoutParams.MATCH_PARENT, dp(52));
-        clearParams.topMargin = dp(14);
-        settingsBody.addView(clear, clearParams);
+        dataCard.addView(clear, new LayoutParams(LayoutParams.MATCH_PARENT, dp(52)));
+        body.addView(dataCard);
 
-        settingsPanel.addView(settingsScroll, new LayoutParams(
+        TextView aboutLabel = sectionLabel("关于");
+        LayoutParams aboutLabelParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        aboutLabelParams.topMargin = dp(16);
+        body.addView(aboutLabel, aboutLabelParams);
+
+        LinearLayout aboutCard = card();
+        aboutCard.addView(settingInfo("识别说明", "详情页 + 支付页合并采集"),
+                new LayoutParams(LayoutParams.MATCH_PARENT, dp(56)));
+        aboutCard.addView(divider());
+        aboutCard.addView(settingInfo("关于信息自动识别", "Android 11+"),
+                new LayoutParams(LayoutParams.MATCH_PARENT, dp(56)));
+        body.addView(aboutCard);
+
+        TextView footer = text(
+                "悬浮识别页保持当前版本设计；本次仅更新采集、记录、详情与设置界面。",
+                12, false, palette.textSecondary);
+        footer.setGravity(Gravity.CENTER);
+        LayoutParams footerParams = new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        footerParams.topMargin = dp(18);
+        body.addView(footer, footerParams);
+
+        panel.addView(scroll, new LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        contentFrame.addView(settingsPanel, frameParams());
-
-        LinearLayout navigation = new LinearLayout(context);
-        navigation.setGravity(Gravity.CENTER);
-        navigation.setPadding(dp(8), dp(4), dp(8), dp(5));
-        navigation.setBackground(roundRect(palette.card, 0, 1, palette.border));
-        String[] navLabels = {"▣\n采集", "▤\n记录", "⚙\n设置"};
-        for (int index = 0; index < navLabels.length; index++) {
-            final int tab = index;
-            Button nav = button(navLabels[index], 12, true);
-            nav.setGravity(Gravity.CENTER);
-            nav.setMinHeight(0);
-            nav.setPadding(0, 0, 0, 0);
-            nav.setOnClickListener(view -> switchTab(tab));
-            navigationButtons[index] = nav;
-            navigation.addView(nav, new LayoutParams(0, dp(58), 1f));
-        }
-        addView(navigation, new LayoutParams(LayoutParams.MATCH_PARENT, dp(66)));
-
-        selectFilter(StationResultPresenter.Filter.ALL);
-        switchTab(TAB_CAPTURE);
+        return panel;
     }
 
     static boolean isAutoUpdateEnabled(Context context) {
-        SharedPreferences preferences = context.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences preferences =
+                context.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE);
         return preferences.getBoolean(PREF_AUTO_UPDATE, true);
     }
 
@@ -460,7 +504,7 @@ final class ResultDashboardView extends LinearLayout {
     }
 
     void exitSelectionMode() {
-        if (!selectionMode) return;
+        if (!selectionMode && selectedKeys.isEmpty()) return;
         selectionMode = false;
         selectedKeys.clear();
         updateActionButtons();
@@ -474,7 +518,11 @@ final class ResultDashboardView extends LinearLayout {
     void setCaptureState(CaptureUiState state) {
         captureUiState = state == null ? CaptureUiState.STOPPED : state;
         statusView.setText(captureUiState.label);
-        statusView.setContentDescription("识别状态：" + captureUiState.label);
+        statusView.setTextColor(captureUiState.stopAction ? palette.success : palette.primary);
+        statusView.setBackground(roundRect(
+                captureUiState.stopAction ? palette.successSoft : palette.primarySoft,
+                18, 0, Color.TRANSPARENT));
+
         String label = captureUiState.primaryLabel;
         homePrimaryButton.setText((captureUiState.stopAction ? "■  " : "▣  ") + label);
         homePrimaryButton.setEnabled(captureUiState.primaryEnabled);
@@ -489,40 +537,26 @@ final class ResultDashboardView extends LinearLayout {
     void setRecordFilter(StationRecordFilter filter) {
         StationRecordFilter value = filter == null ? StationRecordFilter.EMPTY : filter;
         settingFilterState = true;
-        if (!TextUtils.equals(nameSearch.getText(), value.nameQuery)) {
+        if (!value.nameQuery.equals(nameSearch.getText().toString())) {
             nameSearch.setText(value.nameQuery);
             nameSearch.setSelection(nameSearch.length());
         }
         settingFilterState = false;
-        setTimeButton(startTimeButton, "开始时间", "开始", value.startEpochMillis, "设置开始日期时间");
-        setTimeButton(endTimeButton, "结束时间", "结束", value.endEpochMillis, "设置结束日期时间");
+        setTimeButton(startTimeButton, "开始日期", "开始",
+                value.startEpochMillis, "设置开始日期时间");
+        setTimeButton(endTimeButton, "结束日期", "结束",
+                value.endEpochMillis, "设置结束日期时间");
     }
 
-    void render(StationResultPresenter.ViewState state, boolean hasLocalRecords, boolean hasActiveFilters) {
+    void render(
+            StationResultPresenter.ViewState state,
+            boolean hasLocalRecords,
+            boolean hasActiveFilters
+    ) {
         if (state == null) return;
-        boolean fuelOnly = state.filter == StationResultPresenter.Filter.FUEL;
-        boolean allTypes = state.filter == StationResultPresenter.Filter.ALL;
-        int[] values = {
-                state.validStations,
-                fuelOnly ? state.fuelStationsWithOffers : state.withPrice,
-                fuelOnly ? state.fuelStationsWithQuotes
-                        : state.withGuns + (allTypes ? state.fuelStationsWithQuotes : 0),
-                state.incomplete
-        };
-        String[] labels = {
-                "有效场站",
-                fuelOnly ? "有油号" : "有价",
-                fuelOnly ? "有报价" : allTypes ? "有枪/报价" : "有枪",
-                "待补充"
-        };
-        for (int index = 0; index < values.length; index++) {
-            statisticValues[index].setText(String.valueOf(values[index]));
-            statisticLabels[index].setText(labels[index]);
-        }
-
         int complete = Math.max(0, state.validStations - state.incomplete);
-        int percentage = state.validStations == 0 ? 0
-                : Math.round(complete * 100f / state.validStations);
+        int percentage = state.validStations == 0
+                ? 0 : Math.round(complete * 100f / state.validStations);
         todayValue.setText(String.valueOf(countToday(state.rows)));
         completenessValue.setText(percentage + "%");
         latestValue.setText(latestTime(state.rows));
@@ -532,13 +566,145 @@ final class ResultDashboardView extends LinearLayout {
         adapter.submit(state.rows);
         matchCountView.setText("找到 " + state.rows.size() + " 条");
         if (state.rows.isEmpty()) {
-            boolean filteredEmpty = hasLocalRecords && hasActiveFilters;
-            String message = filteredEmpty ? "没有符合筛选条件的记录" : "暂无识别结果\n点击“采集”开始识别";
+            String message = hasLocalRecords && hasActiveFilters
+                    ? "没有符合筛选条件的记录"
+                    : "暂无识别结果\n点击“采集”开始识别";
             emptyView.setText(message);
             emptyView.setVisibility(VISIBLE);
         } else {
             emptyView.setVisibility(GONE);
         }
+    }
+
+    private void updateRecent(List<JSONObject> rows) {
+        recentRow = rows == null || rows.isEmpty() ? null : rows.get(0);
+        recentBody.removeAllViews();
+        if (recentRow == null) {
+            recentName.setText("暂无识别记录");
+            recentTime.setText("");
+            showRecentPlaceholder();
+            recentCard.setAlpha(0.76f);
+            return;
+        }
+        recentCard.setAlpha(1f);
+        String station = StationRecordFilter.stationName(recentRow);
+        recentName.setText(station.isEmpty() ? "未命名场站" : station);
+        recentTime.setText(StationDisplayFormatter.capturedAt(recentRow));
+        if (StationDisplayFormatter.isFuel(recentRow)) {
+            addFuelRows(recentBody, recentRow, true);
+        } else {
+            addChargingSummary(recentBody, recentRow);
+        }
+    }
+
+    private void showRecentPlaceholder() {
+        recentBody.removeAllViews();
+        TextView placeholder = text(
+                "完成识别后，最近一条结果会显示在这里",
+                13, false, palette.textSecondary);
+        recentBody.addView(placeholder);
+    }
+
+    private void addFuelRows(LinearLayout container, JSONObject row, boolean compact) {
+        JSONObject fuel = row == null ? null : row.optJSONObject("fuelObservation");
+        JSONArray offers = fuel == null ? null : fuel.optJSONArray("fuelOffers");
+        JSONArray quotes = fuel == null ? null : fuel.optJSONArray("fuelQuotes");
+        int count = offers == null ? 0 : offers.length();
+        if (count == 0) {
+            container.addView(text("油价信息待补充", 13, false, palette.warning));
+            return;
+        }
+        for (int index = 0; index < count; index++) {
+            JSONObject offer = offers.optJSONObject(index);
+            if (offer == null) continue;
+            JSONObject quote = findQuote(quotes, offer);
+            LinearLayout line = new LinearLayout(getContext());
+            line.setOrientation(VERTICAL);
+            line.setPadding(dp(10), dp(9), dp(10), dp(9));
+            line.setBackground(roundRect(palette.inputBackground, 11, 0, Color.TRANSPARENT));
+            if (index > 0) {
+                LayoutParams lineParams = new LayoutParams(
+                        LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+                lineParams.topMargin = dp(7);
+                container.addView(line, lineParams);
+            } else {
+                container.addView(line);
+            }
+
+            LinearLayout top = new LinearLayout(getContext());
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            TextView grade = badge(gradeLabel(offer), palette.primarySoft, palette.primary);
+            top.addView(grade);
+            String provider = fuel == null ? "" : cleanText(fuel.optString("providerName"));
+            TextView providerView = text(
+                    provider.isEmpty() ? "CP 待补" : "CP  " + provider,
+                    11, false, palette.textSecondary);
+            providerView.setGravity(Gravity.END);
+            top.addView(providerView, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+            line.addView(top);
+
+            LinearLayout values = new LinearLayout(getContext());
+            values.setOrientation(HORIZONTAL);
+            LayoutParams valuesParams = new LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+            valuesParams.topMargin = dp(8);
+            line.addView(values, valuesParams);
+
+            addValueColumn(values, "外显价", moneyPerLiter(number(offer, "displayPrice")), 0);
+            if (!compact) {
+                addValueColumn(values, "油站价", moneyPerLiter(number(offer, "stationPrice")), 1);
+            }
+            addValueColumn(values, "优惠", money(number(quote, "grossDiscount")), compact ? 1 : 2);
+            addValueColumn(values, "服务费", money(number(quote, "serviceFee")), compact ? 2 : 3);
+            addValueColumn(values, "实付", money(number(quote, "payableAmount")), compact ? 3 : 4);
+        }
+    }
+
+    private void addChargingSummary(LinearLayout container, JSONObject row) {
+        String[] labels = {"快充", "慢充", "超充"};
+        String[] priceKeys = {"priceFast", "priceSlow", "priceSuper"};
+        String[] idleKeys = {"fastIdlePorts", "slowIdlePorts", "superIdlePorts"};
+        String[] totalKeys = {"fastTotalPorts", "slowTotalPorts", "superTotalPorts"};
+        LinearLayout values = new LinearLayout(getContext());
+        values.setOrientation(HORIZONTAL);
+        container.addView(values);
+        for (int index = 0; index < labels.length; index++) {
+            String value = number(row, priceKeys[index]) > 0d
+                    ? moneyPerKwh(number(row, priceKeys[index]))
+                    : "—";
+            String ports = row.optInt(idleKeys[index], 0)
+                    + " / " + row.optInt(totalKeys[index], 0);
+            addValueColumn(values, labels[index], value + "\n闲/总 " + ports, index);
+        }
+    }
+
+    private void addValueColumn(
+            LinearLayout parent,
+            String label,
+            String value,
+            int index
+    ) {
+        LinearLayout cell = new LinearLayout(getContext());
+        cell.setOrientation(VERTICAL);
+        TextView labelView = text(label, 10, false, palette.textSecondary);
+        TextView valueView = text(value, 12, true, palette.textPrimary);
+        valueView.setPadding(0, dp(3), 0, 0);
+        cell.addView(labelView);
+        cell.addView(valueView);
+        LayoutParams params = new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
+        if (index > 0) params.leftMargin = dp(5);
+        parent.addView(cell, params);
+    }
+
+    private static JSONObject findQuote(JSONArray quotes, JSONObject offer) {
+        if (quotes == null || offer == null) return null;
+        String grade = cleanText(offer.optString("gradeCode"));
+        for (int index = 0; index < quotes.length(); index++) {
+            JSONObject quote = quotes.optJSONObject(index);
+            if (quote == null) continue;
+            if (grade.equals(cleanText(quote.optString("gradeCode")))) return quote;
+        }
+        return quotes.optJSONObject(0);
     }
 
     private void switchTab(int tab) {
@@ -550,18 +716,24 @@ final class ResultDashboardView extends LinearLayout {
             boolean active = index == tab;
             Button button = navigationButtons[index];
             button.setTextColor(active ? palette.primary : palette.textSecondary);
-            button.setBackgroundColor(Color.TRANSPARENT);
             button.setAlpha(active ? 1f : 0.76f);
         }
     }
 
-    private TextView addMetric(LinearLayout parent, String icon, String label, String value, int index) {
+    private TextView addMetric(
+            LinearLayout parent,
+            String icon,
+            String label,
+            String value,
+            int accent,
+            int index
+    ) {
         LinearLayout cell = new LinearLayout(getContext());
         cell.setOrientation(VERTICAL);
         cell.setGravity(Gravity.CENTER);
         cell.setPadding(dp(7), dp(12), dp(7), dp(12));
         cell.setBackground(roundRect(palette.card, 14, 1, palette.border));
-        TextView iconView = text(icon, 17, true, index == 1 ? palette.success : palette.primary);
+        TextView iconView = text(icon, 17, true, accent);
         TextView labelView = text(label, 11, false, palette.textSecondary);
         labelView.setPadding(0, dp(5), 0, 0);
         TextView valueView = text(value, 22, true, palette.textPrimary);
@@ -573,57 +745,6 @@ final class ResultDashboardView extends LinearLayout {
         if (index > 0) params.leftMargin = dp(7);
         parent.addView(cell, params);
         return valueView;
-    }
-
-    private void updateRecent(List<JSONObject> rows) {
-        recentRow = rows == null || rows.isEmpty() ? null : rows.get(0);
-        if (recentRow == null) {
-            recentName.setText("暂无识别记录");
-            recentTime.setText("");
-            recentSummary.setText("完成识别后，最近一条结果会显示在这里");
-            recentCard.setAlpha(0.75f);
-            return;
-        }
-        recentCard.setAlpha(1f);
-        String name = StationRecordFilter.stationName(recentRow);
-        recentName.setText(name.isEmpty() ? "未命名场站" : name);
-        recentTime.setText(StationDisplayFormatter.capturedAt(recentRow));
-        String type = StationDisplayFormatter.isFuel(recentRow) ? "加油" : "充电";
-        recentSummary.setText(type + " · " + StationDisplayFormatter.details(recentRow)
-                + "\n" + StationDisplayFormatter.missingSummary(recentRow));
-    }
-
-    private int countToday(List<JSONObject> rows) {
-        if (rows == null) return 0;
-        LocalDate today = LocalDate.now();
-        int count = 0;
-        for (JSONObject row : rows) {
-            Instant instant = rowInstant(row);
-            if (instant != null && instant.atZone(ZoneId.systemDefault()).toLocalDate().equals(today)) count++;
-        }
-        return count;
-    }
-
-    private String latestTime(List<JSONObject> rows) {
-        if (rows == null || rows.isEmpty()) return "--:--";
-        Instant instant = rowInstant(rows.get(0));
-        if (instant == null) return "--:--";
-        return HOME_TIME.withZone(ZoneId.systemDefault()).format(instant);
-    }
-
-    private static Instant rowInstant(JSONObject row) {
-        if (row == null) return null;
-        String value = row.optString("capturedAt", "").trim();
-        if (value.isEmpty()) return null;
-        try {
-            return Instant.parse(value);
-        } catch (Exception ignored) {
-            try {
-                return OffsetDateTime.parse(value).toInstant();
-            } catch (Exception ignoredAgain) {
-                return null;
-            }
-        }
     }
 
     private void toggleSelectionMode() {
@@ -658,14 +779,16 @@ final class ResultDashboardView extends LinearLayout {
             selectAllButton.setVisibility(VISIBLE);
             recordActionButton.setText(selectedKeys.isEmpty()
                     ? "删除选中" : "删除选中(" + selectedKeys.size() + ")");
-            recordActionButton.setBackground(roundRect(palette.danger, 12, 0, Color.TRANSPARENT));
+            recordActionButton.setBackground(roundRect(
+                    palette.danger, 12, 0, Color.TRANSPARENT));
             recordActionButton.setEnabled(!selectedKeys.isEmpty());
             recordActionButton.setAlpha(selectedKeys.isEmpty() ? 0.55f : 1f);
         } else {
             multiSelectButton.setText("多选");
             selectAllButton.setVisibility(GONE);
             recordActionButton.setText(captureUiState.primaryLabel);
-            recordActionButton.setBackground(roundRect(palette.primary, 12, 0, Color.TRANSPARENT));
+            recordActionButton.setBackground(roundRect(
+                    palette.primary, 12, 0, Color.TRANSPARENT));
             recordActionButton.setEnabled(captureUiState.primaryEnabled);
             recordActionButton.setAlpha(captureUiState.primaryEnabled ? 1f : 0.55f);
         }
@@ -683,6 +806,42 @@ final class ResultDashboardView extends LinearLayout {
         }
     }
 
+    private int countToday(List<JSONObject> rows) {
+        if (rows == null) return 0;
+        LocalDate today = LocalDate.now();
+        int count = 0;
+        for (JSONObject row : rows) {
+            Instant instant = rowInstant(row);
+            if (instant != null
+                    && instant.atZone(ZoneId.systemDefault()).toLocalDate().equals(today)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String latestTime(List<JSONObject> rows) {
+        if (rows == null || rows.isEmpty()) return "--:--";
+        Instant instant = rowInstant(rows.get(0));
+        return instant == null
+                ? "--:--" : HOME_TIME.withZone(ZoneId.systemDefault()).format(instant);
+    }
+
+    private static Instant rowInstant(JSONObject row) {
+        if (row == null) return null;
+        String value = cleanText(row.optString("capturedAt"));
+        if (value.isEmpty()) return null;
+        try {
+            return Instant.parse(value);
+        } catch (Exception ignored) {
+            try {
+                return OffsetDateTime.parse(value).toInstant();
+            } catch (Exception ignoredAgain) {
+                return null;
+            }
+        }
+    }
+
     private void finishSearchInput() {
         InputMethodManager input = (InputMethodManager) getContext().getSystemService(
                 Context.INPUT_METHOD_SERVICE);
@@ -696,12 +855,17 @@ final class ResultDashboardView extends LinearLayout {
         button.setGravity(Gravity.CENTER);
         button.setTextColor(palette.textSecondary);
         button.setBackground(roundRect(palette.inputBackground, 10, 1, palette.border));
-        button.setContentDescription(description);
+        button.setContentDescription(description + "，未设置");
         return button;
     }
 
-    private void setTimeButton(Button button, String emptyLabel, String selectedLabel,
-                               Long epochMillis, String description) {
+    private void setTimeButton(
+            Button button,
+            String emptyLabel,
+            String selectedLabel,
+            Long epochMillis,
+            String description
+    ) {
         if (epochMillis == null) {
             button.setText(emptyLabel);
             button.setContentDescription(description + "，未设置");
@@ -713,27 +877,49 @@ final class ResultDashboardView extends LinearLayout {
         button.setContentDescription(description + "，当前 " + formatted);
     }
 
+    private TextView sectionLabel(String value) {
+        TextView label = text(value, 12, false, palette.textSecondary);
+        label.setPadding(dp(3), 0, 0, dp(7));
+        return label;
+    }
+
     private LinearLayout card() {
         LinearLayout card = new LinearLayout(getContext());
         card.setOrientation(VERTICAL);
-        card.setPadding(dp(15), dp(14), dp(15), dp(14));
-        card.setBackground(roundRect(palette.card, 16, 1, palette.border));
+        card.setPadding(dp(14), dp(2), dp(14), dp(2));
+        card.setBackground(roundRect(palette.card, 15, 1, palette.border));
         return card;
+    }
+
+    private View divider() {
+        View divider = new View(getContext());
+        divider.setBackgroundColor(palette.border);
+        divider.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, dp(1)));
+        return divider;
     }
 
     private LinearLayout settingRow(String label, String value) {
         LinearLayout row = new LinearLayout(getContext());
         row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(2), 0, dp(2), 0);
         row.addView(text(label, 14, false, palette.textPrimary),
                 new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
-        row.addView(text(value, 14, false, palette.textSecondary));
+        row.addView(text(value, 13, false, palette.textSecondary));
         return row;
     }
 
     private LinearLayout settingInfo(String label, String value) {
-        LinearLayout row = settingRow(label, value);
-        LayoutParams p = new LayoutParams(LayoutParams.MATCH_PARENT, dp(50));
-        row.setLayoutParams(p);
+        LinearLayout row = new LinearLayout(getContext());
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(2), 0, dp(2), 0);
+        LinearLayout labels = new LinearLayout(getContext());
+        labels.setOrientation(VERTICAL);
+        labels.addView(text(label, 14, false, palette.textPrimary));
+        TextView detail = text(value, 11, false, palette.textSecondary);
+        detail.setPadding(0, dp(3), 0, 0);
+        labels.addView(detail);
+        row.addView(labels, new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(text("›", 20, false, palette.textSecondary));
         return row;
     }
 
@@ -743,6 +929,14 @@ final class ResultDashboardView extends LinearLayout {
         button.setTextColor(palette.textPrimary);
         button.setBackgroundColor(Color.TRANSPARENT);
         return button;
+    }
+
+    private TextView badge(String value, int background, int color) {
+        TextView badge = text(value, 11, true, color);
+        badge.setGravity(Gravity.CENTER);
+        badge.setPadding(dp(8), dp(4), dp(8), dp(4));
+        badge.setBackground(roundRect(background, 8, 0, Color.TRANSPARENT));
+        return badge;
     }
 
     private Button textButton(String label) {
@@ -771,16 +965,21 @@ final class ResultDashboardView extends LinearLayout {
         return button;
     }
 
-    private TextView text(String label, int sp, boolean bold, int color) {
+    private TextView text(String value, int sp, boolean bold, int color) {
         TextView view = new TextView(getContext());
-        view.setText(label);
+        view.setText(value);
         view.setTextSize(sp);
         view.setTextColor(color);
         if (bold) view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         return view;
     }
 
-    private GradientDrawable roundRect(int color, int radiusDp, int strokeDp, int strokeColor) {
+    private GradientDrawable roundRect(
+            int color,
+            int radiusDp,
+            int strokeDp,
+            int strokeColor
+    ) {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(color);
         drawable.setCornerRadius(dp(radiusDp));
@@ -789,22 +988,66 @@ final class ResultDashboardView extends LinearLayout {
     }
 
     private FrameLayout.LayoutParams frameParams() {
-        return new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        return new FrameLayout.LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
     }
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
-    private final class StationAdapter extends RecyclerView.Adapter<StationHolder> {
+    private static String gradeLabel(JSONObject offer) {
+        if (offer == null) return "油号待补";
+        String label = cleanText(offer.optString("gradeLabel"));
+        if (!label.isEmpty()) return label;
+        String code = cleanText(offer.optString("gradeCode"));
+        return code.isEmpty() ? "油号待补" : code + (code.endsWith("#") ? "" : "#");
+    }
+
+    private static String cleanText(String value) {
+        if (value == null) return "";
+        String text = value.trim();
+        return "null".equalsIgnoreCase(text) || "undefined".equalsIgnoreCase(text)
+                ? "" : text;
+    }
+
+    private static double number(JSONObject value, String key) {
+        if (value == null || value.isNull(key)) return 0d;
+        Object raw = value.opt(key);
+        try {
+            return raw instanceof Number
+                    ? ((Number) raw).doubleValue()
+                    : new BigDecimal(String.valueOf(raw)).doubleValue();
+        } catch (Exception ignored) {
+            return 0d;
+        }
+    }
+
+    private static String money(double value) {
+        return value > 0d ? "¥" + decimal(value) : "—";
+    }
+
+    private static String moneyPerLiter(double value) {
+        return value > 0d ? "¥" + decimal(value) + "/L" : "—";
+    }
+
+    private static String moneyPerKwh(double value) {
+        return value > 0d ? "¥" + decimal(value) + "/度" : "—";
+    }
+
+    private static String decimal(double value) {
+        return String.format(Locale.CHINA, "%.2f", value)
+                .replaceAll("0+$", "").replaceAll("\\.$", "");
+    }
+
+    private final class StationAdapter
+            extends RecyclerView.Adapter<StationHolder> {
         private final List<JSONObject> rows = new ArrayList<>();
 
         void submit(List<JSONObject> values) {
-            int previous = rows.size();
             rows.clear();
-            if (previous > 0) notifyItemRangeRemoved(0, previous);
             if (values != null) rows.addAll(values);
-            if (!rows.isEmpty()) notifyItemRangeInserted(0, rows.size());
+            notifyDataSetChanged();
         }
 
         List<String> allIdentities() {
@@ -820,21 +1063,25 @@ final class ResultDashboardView extends LinearLayout {
             if (!rows.isEmpty()) notifyItemRangeChanged(0, rows.size());
         }
 
-        @Override public StationHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+        @Override
+        public StationHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             return new StationHolder(new StationCardView(parent.getContext()));
         }
 
-        @Override public void onBindViewHolder(StationHolder holder, int position) {
+        @Override
+        public void onBindViewHolder(StationHolder holder, int position) {
             holder.card.bind(rows.get(position), position);
         }
 
-        @Override public int getItemCount() {
+        @Override
+        public int getItemCount() {
             return rows.size();
         }
     }
 
     private static final class StationHolder extends RecyclerView.ViewHolder {
         final StationCardView card;
+
         StationHolder(StationCardView card) {
             super(card);
             this.card = card;
@@ -845,7 +1092,7 @@ final class ResultDashboardView extends LinearLayout {
         private final TextView name;
         private final TextView time;
         private final TextView typeBadge;
-        private final TextView details;
+        private final LinearLayout body;
         private final TextView completeness;
         private final TextView selectMark;
         private JSONObject boundRow;
@@ -871,28 +1118,27 @@ final class ResultDashboardView extends LinearLayout {
 
             LinearLayout badgeRow = new LinearLayout(context);
             badgeRow.setGravity(Gravity.CENTER_VERTICAL);
-            typeBadge = text("", 12, true, Color.WHITE);
-            typeBadge.setGravity(Gravity.CENTER);
-            typeBadge.setPadding(dp(9), dp(4), dp(9), dp(4));
+            typeBadge = badge("", palette.primarySoft, palette.primary);
             badgeRow.addView(typeBadge);
             selectMark = text("○", 18, true, palette.textSecondary);
             selectMark.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
             selectMark.setVisibility(GONE);
             badgeRow.addView(selectMark, new LayoutParams(0, dp(30), 1f));
-            LayoutParams badgeParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-            badgeParams.topMargin = dp(9);
+            LayoutParams badgeParams = new LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+            badgeParams.topMargin = dp(8);
             addView(badgeRow, badgeParams);
 
-            details = text("", 13, false, palette.textPrimary);
-            details.setLineSpacing(dp(4), 1f);
-            details.setPadding(dp(11), dp(10), dp(11), dp(10));
-            details.setBackground(roundRect(palette.inputBackground, 11, 0, Color.TRANSPARENT));
-            LayoutParams detailParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-            detailParams.topMargin = dp(8);
-            addView(details, detailParams);
+            body = new LinearLayout(context);
+            body.setOrientation(VERTICAL);
+            LayoutParams bodyParams = new LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+            bodyParams.topMargin = dp(8);
+            addView(body, bodyParams);
 
             completeness = text("", 12, true, palette.success);
-            LayoutParams completeParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+            LayoutParams completeParams = new LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
             completeParams.topMargin = dp(8);
             addView(completeness, completeParams);
 
@@ -912,22 +1158,31 @@ final class ResultDashboardView extends LinearLayout {
         void bind(JSONObject row, int position) {
             boundRow = row;
             boundIdentity = row == null ? "" : StationIdentity.fromRow(row, position);
-            String stationName = StationRecordFilter.stationName(row);
-            name.setText(stationName.isEmpty() ? "未命名场站" : stationName);
+            String station = StationRecordFilter.stationName(row);
+            name.setText(station.isEmpty() ? "未命名场站" : station);
             time.setText(StationDisplayFormatter.capturedAt(row));
+
             boolean fuel = StationDisplayFormatter.isFuel(row);
             typeBadge.setText(fuel ? "加油" : "充电");
-            typeBadge.setBackground(roundRect(fuel ? palette.primary : palette.success,
-                    12, 0, Color.TRANSPARENT));
-            details.setText(StationDisplayFormatter.details(row));
+            typeBadge.setTextColor(fuel ? palette.primary : palette.success);
+            typeBadge.setBackground(roundRect(
+                    fuel ? palette.primarySoft : palette.successSoft,
+                    8, 0, Color.TRANSPARENT));
+
+            body.removeAllViews();
+            if (fuel) addFuelRows(body, row, false);
+            else addChargingSummary(body, row);
+
             completeness.setText(StationDisplayFormatter.missingSummary(row));
-            completeness.setTextColor(StationDisplayFormatter.incomplete(row)
-                    ? palette.warning : palette.success);
+            completeness.setTextColor(
+                    StationDisplayFormatter.incomplete(row) ? palette.warning : palette.success);
+
             boolean selected = !boundIdentity.isEmpty() && selectedKeys.contains(boundIdentity);
             selectMark.setVisibility(selectionMode ? VISIBLE : GONE);
             selectMark.setText(selected ? "✓" : "○");
             selectMark.setTextColor(selected ? palette.primary : palette.textSecondary);
-            setBackground(roundRect(selected ? palette.statusBackground : palette.card,
+            setBackground(roundRect(
+                    selected ? palette.primarySoft : palette.card,
                     15, 1, selected ? palette.primary : palette.border));
         }
     }
@@ -940,9 +1195,10 @@ final class ResultDashboardView extends LinearLayout {
         final int textPrimary;
         final int textSecondary;
         final int primary;
-        final int statusBackground;
+        final int primarySoft;
         final int warning;
         final int success;
+        final int successSoft;
         final int danger;
 
         Palette(boolean dark) {
@@ -953,9 +1209,10 @@ final class ResultDashboardView extends LinearLayout {
             textPrimary = Color.parseColor(dark ? "#F3F7FC" : "#101828");
             textSecondary = Color.parseColor(dark ? "#B9C6D8" : "#667085");
             primary = Color.parseColor(dark ? "#69A7FF" : "#1265F6");
-            statusBackground = Color.parseColor(dark ? "#203B61" : "#EAF2FF");
+            primarySoft = Color.parseColor(dark ? "#203B61" : "#EAF2FF");
             warning = Color.parseColor(dark ? "#FFD27A" : "#B26A00");
             success = Color.parseColor(dark ? "#5ED6A7" : "#11B88A");
+            successSoft = Color.parseColor(dark ? "#153B32" : "#E8FBF5");
             danger = Color.parseColor(dark ? "#FF7E86" : "#F04438");
         }
 
